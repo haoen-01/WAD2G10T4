@@ -1,0 +1,42 @@
+name: Consent revoked mid-decline stays revoked when the decline resumes
+seed: 2026
+person_id: mdm-lim
+# HOLDOUT. Thresholds were never tuned against this scenario.
+# Combination not present in the core set: the core `04_consent_revoked` revokes consent on a day
+# whose wear-time is also zero, so the consent gate and the data-quality gate cover the same step
+# and neither can be observed alone. Here step 4 has good data (13.2h wear, -48.1% below
+# baseline) AND inactive consent.
+#
+# It was designed to isolate the consent gate, and it does not -- reported rather than iterated
+# away. By step 4 this person has already had two contacts, so with the consent gate ablated the
+# weekly contact cap intercepts the step and returns SUPPRESS anyway. The consequence is a real
+# gap in the evidence, recorded in the artifact: across BOTH scenario sets, every consent-revoked
+# step is independently blocked by data quality or by the contact cap, so no scenario yet
+# demonstrates that the consent gate itself is doing work. Closing that gap needs a scenario
+# where consent is revoked early, with good wear-time and an unspent budget.
+events:
+  - activity_declines
+  - activity_declines
+  - consent_revoked
+  - activity_declines
+expected_decisions:
+  - gentle_nudge
+  - programme_suggestion
+  - suppress
+  - suppress
+expected_cases: 0
+labels:
+  - emerging_decline
+  - emerging_decline
+  - no_consent
+  - no_consent
+# M24 additive latent world. The decline is real and it does not stop when permission does: the
+# world keeps counting low days through step 3, which the device never saw, and step 4, which it
+# did. `label_from_latent` still returns `no_consent` for both, because consent outranks
+# everything -- the point being that the harness can now say "a real decline continued and we
+# were right not to look", which is a stronger claim than "nothing was happening".
+world:
+  - { cause: routine_change, true_level: 0.60 }
+  - { cause: routine_change, true_level: 0.52 }
+  - { cause: routine_change, true_level: 0.52, observable: false }
+  - { cause: routine_change, true_level: 0.52 }

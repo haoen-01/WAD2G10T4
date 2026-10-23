@@ -1,0 +1,21 @@
+{
+  "name": "synthetic-data",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "tools/synthetic-data",
+  "targets": {
+    "generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python3 tools/synthetic-data/generate.py --days 28"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python3 -m compileall -q tools/synthetic-data/generate.py"
+      }
+    }
+  },
+  "tags": ["scope:tooling", "type:data"]
+}

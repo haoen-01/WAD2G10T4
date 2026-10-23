@@ -1,0 +1,77 @@
+# The weekly contact cap is counted in the person's simulated days, not the machine's clock.
+#
+# Two contacts land on days 1 and 2. Six recovery days follow, so by day 9 both are more than a
+# week in the past and the budget has been released: a fresh, mild dip is permitted the single
+# low-pressure nudge the ladder allows. Before the cap was moved onto the simulated calendar it
+# was `created_at >= utcnow() - 7 days`, so a demo that advanced these nine days in a minute
+# reported `suppress` here -- "we have contacted them enough this week" about a week that, in the
+# person's own days, was over.
+#
+# The harness applies the same rolling window (`evaluation/fold.py`), which is what lets the
+# parity gate hold on a scenario longer than seven days with contacts either side of the boundary.
+name: Contact cap counts the person's simulated week, not wall-clock seconds
+seed: 2026
+events:
+  - activity_declines
+  - activity_declines
+  - recovery
+  - recovery
+  - recovery
+  - recovery
+  - recovery
+  - recovery
+  - activity_declines
+expected_decisions:
+  - gentle_nudge
+  - programme_suggestion
+  - no_action
+  - no_action
+  - no_action
+  - no_action
+  - no_action
+  - no_action
+  - gentle_nudge
+expected_cases: 0
+# The response clock closes both early offers as `no_response` two simulated days after each was
+# made (days 3 and 4); the day-9 nudge is still awaiting a reply when the scenario ends.
+expected_outcomes:
+  - no_response
+  - no_response
+  - null
+labels:
+  - emerging_decline
+  - emerging_decline
+  - stable
+  - stable
+  - stable
+  - stable
+  - stable
+  - stable
+  - emerging_decline
+# M24 additive latent world. Two low days, six ordinary ones, then a fresh dip -- the shape the
+# contact budget is being tested against.
+world:
+  - { cause: routine_change, true_level: 0.60 }
+  - { cause: routine_change, true_level: 0.52 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: routine_change, true_level: 0.60 }
+# M38 additive follow-through outcomes: what Mdm Lim does IF contacted on that day. The two early
+# offers go unanswered, matching the response clock in the note above. The recovery days carry
+# `null` -- the scenario does not author what she would do if contacted on a day she is perfectly
+# well, and an unauthored day is missing data, never silence. The day-9 nudge is the one she
+# takes up and completes, which is what gives the funnel a single end-to-end path.
+outcomes:
+  - { response: no_response }
+  - { response: no_response }
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+  - { response: accepted, follow_through: completed, enjoyment: enjoyed }

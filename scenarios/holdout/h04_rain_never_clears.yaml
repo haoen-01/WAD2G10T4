@@ -1,0 +1,37 @@
+name: Rain that never clears over a sustained dip
+seed: 2026
+person_id: mdm-lim
+# HOLDOUT. Thresholds were never tuned against this scenario. This is the scenario the set was
+# built to be able to lose on.
+# Combination not present in the core set: `12_rain_then_persistent` lets the rain CLEAR and then
+# asks whether the dip persists. Here the rain never clears. Every day is rainy, and the dip is
+# the same size every day (3,300 steps, ~-42%), so the weather explanation is present and
+# unrefuted throughout -- which is why all three days are labelled `explained_dip`.
+#
+# That labelling encodes a contestable product judgement, and it is contestable in SilverLoop's
+# favour, so it is stated rather than buried: one can equally argue that three consecutive days
+# at -42% warrants a human look regardless of cause. SilverLoop's rain gate expires after one day
+# (`sustained_low_days < 2`), so it escalates on day 3. Under these labels that counts against it
+# in M1/M6, and the artifact reports it.
+events:
+  - rain_explains_decline
+  - rain_explains_decline
+  - rain_explains_decline
+expected_decisions:
+  - no_action
+  - programme_suggestion
+  - coordinator_review
+expected_cases: 1
+labels:
+  - explained_dip
+  - explained_dip
+  - explained_dip
+# M24 additive latent world. The contestable product judgement the header describes, now stated
+# as a world fact rather than only as a label: three rained-out days, the weather unrefuted
+# throughout. `label_from_latent` returns `explained_dip` on all three because the author said
+# weather caused them -- with no one-day expiry, which is precisely where it parts company with
+# SilverLoop's rain gate.
+world:
+  - { cause: weather, true_level: 0.57 }
+  - { cause: weather, true_level: 0.57 }
+  - { cause: weather, true_level: 0.57 }

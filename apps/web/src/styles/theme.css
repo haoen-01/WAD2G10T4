@@ -1,0 +1,772 @@
+/*
+ * Care+ theme, laid over Bootstrap 5.3 (loaded after it in main.ts).
+ *
+ * The idea running through every screen is "closing the loop": progress is shown as a ring that
+ * closes (today's steps against a usual day, today's tasks, appointments that have a helper). The
+ * palette is a cool mint-grey page, the team's jade green, coral kept for "needs a helper", and a
+ * sun yellow for highlights. Every colour pair used for text passes WCAG AA (most pass AAA).
+ *
+ * The typeface is Atkinson Hyperlegible Next, designed by the Braille Institute for readers with
+ * low vision. It is served from /public/fonts so the offline demo needs no network.
+ */
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+:root {
+  /* Palette */
+  --sl-ink: #102a26;
+  --sl-ink-soft: #46605a;
+  --sl-mist: #edf2ef;
+  --sl-surface: #ffffff;
+  --sl-line: #d3ddd8;
+  --sl-jade: #0b684f;
+  --sl-jade-deep: #084f3d;
+  --sl-jade-soft: #d7ebe2;
+  --sl-coral: #b23a26;
+  --sl-coral-deep: #8e2c1c;
+  --sl-coral-soft: #fbe3dc;
+  --sl-sun: #f4c95d;
+  --sl-sun-soft: #fdf3d6;
+  /* Text on an ink-coloured fill (the active tab, toasts): the opposite of ink in either theme. */
+  --sl-on-ink: #ffffff;
+  --sl-jade-on: #ffffff;
+  --sl-coral-on: #ffffff;
+
+  /*
+   * More colours, so not everything is green. Each one comes as a family:
+   *   --sl-X       the colour itself: fills, dots, borders, icons (at least 3:1 on the page)
+   *   --sl-X-on    text drawn ON a --sl-X fill (4.5:1 or better)
+   *   --sl-X-deep  text in that colour on the page, a panel or --sl-X-soft (4.5:1 or better)
+   *   --sl-X-soft  a pale tint for backgrounds
+   * They were picked to stay apart for the most common colour blindness (red-green), mostly by
+   * differing in lightness as well as hue: blue is dark, orange is mid, purple is a light pink-purple.
+   * Still never let colour alone carry a meaning: pair it with an icon or a word.
+   * Purple and orange fills are light (so dark text reads on them): on a white panel they pass 3:1,
+   * but for thin lines or small dots straight on the grey page, use --sl-purple-deep / -orange-deep.
+   */
+  --sl-blue: #2a64c8;
+  --sl-blue-on: #ffffff;
+  --sl-blue-deep: #1b4d9c;
+  --sl-blue-soft: #e3ecfb;
+  --sl-purple: #c76fb5;
+  --sl-purple-on: #102a26;
+  --sl-purple-deep: #7e3470;
+  --sl-purple-soft: #f7e8f3;
+  --sl-orange: #d47f12;
+  --sl-orange-on: #102a26;
+  --sl-orange-deep: #8a4a00;
+  --sl-orange-soft: #fcecd6;
+
+  /* One colour per kind of appointment (see `.kind-*` below), from the families above. */
+  --sl-kind-medical: var(--sl-blue);
+  --sl-kind-medical-on: var(--sl-blue-on);
+  --sl-kind-therapy: var(--sl-purple);
+  --sl-kind-therapy-on: var(--sl-purple-on);
+  --sl-kind-activity: var(--sl-jade);
+  --sl-kind-activity-on: var(--sl-jade-on);
+  --sl-kind-errand: var(--sl-orange);
+  --sl-kind-errand-on: var(--sl-orange-on);
+  --sl-kind-task: #839490;
+  --sl-kind-task-on: #102a26;
+
+  /* Kept for components that still read the old names. */
+  --sl-green: var(--sl-jade);
+  --sl-green-strong: var(--sl-jade-deep);
+  --sl-paper: var(--sl-mist);
+
+  /* Shape and depth. Shadows are only for things that float above the page. */
+  --sl-radius: 1.25rem;
+  --sl-radius-sm: 0.75rem;
+  --sl-float: 0 10px 30px rgb(16 42 38 / 14%), 0 2px 6px rgb(16 42 38 / 8%);
+
+  /* Motion */
+  --sl-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Bootstrap */
+  --bs-body-font-family:
+    'Atkinson Hyperlegible Next', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --bs-body-font-size: 1.0625rem;
+  --bs-body-line-height: 1.55;
+  --bs-body-bg: var(--sl-mist);
+  --bs-body-color: var(--sl-ink);
+  --bs-body-color-rgb: 16, 42, 38;
+  --bs-emphasis-color: var(--sl-ink);
+  --bs-secondary-color: var(--sl-ink-soft);
+  --bs-tertiary-bg: #e3eae6;
+  --bs-border-color: var(--sl-line);
+  --bs-border-radius: 0.75rem;
+  --bs-border-radius-lg: 1rem;
+  --bs-border-radius-xl: 1.25rem;
+  --bs-primary: var(--sl-jade);
+  --bs-primary-rgb: 11, 104, 79;
+  --bs-link-color: var(--sl-jade);
+  --bs-link-color-rgb: 11, 104, 79;
+  --bs-link-hover-color: var(--sl-jade-deep);
+  --bs-link-hover-color-rgb: 8, 79, 61;
+  --bs-heading-color: var(--sl-ink);
+}
+
+/* Zoom is chosen by the reader in the top bar (`useDisplay.ts`): it sets the root font size, and
+   Bootstrap sizes in rem, so everything follows. */
+
+/*
+ * Dark mode, chosen in the top bar (or the device's own setting). The same names, re-mixed for a
+ * dark page: the page and panels go deep green-grey, text goes light, and the "soft" tints become
+ * dark tints with light text on them. Jade stays dark enough to carry white button text; links and
+ * outlines use a lighter mint so they read on the dark page.
+ */
+:root[data-bs-theme='dark'] {
+  --sl-ink: #e3ece8;
+  --sl-ink-soft: #a7b8b2;
+  --sl-mist: #0e1715;
+  --sl-surface: #16221f;
+  --sl-line: #2c3d38;
+  --sl-jade: #1d7a5e;
+  --sl-jade-deep: #8fdcbf;
+  --sl-jade-soft: #173a30;
+  --sl-coral: #e2806d;
+  --sl-coral-deep: #f4ab9b;
+  --sl-coral-soft: #3c211b;
+  --sl-sun: #e9bd4f;
+  --sl-sun-soft: #3a3118;
+  --sl-mint: #7fd3b2;
+  --sl-on-ink: #0e1715;
+  --sl-jade-on: #ffffff;
+  --sl-coral-on: #0e1715;
+
+  /* The extra colours on a dark page: lighter fills with dark text on them, light "deep" text. */
+  --sl-blue: #5b8fe6;
+  --sl-blue-on: #0e1715;
+  --sl-blue-deep: #a8c6f6;
+  --sl-blue-soft: #1a2a45;
+  --sl-purple: #d495cb;
+  --sl-purple-on: #0e1715;
+  --sl-purple-deep: #ecc1e4;
+  --sl-purple-soft: #36233a;
+  --sl-orange: #f0b04a;
+  --sl-orange-on: #0e1715;
+  --sl-orange-deep: #f7cf8f;
+  --sl-orange-soft: #3b2c14;
+
+  /* Jade stays dark for buttons, so the activity colour uses a lighter jade here. */
+  --sl-kind-activity: #3fae88;
+  --sl-kind-activity-on: #0e1715;
+  --sl-kind-task: #a3b1ad;
+  --sl-kind-task-on: #0e1715;
+  --sl-float: 0 10px 30px rgb(0 0 0 / 45%), 0 2px 6px rgb(0 0 0 / 30%);
+
+  color-scheme: dark;
+  --bs-body-color-rgb: 227, 236, 232;
+  --bs-tertiary-bg: #1f2e2a;
+  --bs-link-color: var(--sl-mint);
+  --bs-link-color-rgb: 127, 211, 178;
+  --bs-link-hover-color: #a9e6cd;
+  --bs-link-hover-color-rgb: 169, 230, 205;
+}
+
+:root[data-bs-theme='dark'] .btn-primary {
+  --bs-btn-hover-bg: #16664e;
+  --bs-btn-hover-border-color: #16664e;
+  --bs-btn-active-bg: #125741;
+  --bs-btn-active-border-color: #125741;
+}
+
+:root[data-bs-theme='dark'] .btn-outline-primary {
+  --bs-btn-color: var(--sl-mint);
+  --bs-btn-border-color: var(--sl-mint);
+  --bs-btn-hover-color: #0e1715;
+  --bs-btn-hover-bg: var(--sl-mint);
+  --bs-btn-hover-border-color: var(--sl-mint);
+  --bs-btn-active-color: #0e1715;
+  --bs-btn-active-bg: var(--sl-mint);
+  --bs-btn-disabled-color: var(--sl-mint);
+}
+
+:root[data-bs-theme='dark'] .text-bg-secondary {
+  background-color: #2a3934 !important;
+}
+
+:root[data-bs-theme='dark'] .list-group {
+  --bs-list-group-action-hover-bg: #1d2b27;
+  --bs-list-group-color: var(--sl-ink);
+}
+
+:root[data-bs-theme='dark'] .alert-success {
+  --bs-alert-border-color: #24503f;
+}
+
+:root[data-bs-theme='dark'] .alert-danger {
+  --bs-alert-border-color: #5a2e25;
+}
+
+/* Changing theme fades rather than snaps. */
+body,
+.sl-panel,
+.card {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* Jumping to a section (`SectionNav`, `#links`) stops below the pinned menu, not under it.
+   `--sl-pinned-height` is kept up to date by `AppLayout.vue`. */
+html {
+  scroll-padding-top: calc(var(--sl-pinned-height, 0px) + 0.75rem);
+}
+
+body {
+  font-feature-settings: 'ss01' 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+.h1,
+.h2,
+.h3,
+.h4 {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+
+.display-num {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Bootstrap components, restated where 5.3 compiles colours as literals ---------- */
+
+.btn {
+  --bs-btn-font-weight: 600;
+  --bs-btn-padding-x: 1.1rem;
+  --bs-btn-border-radius: 999px;
+  --bs-btn-border-width: 2px;
+}
+
+.btn-lg {
+  --bs-btn-padding-y: 0.75rem;
+  --bs-btn-padding-x: 1.5rem;
+  --bs-btn-font-size: 1.15rem;
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--sl-jade);
+  --bs-btn-border-color: var(--sl-jade);
+  --bs-btn-hover-bg: var(--sl-jade-deep);
+  --bs-btn-hover-border-color: var(--sl-jade-deep);
+  --bs-btn-active-bg: var(--sl-jade-deep);
+  --bs-btn-active-border-color: var(--sl-jade-deep);
+  --bs-btn-disabled-bg: var(--sl-jade);
+  --bs-btn-disabled-border-color: var(--sl-jade);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--sl-jade);
+  --bs-btn-border-color: var(--sl-jade);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--sl-jade);
+  --bs-btn-hover-border-color: var(--sl-jade);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--sl-jade-deep);
+  --bs-btn-active-border-color: var(--sl-jade-deep);
+  --bs-btn-disabled-color: var(--sl-jade);
+  --bs-btn-disabled-border-color: var(--sl-jade);
+}
+
+.btn-outline-secondary {
+  --bs-btn-color: var(--sl-ink-soft);
+  --bs-btn-border-color: var(--sl-line);
+  --bs-btn-hover-color: var(--sl-ink);
+  --bs-btn-hover-bg: var(--bs-tertiary-bg);
+  --bs-btn-hover-border-color: var(--sl-ink-soft);
+  --bs-btn-active-color: var(--sl-ink);
+  --bs-btn-active-bg: var(--sl-line);
+  --bs-btn-active-border-color: var(--sl-ink-soft);
+}
+
+.btn-quiet {
+  --bs-btn-color: var(--sl-ink);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-bg: var(--bs-tertiary-bg);
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-bg: var(--sl-line);
+  --bs-btn-active-border-color: transparent;
+}
+
+.btn-link {
+  --bs-btn-font-weight: 600;
+}
+
+.card {
+  --bs-card-bg: var(--sl-surface);
+  --bs-card-border-color: var(--sl-line);
+  --bs-card-border-radius: var(--sl-radius);
+  --bs-card-inner-border-radius: calc(var(--sl-radius) - 1px);
+  --bs-card-spacer-y: 1.25rem;
+  --bs-card-spacer-x: 1.25rem;
+}
+
+.list-group {
+  --bs-list-group-bg: var(--sl-surface);
+  --bs-list-group-border-color: var(--sl-line);
+  --bs-list-group-border-radius: var(--sl-radius-sm);
+  --bs-list-group-action-hover-bg: #f3f7f5;
+  --bs-list-group-action-active-bg: var(--sl-jade-soft);
+}
+
+.form-control,
+.form-select {
+  border-width: 2px;
+  border-radius: var(--sl-radius-sm);
+  background-color: var(--sl-surface);
+}
+
+.form-label {
+  font-weight: 600;
+}
+
+/* Switches, radios and checkboxes are jade when on, not Bootstrap blue. */
+.form-check-input {
+  border-width: 2px;
+  border-color: var(--sl-ink-soft);
+}
+
+.form-check-input:checked {
+  background-color: var(--sl-jade);
+  border-color: var(--sl-jade);
+}
+
+.alert {
+  --bs-alert-border-radius: var(--sl-radius-sm);
+}
+
+.alert-success {
+  --bs-alert-color: var(--sl-jade-deep);
+  --bs-alert-bg: var(--sl-jade-soft);
+  --bs-alert-border-color: #b6d9c9;
+}
+
+.alert-danger {
+  --bs-alert-color: var(--sl-coral-deep);
+  --bs-alert-bg: var(--sl-coral-soft);
+  --bs-alert-border-color: #f2c2b5;
+}
+
+.badge {
+  --bs-badge-font-weight: 700;
+  --bs-badge-padding-x: 0.7em;
+  --bs-badge-padding-y: 0.4em;
+}
+
+/* Bootstrap's warning and info badges are pale; these restate them in the palette. */
+.text-bg-warning {
+  color: var(--sl-coral-deep) !important;
+  background-color: var(--sl-coral-soft) !important;
+}
+
+.text-bg-info {
+  color: var(--sl-jade-deep) !important;
+  background-color: var(--sl-jade-soft) !important;
+}
+
+.text-bg-success {
+  color: #fff !important;
+  background-color: var(--sl-jade) !important;
+}
+
+.text-bg-secondary {
+  color: var(--sl-ink) !important;
+  background-color: #dfe6e2 !important;
+}
+
+/* ---------- Layout pieces shared by several screens ---------- */
+
+/* A white panel. Only the main things on a screen get one; supporting detail sits on the page. */
+.sl-panel {
+  background: var(--sl-surface);
+  border: 1px solid var(--sl-line);
+  border-radius: var(--sl-radius);
+  padding: 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .sl-panel {
+    padding: 1.5rem;
+  }
+}
+
+.sl-page-head {
+  margin-bottom: 1.5rem;
+}
+
+.sl-page-head h1 {
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  margin-bottom: 0.35rem;
+}
+
+.sl-lede {
+  font-size: 1.125rem;
+  color: var(--sl-ink-soft);
+  max-width: 44rem;
+}
+
+.sl-note {
+  font-size: 0.9rem;
+  color: var(--sl-ink-soft);
+}
+
+/* A toggle chip: a button that stays pressed (aria-pressed) while its filter is on. */
+.sl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.95rem;
+  border: 2px solid var(--sl-line);
+  border-radius: 999px;
+  background: var(--sl-surface);
+  color: var(--sl-ink);
+  font-weight: 600;
+  line-height: 1.2;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s var(--sl-ease);
+}
+
+.sl-chip:hover {
+  border-color: var(--sl-ink-soft);
+}
+
+.sl-chip:active {
+  transform: scale(0.97);
+}
+
+.sl-chip[aria-pressed='true'] {
+  border-color: var(--chip, var(--sl-jade));
+  background: color-mix(in srgb, var(--chip, var(--sl-jade)) 12%, var(--sl-surface));
+}
+
+.sl-chip[aria-pressed='false'] {
+  color: var(--sl-ink-soft);
+}
+
+.sl-chip-swatch {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: var(--chip, var(--sl-jade));
+}
+
+.sl-chip[aria-pressed='false'] .sl-chip-swatch {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--chip, var(--sl-jade));
+}
+
+/* An icon sitting next to its words. Icons are never the only signal. */
+.sl-icon {
+  flex: none;
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -0.25em;
+}
+
+/* ---------- Colour tones for sections, chips and tags ---------- */
+/*
+ * Put `sl-tone-blue` (or jade, coral, purple, orange) on any element and use these inside it:
+ *   var(--tone)       fills, borders, icons      var(--tone-on)    text on a --tone fill
+ *   var(--tone-deep)  coloured text              var(--tone-soft)  pale background
+ * Ready-made pieces that follow the tone: `.sl-icon-chip`, `.sl-tag`, `.sl-panel-accent`.
+ * A tone is decoration: the words next to it must still say what it means.
+ */
+.sl-tone-jade {
+  --tone: var(--sl-jade);
+  --tone-on: var(--sl-jade-on);
+  --tone-deep: var(--sl-jade-deep);
+  --tone-soft: var(--sl-jade-soft);
+}
+
+.sl-tone-coral {
+  --tone: var(--sl-coral);
+  --tone-on: var(--sl-coral-on);
+  --tone-deep: var(--sl-coral-deep);
+  --tone-soft: var(--sl-coral-soft);
+}
+
+.sl-tone-blue {
+  --tone: var(--sl-blue);
+  --tone-on: var(--sl-blue-on);
+  --tone-deep: var(--sl-blue-deep);
+  --tone-soft: var(--sl-blue-soft);
+}
+
+.sl-tone-purple {
+  --tone: var(--sl-purple);
+  --tone-on: var(--sl-purple-on);
+  --tone-deep: var(--sl-purple-deep);
+  --tone-soft: var(--sl-purple-soft);
+}
+
+.sl-tone-orange {
+  --tone: var(--sl-orange);
+  --tone-on: var(--sl-orange-on);
+  --tone-deep: var(--sl-orange-deep);
+  --tone-soft: var(--sl-orange-soft);
+}
+
+/* A round tinted badge holding one icon, e.g. beside a section heading. */
+.sl-icon-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--tone-soft, var(--sl-jade-soft));
+  color: var(--tone-deep, var(--sl-jade-deep));
+}
+
+.sl-icon-chip .sl-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+/* A small pill of coloured words, e.g. "Medicine" or "No one going". */
+.sl-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: var(--tone-soft, var(--sl-jade-soft));
+  color: var(--tone-deep, var(--sl-jade-deep));
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* A panel with a coloured strip along the top, so each section of a page has its own colour. */
+.sl-panel-accent {
+  border-top: 5px solid var(--tone, var(--sl-jade));
+}
+
+/* ---------- The kinds of appointment ---------- */
+/*
+ * One clearly different colour per kind, light and dark. Inside an element with `kind-<name>`:
+ *   var(--kind)       fills, dots, borders       var(--kind-on)    text on a --kind fill
+ *   var(--kind-deep)  text in the kind's colour  var(--kind-soft)  pale background
+ * `--chip` is set too, so `<button class="sl-chip kind-medical">` colours itself.
+ * A kind is always written out (and ideally has its icon: `<Icon :name="kind" />`), never colour alone.
+ */
+.kind-medical {
+  --kind: var(--sl-kind-medical);
+  --kind-on: var(--sl-kind-medical-on);
+  --kind-deep: var(--sl-blue-deep);
+  --kind-soft: var(--sl-blue-soft);
+}
+
+.kind-therapy {
+  --kind: var(--sl-kind-therapy);
+  --kind-on: var(--sl-kind-therapy-on);
+  --kind-deep: var(--sl-purple-deep);
+  --kind-soft: var(--sl-purple-soft);
+}
+
+.kind-activity {
+  --kind: var(--sl-kind-activity);
+  --kind-on: var(--sl-kind-activity-on);
+  --kind-deep: var(--sl-jade-deep);
+  --kind-soft: var(--sl-jade-soft);
+}
+
+.kind-errand {
+  --kind: var(--sl-kind-errand);
+  --kind-on: var(--sl-kind-errand-on);
+  --kind-deep: var(--sl-orange-deep);
+  --kind-soft: var(--sl-orange-soft);
+}
+
+/* A task from the Tasks panel, shown on the calendar beside appointments. A neutral grey; tasks
+   also have a dashed edge and a tick box, so they never rely on this colour. */
+.kind-task {
+  --kind: var(--sl-kind-task);
+  --kind-on: var(--sl-kind-task-on);
+  --kind-deep: var(--sl-ink-soft);
+  --kind-soft: var(--bs-tertiary-bg);
+}
+
+.kind-medical,
+.kind-therapy,
+.kind-activity,
+.kind-errand,
+.kind-task {
+  --chip: var(--kind);
+}
+
+.kind-badge {
+  background-color: var(--kind);
+  color: var(--kind-on);
+}
+
+/* ---------- Toasts ---------- */
+
+.sl-toasts {
+  position: fixed;
+  z-index: 1080;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+@media (max-width: 767.98px) {
+  .sl-toasts {
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 768px) {
+  .sl-toasts {
+    left: auto;
+    align-items: flex-end;
+  }
+}
+
+.sl-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 28rem;
+  padding: 0.7rem 0.7rem 0.7rem 1.1rem;
+  border-radius: 999px;
+  background: var(--sl-ink);
+  color: #fff;
+  box-shadow: var(--sl-float);
+  pointer-events: auto;
+}
+
+/* Dark mode: a raised dark pill, so the sun-coloured Undo still stands out on it. */
+:root[data-bs-theme='dark'] .sl-toast {
+  background: #2a3d37;
+  color: var(--sl-ink);
+}
+
+.sl-toast .btn {
+  --bs-btn-color: var(--sl-sun);
+  --bs-btn-hover-color: var(--sl-ink);
+  --bs-btn-hover-bg: var(--sl-sun);
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-padding-x: 0.85rem;
+  min-height: 2.5rem;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.3s var(--sl-ease);
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+}
+
+/* ---------- Route change ---------- */
+
+.page-enter-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.3s var(--sl-ease);
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+/* ---------- Accessibility rules Bootstrap does not provide ---------- */
+
+/* Buttons and fields are at least 44px tall: an easy target for shaky or older hands. */
+.btn,
+.form-control,
+.form-select {
+  min-height: 2.75rem;
+}
+
+/* One clear keyboard focus ring instead of Bootstrap's pale blue glow. */
+:focus-visible,
+.btn:focus-visible,
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  outline: 3px solid var(--sl-jade);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+/* The skip link and route changes move focus to <main>; it is not a control, so no ring. */
+main:focus {
+  outline: none;
+}
+
+.visually-hidden-focusable:focus {
+  position: fixed !important;
+  z-index: 2000;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--sl-radius-sm);
+  background: var(--sl-ink);
+  color: var(--sl-on-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "silverloop",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "setup": "./scripts/bootstrap.sh",
+    "dev": "nx run-many -t dev --projects=web,api --parallel=2",
+    "dev:web": "nx run web:dev",
+    "dev:api": "nx run api:dev",
+    "runtime:check": "nx run api:runtime-check",
+    "build": "nx run-many -t build",
+    "test": "nx run-many -t test",
+    "test:postgres": "nx run api:test-postgres",
+    "test:e2e": "nx run e2e:test",
+    "test:scenarios": "nx run api:test-scenarios",
+    "evaluate": "nx run api:evaluate && nx run api:evaluate-ranking && nx run api:evaluate-ranking-llm && nx run api:evaluate-calibration",
+    "evaluate:check": "nx run api:evaluate-check && nx run api:evaluate-ranking-check && nx run api:evaluate-ranking-llm-check && nx run api:evaluate-calibration-check",
+    "lint": "nx run-many -t lint",
+    "format": "prettier --write . && nx run api:format",
+    "format:check": "prettier --check . && nx run api:format-check",
+    "typecheck": "nx run-many -t typecheck",
+    "api:openapi": "nx run api:openapi",
+    "client:generate": "nx run api-client:generate",
+    "client:check": "nx run api-client:check",
+    "seed": "nx run api:seed",
+    "demo:reset": "nx run api:demo-reset",
+    "demo:smoke": "nx run api:demo-smoke",
+    "demo:supabase-smoke": "nx run api:supabase-smoke",
+    "demo:offline": "node scripts/demo-offline.mjs",
+    "affected": "nx affected -t lint,typecheck,test",
+    "verify": "./scripts/verify.sh"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
+    "nx": "23.1.1",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3"
+  }
+}

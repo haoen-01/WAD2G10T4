@@ -1,0 +1,14 @@
+name: Public holiday context does not excuse an unrelated decline
+seed: 2026
+events:
+  - public_holiday
+expected_decisions:
+  - gentle_nudge
+expected_cases: 0
+labels:
+  - emerging_decline
+# M24 additive latent world. The holiday is the cause, and `label_from_latent` deliberately does
+# NOT treat `holiday` as an excuse the way it treats `weather` -- matching the product boundary
+# this scenario exists to state.
+world:
+  - { cause: holiday, true_level: 0.75 }

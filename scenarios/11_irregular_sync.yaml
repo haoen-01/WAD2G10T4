@@ -1,0 +1,22 @@
+name: Missing and delayed data never yield an inference from absent data
+seed: 2026
+person_id: mdm-siti
+events:
+  - low_wear
+  - low_wear
+  - recovery
+expected_decisions:
+  - no_action
+  - no_action
+  - no_action
+expected_cases: 0
+labels:
+  - unusable_data
+  - unusable_data
+  - stable
+# M24 additive latent world. Two days the device did not see, and she was fine on both -- which
+# the recovery day then confirms. Nothing may be inferred from the gap in either direction.
+world:
+  - { cause: device, true_level: 1.00, observable: false }
+  - { cause: device, true_level: 1.00, observable: false }
+  - { cause: none, true_level: 1.05 }

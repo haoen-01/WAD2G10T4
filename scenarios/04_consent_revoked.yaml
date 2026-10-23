@@ -1,0 +1,13 @@
+name: Consent revocation suppresses all action
+seed: 2026
+events:
+  - consent_revoked
+expected_decisions:
+  - suppress
+expected_cases: 0
+labels:
+  - no_consent
+# M24 additive latent world. Nothing was wrong with the day; permission ended, and the device
+# stopped reporting with it.
+world:
+  - { cause: device, true_level: 1.00, observable: false }

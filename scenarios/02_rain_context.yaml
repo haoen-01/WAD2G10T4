@@ -1,0 +1,12 @@
+name: Rain prevents a premature nudge
+seed: 2026
+events:
+  - rain_explains_decline
+expected_decisions:
+  - no_action
+expected_cases: 0
+labels:
+  - explained_dip
+# M24 additive latent world. The dip is real and the weather caused it.
+world:
+  - { cause: weather, true_level: 0.58 }

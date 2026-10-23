@@ -1,0 +1,37 @@
+name: Sustained decline climbs the intervention ladder
+seed: 2026
+events:
+  - activity_declines
+  - activity_declines
+  - activity_declines
+expected_decisions:
+  - gentle_nudge
+  - programme_suggestion
+  - coordinator_review
+expected_cases: 1
+# The response clock: the day-1 nudge is still unanswered two simulated days later, so day 3's
+# advance closes it as `no_response` (recorded by `system`, weighted as silence rather than a
+# refusal). The day-2 suggestion is inside its window when the scenario ends and stays open.
+expected_outcomes:
+  - no_response
+  - null
+labels:
+  - emerging_decline
+  - emerging_decline
+  - persistent_decline
+# M24 additive latent world. A real three-day withdrawal from her usual routine, deepening.
+world:
+  - { cause: routine_change, true_level: 0.60 }
+  - { cause: routine_change, true_level: 0.52 }
+  - { cause: routine_change, true_level: 0.44 }
+# M38 additive follow-through outcomes: what Mdm Lim does IF she is contacted on that day. A
+# counterfactual fact about her, like `world:` above -- not a record of what any policy did, which
+# is what keeps the funnel from scoring Care+ against its own output. A step nobody contacts
+# never enters the denominator, so a quieter policy is simply measured on fewer offers.
+#
+# Authored to match the response clock this scenario already documents: the day-1 message goes
+# unanswered, and by day 2 she is willing to look at something and then does not get there.
+outcomes:
+  - { response: no_response }
+  - { response: accepted, follow_through: not_this_time }
+  - { response: deferred }

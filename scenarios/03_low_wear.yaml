@@ -1,0 +1,13 @@
+name: Insufficient wear-time blocks outreach
+seed: 2026
+events:
+  - low_wear
+expected_decisions:
+  - no_action
+expected_cases: 0
+labels:
+  - unusable_data
+# M24 additive latent world. The truth the harness could not state before: her day was ordinary
+# and the device missed it. `observable: false` is the device's failure, not hers.
+world:
+  - { cause: device, true_level: 1.00, observable: false }

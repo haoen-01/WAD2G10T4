@@ -1,0 +1,110 @@
+# Care+
+
+Care+ is an agentic active-ageing and AAC outreach prototype. It learns personal activity
+baselines, validates data quality, considers context, chooses the least intrusive permitted action,
+observes outcomes, and adapts future intervention choices. It is not a medical or emergency system.
+
+## Repository status
+
+The core demo is synthetic and offline-capable; Healthy 365 and real AAC integrations are future,
+authorised adapters only.
+
+## Prerequisites
+
+- Node.js 24
+- pnpm 11
+- Python 3.13
+- uv
+
+Supabase PostgreSQL is the default shared runtime. Docker is optional; SQLite remains available for
+tests and the explicit emergency offline demo.
+
+## Quick start (no accounts or credentials)
+
+You need Node 24, pnpm 11, and Python 3.13 with [uv](https://docs.astral.sh/uv/).
+
+```bash
+pnpm install
+cd apps/api && uv sync && cd ../..
+pnpm demo:offline
+```
+
+`pnpm demo:offline` starts the API on a local SQLite file with synthetic data and no language
+model, and the web app with sign-in off. It works in any shell, including Windows. Open:
+
+- Web: <http://127.0.0.1:3000>
+- API docs: <http://127.0.0.1:8000/docs>
+
+**No username or password is needed for this mode** -- sign-in is disabled, so every screen is
+reachable directly. Only the Supabase-backed "Shared runtime" below uses real accounts, created
+through Supabase's own sign-up, not a fixed demo login.
+
+The web app is a Vue 3 + Bootstrap 5 single-page app in `apps/web`. **Home** is a daily overview
+(the senior's activity metrics, a brief look at the calendar, and today's tasks and medicine).
+**Senior** (the suggestion, and a consent switch) follows the loop from there. **Calendar** (Mdm
+Lim's activities and appointments, and which family members are helping) and **Family** (the
+family group, and when each member can help) help a family share the care. Calendar and family
+coordination use the API. Tasks on Home and Senior (one-off, daily or weekly) are kept in the
+browser only, since the API has no tasks yet, and show on the calendar too; see `docs/tasks.md`.
+Only the offline demo persona, Mdm Lim, exists until you run `pnpm seed`.
+
+## Shared runtime (Supabase)
+
+```bash
+pnpm run setup
+# Replace the placeholder DATABASE_URL in .env with a server-side Supabase connection string.
+pnpm dev
+```
+
+## Main commands
+
+```bash
+pnpm dev
+pnpm demo:offline
+pnpm test
+pnpm test:postgres
+pnpm lint
+pnpm typecheck
+pnpm demo:reset
+pnpm demo:smoke
+pnpm demo:supabase-smoke
+```
+
+## Testing
+
+```bash
+pnpm test            # Python unit/API tests, plus the Playwright browser suite
+pnpm test:e2e         # just the Playwright browser suite (apps/e2e/tests)
+pnpm test:scenarios   # YAML safety-policy scenarios under scenarios/
+pnpm test:postgres    # needs SILVERLOOP_POSTGRES_TEST_URL; the database name must contain "test"
+pnpm verify           # format, contract, lint, typecheck, test, scenarios, build -- what CI runs
+```
+
+`pnpm test:e2e` (and `pnpm test`) start their own API and web servers against a throwaway SQLite
+database, so nothing needs to be running first. See [`docs/testing.md`](./docs/testing.md) for what
+each layer of tests actually establishes.
+
+The outreach planning agent, its deterministic guardrail and the bounded plan/act/adapt loop are
+described in [`agenticlayer.md`](./agenticlayer.md). It is off by default; the complete demo runs
+with `LLM_ENABLED=false`.
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for team workflow and
+[`docs/architecture.md`](./docs/architecture.md) for system boundaries.
+
+Wearable inputs are detachable and provider-neutral; see
+[`docs/data-adapters.md`](./docs/data-adapters.md) for the synthetic default, consented sample
+normalisation and the explicit Healthy 365 future-only boundary.
+
+For a clean-machine walkthrough use [`docs/setup.md`](./docs/setup.md). For the pitch-day sequence
+and recovery steps use [`docs/demo-runbook.md`](./docs/demo-runbook.md).
+
+## Data truth
+
+The default demo uses reproducible synthetic daily metrics, cached context fixtures, mock AAC
+programmes and simulated outcomes. Team-owned Apple/Garmin exports are optional, consented proofs
+of adapter normalisation only. Synthetic results validate software policy, not clinical outcomes.
+
+## Licence
+
+Copyright remains with the project team. Add an explicit open-source licence only after the team
+agrees on one.

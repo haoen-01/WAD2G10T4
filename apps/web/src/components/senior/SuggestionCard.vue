@@ -1,0 +1,171 @@
+<script lang="ts">
+import type { Intervention, OutcomeKind } from '@silverloop/api-client';
+import { defineComponent, type PropType } from 'vue';
+
+import Icon, { type IconName } from '@/components/ui/Icon.vue';
+import { SENIOR_REPLIES } from '@/lib/labels';
+
+const REPLY_ICONS: Record<string, IconName> = {
+  accepted: 'check-circle',
+  deferred: 'clock',
+  declined: 'x',
+};
+
+/**
+ * One suggestion for the senior, in large type, with "Read this to me" and the three replies.
+ * A reply is emitted as `reply(outcome, thanks)`; the senior screen sends it to the API.
+ */
+export default defineComponent({
+  name: 'SuggestionCard',
+  components: { Icon },
+
+  props: {
+    suggestion: { type: Object as PropType<Intervention>, required: true },
+    /** True while a reply is being saved, so it cannot be sent twice. */
+    busy: { type: Boolean, default: false },
+  },
+
+  emits: {
+    reply: (outcome: OutcomeKind, thanks: string) => Boolean(outcome && thanks),
+  },
+
+  data() {
+    return {
+      replies: SENIOR_REPLIES,
+      icons: REPLY_ICONS,
+      // Read aloud, for eyes that are tired today. Uses the browser's own speech; hidden where
+      // there is none.
+      canSpeak: typeof window !== 'undefined' && 'speechSynthesis' in window,
+      reading: false,
+    };
+  },
+
+  // Leaving the screen stops any reading.
+  beforeUnmount() {
+    this.stopReading();
+  },
+
+  methods: {
+    stopReading() {
+      if (this.canSpeak) window.speechSynthesis.cancel();
+      this.reading = false;
+    },
+    readAloud() {
+      if (!this.canSpeak) return;
+      if (this.reading) return this.stopReading();
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(
+        `${this.suggestion.title}. ${this.suggestion.message}`,
+      );
+      utterance.rate = 0.9;
+      utterance.onend = () => {
+        this.reading = false;
+      };
+      utterance.onerror = () => {
+        this.reading = false;
+      };
+      this.reading = true;
+      window.speechSynthesis.speak(utterance);
+    },
+    reply(outcome: OutcomeKind, thanks: string) {
+      this.stopReading();
+      this.$emit('reply', outcome, thanks);
+    },
+  },
+});
+</script>
+
+<template>
+  <section class="suggestion" aria-labelledby="suggestion-heading">
+    <p class="suggestion-from"><Icon name="sparkle" class="me-2" />A suggestion for you</p>
+    <h2 id="suggestion-heading" class="suggestion-title">{{ suggestion.title }}</h2>
+    <p class="suggestion-message">{{ suggestion.message }}</p>
+
+    <button
+      v-if="canSpeak"
+      type="button"
+      class="btn btn-quiet read-btn mb-4"
+      :aria-pressed="reading"
+      @click="readAloud"
+    >
+      <Icon :name="reading ? 'stop' : 'speaker'" class="me-2" />
+      {{ reading ? 'Stop reading' : 'Read this to me' }}
+    </button>
+
+    <div class="replies">
+      <button
+        v-for="(option, index) in replies"
+        :key="option.outcome"
+        type="button"
+        class="btn btn-lg reply"
+        :class="index === 0 ? 'btn-primary' : 'btn-outline-primary'"
+        :disabled="busy"
+        @click="reply(option.outcome, option.thanks)"
+      >
+        <Icon :name="icons[option.outcome] ?? 'check'" class="me-2" />{{ option.label }}
+      </button>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+/* The suggestion reads as a message from the centre: generous type, nothing else competing. */
+.suggestion {
+  position: relative;
+  padding: 1.5rem;
+  border: 2px solid var(--sl-jade);
+  border-radius: var(--sl-radius);
+  background: var(--sl-surface);
+}
+
+@media (min-width: 768px) {
+  .suggestion {
+    padding: 2rem 2.25rem;
+  }
+}
+
+.suggestion-from {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding: 0.25rem 0.85rem;
+  border-radius: 999px;
+  background: var(--sl-sun-soft);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.suggestion-title {
+  font-size: clamp(1.7rem, 4vw, 2.3rem);
+  font-weight: 800;
+}
+
+.suggestion-message {
+  max-width: 40rem;
+  font-size: 1.3rem;
+  line-height: 1.5;
+}
+
+.read-btn {
+  --bs-btn-padding-x: 0.9rem;
+  margin-left: -0.9rem;
+}
+
+.replies {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .replies {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.reply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 4rem;
+}
+</style>

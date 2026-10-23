@@ -1,0 +1,37 @@
+name: A sync gap must not hide the decline that follows it
+seed: 2026
+person_id: mdm-siti
+# HOLDOUT. Thresholds were never tuned against this scenario. Labels are world state, assigned
+# by the rule in README.md before any decision was read.
+# Combination not present in the core set: an unusable-data day immediately followed by a real,
+# shallow dip against a low-adherence persona's own baseline. Step 4 is -21.4% below her ROLLING
+# median but -19.6% against her ANCHORED median, and the documented rule labels against the
+# anchored one -- so it is `stable` by the rule, while the policy (which reads the rolling
+# delta) still nudges. Corrected 2026-09-12 when the rule was made executable: the label had
+# been authored from the rolling delta. Steps 2-3 are only -7.7% and are within her normal range.
+events:
+  - low_wear
+  - activity_declines
+  - activity_declines
+  - activity_declines
+expected_decisions:
+  - no_action
+  - no_action
+  - no_action
+  - gentle_nudge
+expected_cases: 0
+labels:
+  - unusable_data
+  - stable
+  - stable
+  - stable
+# M24 additive latent world. The sync gap hid an ordinary day; the three days after it drift
+# gently down. Day 4 reaches four fifths of her own norm, which the authored world calls low --
+# while the authored label reads `stable` because the anchored delta lands at -19.6%, four tenths
+# of a point on the safe side of the -20% line. The two accounts disagree there, and that is the
+# single clearest demonstration that `label_from_latent` is not the -20% boundary restated.
+world:
+  - { cause: device, true_level: 0.95, observable: false }
+  - { cause: none, true_level: 0.95 }
+  - { cause: none, true_level: 0.92 }
+  - { cause: routine_change, true_level: 0.80 }

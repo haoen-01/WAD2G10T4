@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "banner": "SYNTHETIC RECORDING -- NOT A MODEL. Every response in this file was produced by `silverloop.evaluation.ranking_llm.scripted_model`, a deterministic rule-based stand-in whose two rules are written out in that module's docstring. Latency and token counts are synthesised from the request hash and are NOT measurements. Nothing in this file is evidence about any model's behaviour; it exists so the agent loop, its guardrail and its degradation paths can be exercised and measured offline.",
+  "loop": "activity_ranking",
+  "generator": "silverloop.evaluation.ranking_llm.synthesise (scripted-stand-in-v1+invent_key_once)",
+  "entries": [
+    {
+      "key": "bf6bc588a5b1b9f602eb06e5b1ca8dc220178027088db8050377f628345d5d26",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 1003,
+        "output_tokens": 32
+      },
+      "latency_ms": 667,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "call_f46ead770f0f",
+          "name": "get_activity_options",
+          "input": {}
+        }
+      ]
+    },
+    {
+      "key": "f4db8850e7881f62ccc0591efdb1725525f28dcaccf2d5b273b4567deb8223b8",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 1429,
+        "output_tokens": 62
+      },
+      "latency_ms": 1313,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "call_4d73fb2d0cf9",
+          "name": "propose_activity_order",
+          "input": {
+            "ordered_keys": [
+              "activity-never-permitted",
+              "adversarial-0",
+              "adversarial-1",
+              "adversarial-2",
+              "adversarial-3"
+            ],
+            "reasoning": "Scripted stand-in: varied the first three categories, then dropped tail options repeating a category already offered."
+          }
+        }
+      ]
+    },
+    {
+      "key": "9c64ec34025ee62b8862beb8896d4121d49bc1f3055a9c030c20720fbc7bd5e6",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 1616,
+        "output_tokens": 56
+      },
+      "latency_ms": 696,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "call_a1ee7ae64874",
+          "name": "propose_activity_order",
+          "input": {
+            "ordered_keys": ["adversarial-0", "adversarial-1", "adversarial-2", "adversarial-3"],
+            "reasoning": "Scripted stand-in: varied the first three categories, then dropped tail options repeating a category already offered."
+          }
+        }
+      ]
+    }
+  ]
+}

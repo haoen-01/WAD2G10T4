@@ -1,0 +1,25 @@
+name: Repeated mild dips draw repeated contact from an uncapped policy
+seed: 2026
+person_id: mr-tan
+events:
+  - activity_declines
+  - activity_declines
+  - activity_declines
+expected_decisions:
+  - gentle_nudge
+  - gentle_nudge
+  - suppress
+expected_cases: 0
+labels:
+  - emerging_decline
+  - emerging_decline
+  - emerging_decline
+# M24 additive latent world. Three consecutive days at roughly four fifths of Mr Tan's own norm:
+# mild, but real, and unbroken. The authored world therefore calls day 3 persistent while the
+# authored label (and the signal rule behind it) still reads `emerging_decline`, because his
+# anchored delta never accumulates three valid low days. That disagreement is reported, not
+# reconciled -- see `label_feature_agreement` in the artifact.
+world:
+  - { cause: routine_change, true_level: 0.79 }
+  - { cause: routine_change, true_level: 0.79 }
+  - { cause: routine_change, true_level: 0.79 }

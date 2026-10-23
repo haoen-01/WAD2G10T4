@@ -1,0 +1,17 @@
+packages:
+  - apps/*
+  - libs/*
+  - tools/*
+
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  nx: true
+
+# Bootstrap declares Popper as a peer for its JS plugins; this app uses Bootstrap's CSS only, so
+# stop pnpm installing it automatically.
+packageExtensions:
+  bootstrap:
+    peerDependenciesMeta:
+      '@popperjs/core':
+        optional: true

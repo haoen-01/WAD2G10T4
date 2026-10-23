@@ -1,0 +1,27 @@
+name: Gradual multi-week decline reaches coordinator review
+seed: 2026
+person_id: mdm-devi
+events:
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+expected_decisions:
+  - gentle_nudge
+  - gentle_nudge
+  - suppress
+  - coordinator_review
+expected_cases: 1
+labels:
+  - emerging_decline
+  - emerging_decline
+  - emerging_decline
+  - persistent_decline
+# M24 additive latent world. Four unbroken low days. The world calls day 3 persistent; the signal
+# rule does not, because Mdm Devi's `sustained_low_days` counter starts a day later than the
+# world's own. A measurement lag, reported as a disagreement.
+world:
+  - { cause: routine_change, true_level: 0.60 }
+  - { cause: routine_change, true_level: 0.52 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }

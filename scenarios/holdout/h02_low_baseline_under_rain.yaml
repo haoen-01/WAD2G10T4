@@ -1,0 +1,33 @@
+name: Rain over a low but stable baseline is still not a decline
+seed: 2026
+person_id: mr-ravi
+# HOLDOUT. Thresholds were never tuned against this scenario.
+# Combination not present in the core set: rain context applied to the low-baseline persona.
+# Every step here sits AT or ABOVE Mr Ravi's own median (+37.5%, +4.2%, +4.2%, +3.5%), so the
+# world state is `stable` throughout and the rain explains nothing, because nothing needs
+# explaining. Any universal step threshold at or above 3,000 contacts him on steps 2-4 anyway.
+events:
+  - rain_explains_decline
+  - activity_declines
+  - activity_declines
+  - activity_declines
+expected_decisions:
+  - no_action
+  - no_action
+  - no_action
+  - no_action
+expected_cases: 0
+labels:
+  - stable
+  - stable
+  - stable
+  - stable
+# M24 additive latent world. It rained on day 1 and Mr Ravi still walked well above his own norm,
+# so `cause` is `none`, not `weather`: a cause names what drove the day, and weather that
+# explains nothing drove nothing. Authoring `weather` here would have the world assert an
+# `explained_dip` on a day with no dip in it.
+world:
+  - { cause: none, true_level: 1.40 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }

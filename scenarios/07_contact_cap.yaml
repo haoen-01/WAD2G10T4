@@ -1,0 +1,25 @@
+name: Contact fatigue guard suppresses a third low-severity message
+seed: 2026
+events:
+  - activity_declines
+  - activity_declines
+  - recovery
+  - activity_declines
+expected_decisions:
+  - gentle_nudge
+  - programme_suggestion
+  - no_action
+  - suppress
+expected_cases: 0
+labels:
+  - emerging_decline
+  - emerging_decline
+  - stable
+  - emerging_decline
+# M24 additive latent world. Two low days, a normal day that resets the run, then a fourth day
+# low again -- which is why `days_low` restarts at 1 on step 4 rather than continuing to 3.
+world:
+  - { cause: routine_change, true_level: 0.60 }
+  - { cause: routine_change, true_level: 0.52 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: routine_change, true_level: 0.52 }

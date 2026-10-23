@@ -1,0 +1,101 @@
+# Regression cover for the defect that made a sustained decline invisible.
+#
+# Before the anchored baseline, a rolling 28-day median followed this person down: by day 17 it
+# had fallen to roughly their new level, `delta_percent` read -8%, `sustained_low_days` reset to
+# 0, and the decision reverted to `no_action` with the rationale "Activity remains within the
+# personal range" -- permanently, for someone 56% below where they started. Days 1-14 escalated
+# correctly and then the window closed forever.
+#
+# Eighteen days is the shortest run that reaches the crossover: the rolling median only moves
+# once more than half the 28-day window is low.
+#
+# Labels are assigned against the ANCHORED median, which is the only honest reading for a
+# scenario this long -- see LABELLING_ANCHOR_NOTE in evaluation/report.py. Labelled against the
+# rolling median, days 17-18 would read `stable` and this fix would score as a regression.
+name: Sustained decline stays visible after the rolling baseline has absorbed it
+seed: 2026
+events:
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+expected_decisions:
+  - gentle_nudge
+  - programme_suggestion
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+  - coordinator_review
+# One case, refreshed as the decline continues -- not one per day it persists.
+# This used to read 16, which was the duplicate-case defect written down as an
+# expectation: eighteen declining days produced sixteen near-identical cards for the
+# same person, and `metrics.open_cases` counted days rather than people.
+expected_cases: 1
+labels:
+  - emerging_decline
+  - emerging_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+  - persistent_decline
+# M24 additive latent world. Eighteen unbroken low days at roughly 44% of her own norm. The
+# authored world never "absorbs" the decline the way a rolling median does -- `days_low` simply
+# keeps counting -- which is the independent statement this scenario always needed and could not
+# make while the only account of the truth was the one the baseline computed.
+world:
+  - { cause: routine_change, true_level: 0.60 }
+  - { cause: routine_change, true_level: 0.52 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }
+  - { cause: routine_change, true_level: 0.44 }

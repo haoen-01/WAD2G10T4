@@ -1,0 +1,13 @@
+name: Stable activity remains observation-only
+seed: 2026
+events:
+  - recovery
+expected_decisions:
+  - no_action
+expected_cases: 0
+labels:
+  - stable
+# M24 additive latent world: what the scenario author scripted the day to actually be, parsed by
+# `evaluation/world.py` and labelled by `label_from_latent`. It never edits `labels:` above.
+world:
+  - { cause: none, true_level: 1.05 }

@@ -1,0 +1,21 @@
+name: Rain-explained dip persists once the rain clears
+seed: 2026
+events:
+  - rain_explains_decline
+  - rain_clears_activity_low
+  - rain_clears_activity_low
+expected_decisions:
+  - no_action
+  - programme_suggestion
+  - coordinator_review
+expected_cases: 1
+labels:
+  - explained_dip
+  - emerging_decline
+  - persistent_decline
+# M24 additive latent world. The weather caused day 1. It stops being the cause the moment the
+# skies clear and the dip stays, so days 2-3 carry `routine_change` and the low run continues.
+world:
+  - { cause: weather, true_level: 0.57 }
+  - { cause: routine_change, true_level: 0.56 }
+  - { cause: routine_change, true_level: 0.56 }

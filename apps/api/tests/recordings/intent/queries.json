@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "banner": "SYNTHETIC RECORDING -- NOT A MODEL. Every response in this file was produced by `silverloop.evaluation.ranking_llm.scripted_model`, a deterministic rule-based stand-in whose two rules are written out in that module's docstring. Latency and token counts are synthesised from the request hash and are NOT measurements. Nothing in this file is evidence about any model's behaviour; it exists so the agent loop, its guardrail and its degradation paths can be exercised and measured offline.",
+  "loop": "intent",
+  "generator": "silverloop.evaluation.ranking_llm.synthesise (scripted-stand-in-v1)",
+  "entries": [
+    {
+      "key": "7f0237fa942a8bce3d12b2e46477a24b54e71a16bcd21a9cc663215274c5fec8",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 1303,
+        "output_tokens": 80
+      },
+      "latency_ms": 363,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "call_831f3dce5105",
+          "name": "record_intent",
+          "input": {
+            "on_date": null,
+            "time_window": "any",
+            "max_distance_m": null,
+            "social_preference": "either",
+            "environment": "either",
+            "intensity": "either",
+            "language": null,
+            "unparsed_terms": []
+          }
+        }
+      ]
+    },
+    {
+      "key": "2c99f50645aadb2a9a29ed3722e689a44494a11c4d82b9fcb473ae1e2c7b5f36",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 1305,
+        "output_tokens": 80
+      },
+      "latency_ms": 1149,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "call_4109ff9d3f6a",
+          "name": "record_intent",
+          "input": {
+            "on_date": null,
+            "time_window": "morning",
+            "max_distance_m": null,
+            "social_preference": "either",
+            "environment": "indoor",
+            "intensity": "light",
+            "language": null,
+            "unparsed_terms": ["tomorrow"]
+          }
+        }
+      ]
+    },
+    {
+      "key": "62a6f25fb94a3133c5b400e975946d2e293b647f25df2e9b5e6d910e3b038291",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 1307,
+        "output_tokens": 80
+      },
+      "latency_ms": 823,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "call_63eb3174f0fa",
+          "name": "record_intent",
+          "input": {
+            "on_date": null,
+            "time_window": "any",
+            "max_distance_m": 1000,
+            "social_preference": "social",
+            "environment": "either",
+            "intensity": "either",
+            "language": null,
+            "unparsed_terms": []
+          }
+        }
+      ]
+    },
+    {
+      "key": "8e854ae2d1cad8de9ad87e0c9e6e777c2c23ff2aa127eb69c20a9292a1dea3ef",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 1299,
+        "output_tokens": 80
+      },
+      "latency_ms": 583,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "call_5f1bc9277947",
+          "name": "record_intent",
+          "input": {
+            "on_date": null,
+            "time_window": "any",
+            "max_distance_m": null,
+            "social_preference": "either",
+            "environment": "either",
+            "intensity": "either",
+            "language": "Mandarin",
+            "unparsed_terms": []
+          }
+        }
+      ]
+    },
+    {
+      "key": "f1affd08c6513a1ab953b206853c4b6d3b5f02a89ba4a86a84bd3ceddf567bbd",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 1304,
+        "output_tokens": 80
+      },
+      "latency_ms": 853,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "call_8310bf365cca",
+          "name": "record_intent",
+          "input": {
+            "on_date": null,
+            "time_window": "any",
+            "max_distance_m": 1000,
+            "social_preference": "either",
+            "environment": "either",
+            "intensity": "either",
+            "language": null,
+            "unparsed_terms": ["my knees are not what they were"]
+          }
+        }
+      ]
+    },
+    {
+      "key": "45690a101e9e7df6e298b236736b9dc2bf68bd43adeab49c2fe2fef107e45f88",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 1303,
+        "output_tokens": 80
+      },
+      "latency_ms": 974,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "call_e29978c8c777",
+          "name": "record_intent",
+          "input": {
+            "on_date": null,
+            "time_window": "evening",
+            "max_distance_m": null,
+            "social_preference": "solo",
+            "environment": "either",
+            "intensity": "either",
+            "language": null,
+            "unparsed_terms": ["quiet"]
+          }
+        }
+      ]
+    }
+  ]
+}

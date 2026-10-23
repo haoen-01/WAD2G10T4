@@ -1,0 +1,32 @@
+name: Low but stable baseline defeats a universal step threshold
+seed: 2026
+person_id: mr-ravi
+events:
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+  - activity_declines
+expected_decisions:
+  - no_action
+  - no_action
+  - no_action
+  - no_action
+  - no_action
+expected_cases: 0
+labels:
+  - stable
+  - stable
+  - stable
+  - stable
+  - stable
+# M24 additive latent world. The `activity_declines` EVENT name describes the fixture's step
+# count, not Mr Ravi's life: 2,500 steps is slightly above his own norm, so in the world nothing
+# declined at all. This is the clearest case of the latent being authored from what the scenario
+# is about rather than from the event's name.
+world:
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }
+  - { cause: none, true_level: 1.05 }

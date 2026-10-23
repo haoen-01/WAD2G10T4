@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # The API suite alone takes several minutes on a hosted runner, and the browser suite and the
+    # production build follow it; 15 minutes cancelled main before the build step was reached.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.12.5'
+          enable-cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: uv sync --frozen
+        working-directory: apps/api
+      - run: pnpm format:check
+      - run: pnpm client:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # One test target at a time. Run concurrently, the CPU-bound API suite starves the browser
+      # suite's dev server, API and Chromium on a small runner, and e2e tests fail on timing
+      # (swallowed clicks, closed browser sessions, dropped API sockets) rather than on behaviour.
+      - run: pnpm test
+        env:
+          NX_PARALLEL: 1
+      # A failing browser test is only diagnosable from its trace, screenshot and video.
+      - uses: actions/upload-artifact@v7
+        if: failure() || cancelled()
+        with:
+          name: playwright-results
+          path: |
+            .nx/playwright-results
+            .nx/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+      - run: pnpm test:scenarios
+      - run: pnpm evaluate:check
+      - run: pnpm build
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: silverloop_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d silverloop_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SILVERLOOP_POSTGRES_TEST_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/silverloop_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.5'
+          enable-cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen
+        working-directory: apps/api
+      - run: pnpm test:postgres

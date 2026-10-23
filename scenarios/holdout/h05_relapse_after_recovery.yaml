@@ -1,0 +1,49 @@
+name: Repeated relapse spends the weekly budget before the decline turns persistent
+seed: 2026
+person_id: mdm-devi
+# HOLDOUT. Thresholds were never tuned against this scenario.
+# Combination not present in the core set: two full recover-then-relapse cycles before the
+# decline finally persists, so the weekly contact budget is already spent by the time the
+# genuine persistent decline arrives at step 7. Tests whether escalation survives an exhausted
+# contact budget -- COORDINATOR_REVIEW is exempt from the cap, and this is the first scenario
+# that puts that exemption under pressure.
+#
+# Clock note: the cap counts the person's last seven simulated days (today and the six before).
+# At step 7 the day-1 contact is exactly six days back and still inside the window, so steps 5-6
+# `suppress` and step 7 escalates with the budget spent. Lengthening the recovery stretch by one
+# day would release the day-1 contact and change what this scenario tests.
+events:
+  - activity_declines
+  - recovery
+  - activity_declines
+  - recovery
+  - activity_declines
+  - activity_declines
+  - activity_declines
+expected_decisions:
+  - gentle_nudge
+  - no_action
+  - gentle_nudge
+  - no_action
+  - suppress
+  - suppress
+  - coordinator_review
+expected_cases: 1
+labels:
+  - emerging_decline
+  - stable
+  - emerging_decline
+  - stable
+  - emerging_decline
+  - emerging_decline
+  - persistent_decline
+# M24 additive latent world. Each recovery day genuinely resets the low run, which is why the
+# final three days -- and only those -- reach `days_low: 3` and a persistent world state.
+world:
+  - { cause: routine_change, true_level: 0.60 }
+  - { cause: none, true_level: 1.09 }
+  - { cause: routine_change, true_level: 0.52 }
+  - { cause: none, true_level: 1.09 }
+  - { cause: routine_change, true_level: 0.52 }
+  - { cause: routine_change, true_level: 0.52 }
+  - { cause: routine_change, true_level: 0.44 }

@@ -1,0 +1,45 @@
+# Contributing
+
+## Branches and pull requests
+
+- `main` should remain runnable.
+- Use short-lived `feat/`, `fix/`, `test/`, or `docs/` branches.
+- Keep pull requests focused and include a verification note.
+- Schema and safety-policy changes require a reviewer.
+- Do not rewrite applied Alembic migrations.
+
+## Before opening a pull request
+
+```bash
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm demo:smoke
+```
+
+## Ownership
+
+- ML, analytics and evaluation: Member 1.
+- API, persistence and agent workflow: Member 2.
+- Web experience and demo: Member 3.
+- Adapters, safety red-team and physical-AI spike: Member 4.
+
+The owner makes the final implementation decision after hearing the designated reviewer.
+
+## Commit style
+
+Use concise conventional prefixes:
+
+```text
+feat: add rain-aware no-action decision
+fix: block expired programme offers
+test: cover consent revocation during execution
+docs: update offline demo recovery
+chore: configure workspace linting
+```
+
+## Data and safety
+
+Never commit credentials, raw wearable exports, identifiable interview notes, or real senior data.
+Every new action must pass deterministic consent and safety rules and have a scenario test.

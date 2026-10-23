@@ -1,0 +1,79 @@
+# Demo script: the loop in three minutes
+
+One story across three parts: a simulated day reaches the **senior**, a persistent decline is
+handed to a person, and the **family** shares the care.
+
+## Before you start
+
+```bash
+pnpm demo:offline
+```
+
+Open <http://127.0.0.1:3000>. The home page should say **Backend connected**. Everything runs on
+synthetic data for one demo person, Mdm Lim. To start again at any point, run `pnpm demo:reset` in
+a terminal (or send `POST /v1/demo/reset` from the API docs used below).
+
+## Act 1: a day goes by (about 60 s)
+
+There is no Simulator screen any more; a day is advanced straight through the API, which is exactly
+what the browser tests do too.
+
+1. Open <http://127.0.0.1:8000/docs>, find **POST /v1/simulation/advance**, press **Try it out**,
+   and send `{"event": "activity_declines", "event_id": "demo-1", "person_id": "mdm-lim"}`.
+2. The response's `state.last_decision` reads **gentle_nudge**, with the reasons. `loop_trace` in
+   the same response carries all ten decision stages, each with its own evidence id.
+   > "It chose the gentlest action it is allowed to take, and it says why. Every step is recorded:
+   > what it observed, whether the data was good enough, the rule it applied, and what it is now
+   > waiting for."
+3. Refresh <http://127.0.0.1:3000>. **Today's overview** on Home now reflects the new decision.
+
+Restraint, if asked: send `rain_explains_decline` and `state.last_decision` reads **no_action**;
+send `low_wear` and it treats the gap as a device problem, not a wellbeing signal.
+
+Handing over, if asked: send `activity_declines` again (a fresh `event_id` each time) until
+`state.last_decision` reads **coordinator_review**. It takes three declining days: a check-in, then
+a programme suggestion, then a case. The response's `created_case` is populated, meaning a person
+would be asked to review it.
+
+> "It stopped and asked a person. It has no further step of its own."
+
+## Act 2: the senior replies (Senior, about 45 s)
+
+1. Press **Open the senior screen** (or choose **Senior** in the menu).
+2. Mdm Lim sees one low-pressure suggestion in plain words, and three answers: **Yes**, **Maybe
+   later**, **Not for me**. Press one.
+   > "Nothing is booked until she chooses, and she can say no."
+3. Under **Your privacy**, turn the switch off.
+4. Send `activity_declines` again from the API docs (step 1 of Act 1): `state.last_decision` reads
+   **suppress** -- nothing is sent.
+   > "Consent is a hard gate. No suggestion can get past it."
+5. Turn the switch back on.
+
+## Act 3: the family shares the care (Calendar and Family, about 75 s)
+
+The calendar and family screens run on sample data kept in the browser. No API is behind them yet.
+
+1. Open **Calendar**. It shows Mdm Lim's upcoming activities and appointments, with a coloured
+   dot or label for each kind (medical visit, therapy, activity, errand).
+2. Under **Coming up**, choose **Doctor's appointment**. The details show when, where and any
+   notes. **Who is helping?** lists Sarah and John as **Available** and Emily as **Not available**.
+   Nobody is helping yet.
+3. **Viewing as** is Sarah. Press **I'll help**. Sarah now shows as **Helping**.
+   > "Everyone in the family group can see who has taken it."
+4. Change **Viewing as** to **John** and open the same appointment. He sees that Sarah is helping,
+   and can press **I'll help** too: more than one person can help.
+5. Open **Family**. Under **Join the group**, add a new member (a name and how they are related).
+   Under **When can you help?**, pick a date and **Afternoon**, and save. It appears under
+   **Family availability**, and on the calendar that person shows as **Available** for any
+   appointment that afternoon.
+
+## If something goes wrong
+
+- **The home page says the backend is not reachable:** the API is not running. Start it with
+  `pnpm demo:offline`, then refresh.
+- **The decision never reaches `coordinator_review`:** run `pnpm demo:reset`, then send three
+  `activity_declines` events in a row.
+- **The calendar or the family group looks different than expected:** its changes are saved in this
+  browser. Open **Family** and press **Reset the sample family data**.
+- **A different suggestion than expected:** Care+ learns from earlier replies. `pnpm
+demo:reset` starts a fresh run.

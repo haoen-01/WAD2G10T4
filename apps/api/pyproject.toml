@@ -1,0 +1,53 @@
+[project]
+name = "silverloop-api"
+version = "0.1.0"
+description = "Deterministic Care+ active-ageing orchestration API"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "alembic>=1.16,<2",
+  "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
+  "numpy>=2.3,<3",
+  "pydantic-settings>=2.10,<3",
+  "psycopg[binary]>=3.2,<4",
+  "pyjwt[crypto]>=2.9,<3",
+  "pyyaml>=6.0,<7",
+  "sqlalchemy>=2.0,<3",
+  "uvicorn[standard]>=0.35,<1",
+  "anthropic[bedrock]>=0.70,<1",
+]
+
+[dependency-groups]
+dev = [
+  "hatchling>=1.27,<2",
+  "httpx>=0.28,<1",
+  "pytest>=8.4,<10",
+  "pytest-asyncio>=1.1,<2",
+  "ruff>=0.12,<1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/silverloop"]
+
+[tool.pytest.ini_options]
+# `src` puts the package under test on the path; `.` makes `tests` importable as a package so
+# one test module can reuse another's fixtures (test_agent_integration imports the fake
+# transport from test_agent_planner). Without `.`, `uv run pytest` raises a collection error
+# that interrupts the WHOLE suite, while `python -m pytest` masks it by putting cwd on
+# sys.path — so the gate and the local run disagree. See WAYFINDER Blockers, 2026-09-05.
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["postgres: tests that require a dedicated PostgreSQL database"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

@@ -1,0 +1,16 @@
+name: Recovery closes the signal without escalation
+seed: 2026
+events:
+  - activity_declines
+  - recovery
+expected_decisions:
+  - gentle_nudge
+  - no_action
+expected_cases: 0
+labels:
+  - emerging_decline
+  - stable
+# M24 additive latent world. One genuinely low day, then back to her own normal.
+world:
+  - { cause: routine_change, true_level: 0.60 }
+  - { cause: none, true_level: 1.05 }

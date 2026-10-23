@@ -1,0 +1,3831 @@
+from __future__ import annotations
+
+from datetime import date, datetime
+from enum import IntEnum, StrEnum
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from silverloop.ontology import ActivityFamily, ActivityType, Format
+
+
+class AuthRole(StrEnum):
+    SENIOR = "senior"
+    COORDINATOR = "coordinator"
+    DEMO_OPERATOR = "demo_operator"
+    FAMILY = "family"
+
+
+class CurrentUser(BaseModel):
+    sub: str
+    role: AuthRole
+    person_id: str | None = None
+
+
+class AttentionBand(StrEnum):
+    STABLE = "stable"
+    WATCH = "watch"
+    REVIEW = "review"
+
+
+class Decision(StrEnum):
+    NO_ACTION = "no_action"
+    GENTLE_NUDGE = "gentle_nudge"
+    PROGRAMME_SUGGESTION = "programme_suggestion"
+    COORDINATOR_REVIEW = "coordinator_review"
+    SUPPRESS = "suppress"
+
+
+class PolicyGate(StrEnum):
+    """Which rung of `policy.decide`'s ladder produced the decision.
+
+    A report, never an interpretation. The ladder returns at the first guard clause that matches,
+    and this names that clause -- so `SUPPRESS` appears under two gates (the weekly contact cap
+    and the accepted-outreach cooldown, which share a rung, a decision and a support priority) and
+    `NO_ACTION` under six. Without it, every consumer wanting to caption a decision had to
+    reconstruct the ladder from `PersonState` and drifted: the evaluator surface captioned a
+    cooldown suppression as "Weekly contact cap reached", which is factually wrong for the person
+    who was left alone precisely because they had just taken a suggestion up.
+
+    Adding this changed no decision. `decide` returns exactly what it returned before, with one
+    more field describing the return it already made.
+    """
+
+    CONSENT = "consent"
+    DATA_QUALITY = "data_quality"
+    CONFIDENCE = "confidence"
+    STATED_EXPLANATION = "stated_explanation"
+    RAIN_CONTEXT = "rain_context"
+    SMALL_BASELINE = "small_baseline"
+    SEVERITY_PERSISTENCE = "severity_persistence"
+    # The two rungs the review-threshold calibrator adds after `SEVERITY_PERSISTENCE` (ADR 0008).
+    # Both return `COORDINATOR_REVIEW`, and under the starting setting neither is reachable: the
+    # absolute floor sits inside the default threshold, and the shadow check runs only for a person
+    # whose own setting is looser than the default.
+    REVIEW_FLOOR = "review_floor"
+    SHADOW_CHECK = "shadow_check"
+    CONTACT_CAP = "contact_cap"
+    ACCEPTED_COOLDOWN = "accepted_cooldown"
+    WITHIN_RANGE = "within_range"
+
+
+class CaseStatus(StrEnum):
+    OPEN = "open"
+    ACKNOWLEDGED = "acknowledged"
+    RESOLVED = "resolved"
+
+
+class CaseResolution(StrEnum):
+    """Why a review case ended. Set once, at the moment it closes, and never inferred.
+
+    A case has exactly three endings and nothing else may close one: the person's activity came
+    back, they withdrew consent, or a coordinator answered the question the case was asking. The
+    reason used to live only in the prose of a `CaseReviewRow.note` written by `reviewer="system"`,
+    which meant anything wanting to act on it had to string-match an English sentence -- and a
+    coordinator reading the card saw "Resolved" with no reason attached at all.
+    """
+
+    RECOVERED = "recovered"
+    CONSENT_WITHDRAWN = "consent_withdrawn"
+    COORDINATOR_DECISION = "coordinator_decision"
+
+
+class HumanAction(StrEnum):
+    """What the coordinator decided to do about Care+'s recommendation.
+
+    Three values, not a menu of care actions: the case card asks one question -- do you agree with
+    what this system suggested? -- and this answers it. `HOLD` is deliberately distinct from both:
+    "I am not acting on this yet" is neither agreement nor disagreement, and collapsing it into
+    either would overstate how often a human endorsed or overruled the system.
+
+    Nothing on the activity learning or ranking path reads this. One combination is read: a
+    resolved `OVERRIDE` with a false-alarm `OverrideReason` is what the review-threshold calibrator
+    counts, and it may only *propose* a per-person review threshold change for a coordinator to
+    approve -- see ADR 0008 (`docs/adr/0008-coordinator-calibrated-review-threshold.md`).
+    """
+
+    AGREE = "agree"
+    HOLD = "hold"
+    OVERRIDE = "override"
+
+
+class OverrideReason(StrEnum):
+    """Why a coordinator did not do what Care+ suggested.
+
+    A closed vocabulary rather than free text, because the point of recording it is to be able to
+    count it: "the system keeps flagging people whose trackers are unreliable" is a finding, and
+    fifty distinct sentences saying that are not. The optional note beside it carries the detail
+    and stays on the review row -- it never reaches the operator-readable audit trail, which
+    records only that a note exists.
+    """
+
+    KNOWN_CONTEXT = "known_context"
+    DATA_DOUBT = "data_doubt"
+    RECENT_CONTACT = "recent_contact"
+    OTHER = "other"
+    # "This pattern is ordinary for this person." The only structured reason that can unlock a
+    # proposal to loosen their review threshold (ADR 0008) -- never inferred from the note.
+    NOT_A_CONCERN = "not_a_concern"
+
+
+# ── The review-threshold calibrator (ADR 0008) ────────────────────────────────────────────────
+#
+# A coordinator's structured false-alarm judgement may tune, per person and inside fixed bounds,
+# the point at which Care+ asks a human. Never the baseline, never any other gate. The enums
+# live here beside `OverrideReason` because they are part of the same review contract; the pure
+# rules live in `review_threshold.py`, which imports these and is never imported back.
+
+
+class ReviewThresholdCause(StrEnum):
+    """Why a false alarm happened. Only `TOO_TIGHT_FOR_PERSON` can justify loosening; the other
+    three are expected to end in no change."""
+
+    TOO_TIGHT_FOR_PERSON = "too_tight_for_person"
+    ONE_OFF_EVENT = "one_off_event"
+    BAD_DATA = "bad_data"
+    WORKED_AS_INTENDED = "worked_as_intended"
+
+
+class ReviewThresholdProposer(StrEnum):
+    AGENT = "agent"
+    FIXED_RULE = "fixed_rule"
+    COORDINATOR = "coordinator"
+    STARTING_SETTING = "starting_setting"
+
+
+class ReviewThresholdOutputKind(StrEnum):
+    PROPOSAL = "proposal"
+    NO_CHANGE = "no_change"
+    WRITE_UP = "write_up"
+
+
+class ReviewThresholdDecisionKind(StrEnum):
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    REVERTED = "reverted"
+    EXPIRED = "expired"
+    RECONFIRMED = "reconfirmed"
+    CHECK_CONFIRMED = "check_confirmed"
+    CHECK_UNRESOLVED = "check_unresolved"
+
+
+class ReviewThresholdRevertTrigger(StrEnum):
+    SHADOW_CHECK = "shadow_check"
+    REACHED_TOO_LATE = "reached_too_late"
+    FAR_MORE_SEVERE = "far_more_severe"
+
+
+class ReviewThresholdRejectionReason(StrEnum):
+    """Why a proposal was not approved.
+
+    `CONSENT_WITHDRAWN` and `SUPERSEDED` are written only by the system -- the first when a person
+    withdraws consent mid-round, the second when a revert or expiry changed the value a proposal
+    was made against -- and a coordinator request carrying either is refused. Neither counts as a
+    coordinator's rejection: not toward a round, and not as a value that may not be proposed again.
+    """
+
+    CAUSE_DISPUTED = "cause_disputed"
+    NEED_MORE_EVIDENCE = "need_more_evidence"
+    PREFER_OTHER_CHANGE = "prefer_other_change"
+    OTHER = "other"
+    CONSENT_WITHDRAWN = "consent_withdrawn"
+    SUPERSEDED = "superseded"
+
+
+class ReviewThresholdNoticeKind(StrEnum):
+    """Which way the senior-facing notice points: Care+ now waits a little `LATER`, or lets
+    the care team know a little `SOONER` again."""
+
+    LATER = "later"
+    SOONER = "sooner"
+
+
+# ── Calibration trust: what each review teaches (docs/calibration-trust-spec.md) ──────────────
+#
+# A coordinator's action is not ground truth. These enums make visible what one review can and
+# cannot teach Care+. The lesson is a pure function of the stored review, computed on read in
+# `review_lessons.py`; only `ContextGapCategory` is stored. Nothing in `policy.py`,
+# `review_threshold.py` or `agent/` reads any of them.
+
+
+class ContextGapCategory(StrEnum):
+    """What kind of known context explained a review, when a coordinator chose to say.
+
+    Optional, and allowed only beside an `OVERRIDE` for `KNOWN_CONTEXT`. It is tallied per person so
+    a care team can see which context Care+ keeps missing; it never changes a decision, a
+    proposal or a review setting. `ALREADY_IN_TOUCH` (in touch through another service or family)
+    is deliberately distinct from `OverrideReason.RECENT_CONTACT`, which is outreach the care team
+    already made.
+    """
+
+    AWAY = "away"
+    ALREADY_IN_TOUCH = "already_in_touch"
+    RESTING_OR_RECOVERING = "resting_or_recovering"
+    OTHER_KNOWN = "other_known"
+
+
+class ReviewLessonKind(StrEnum):
+    """What one review can teach Care+.
+
+    `COUNTS_TOWARD_REVIEW_SETTING` is the only kind the review-threshold calibrator reads.
+    `RECORDS_CONTEXT_GAP` is counted for the care team and changes nothing. `TEACHES_NOTHING` is
+    a first-class answer, not a missing one.
+    """
+
+    COUNTS_TOWARD_REVIEW_SETTING = "counts_toward_review_setting"
+    RECORDS_CONTEXT_GAP = "records_context_gap"
+    TEACHES_NOTHING = "teaches_nothing"
+
+
+class ReviewLessonReason(StrEnum):
+    """Why a review taught what it did. Precedence lives in `review_lessons.classify_review`:
+    `REACHED_TOO_LATE` wins over everything, then a resolved `NOT_A_CONCERN`, then
+    `KNOWN_CONTEXT`; every other value explains a review that teaches nothing."""
+
+    REACHED_TOO_LATE = "reached_too_late"
+    NOT_A_CONCERN = "not_a_concern"
+    KNOWN_CONTEXT = "known_context"
+    AGREED = "agreed"
+    ON_HOLD = "on_hold"
+    DATA_DOUBT = "data_doubt"
+    RECENT_CONTACT = "recent_contact"
+    OTHER_REASON = "other_reason"
+    # An override for "not a concern" that did not resolve the case: the calibrator counts only
+    # resolved ones.
+    NOT_RESOLVED = "not_resolved"
+    # A review recorded before the structured choice existed, or one that recorded none.
+    NO_STRUCTURED_CHOICE = "no_structured_choice"
+    # Recovery or consent withdrawal closed the case; no human acted.
+    SYSTEM_CLOSURE = "system_closure"
+
+
+class ReviewReceiptStatus(StrEnum):
+    """How one review stands against the review setting a receipt describes."""
+
+    COUNTED_TOWARD_LOOSENING = "counted_toward_loosening"
+    ASKED_SOONER = "asked_sooner"
+    EXCLUDED = "excluded"
+
+
+class ReviewReceiptExclusion(StrEnum):
+    """Why a review did not count toward the receipt's review setting."""
+
+    NOT_ELIGIBLE_TO_LOOSEN = "not_eligible_to_loosen"
+    BEFORE_CURRENT_SETTING = "before_current_setting"
+    OUTSIDE_WINDOW = "outside_window"
+    AFTER_PROPOSAL = "after_proposal"
+    NO_OPENING_DAY = "no_opening_day"
+
+
+class TraceStatus(StrEnum):
+    COMPLETED = "completed"
+    BLOCKED = "blocked"
+    PENDING = "pending"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class OutcomeKind(StrEnum):
+    """How a person responded to one piece of outreach.
+
+    `ACCEPTED` means only "show me more" -- it is consent to continue, not evidence that anything
+    helped. What actually happened afterwards is `FollowThrough`, recorded separately, and the two
+    must never be collapsed: a system that treats a tap as success is optimising engagement, which
+    is the exact failure mode this product exists to avoid.
+
+    `DEFERRED` and `NO_RESPONSE` are also deliberately distinct. "Maybe later" is an active reply
+    from someone who read the message; `NO_RESPONSE` is silence. Filing the first as the second
+    both overstates how many people ignore Care+ and, before this split, scored an explicit
+    deferral as harshly as a refusal.
+    """
+
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    DEFERRED = "deferred"
+    NO_RESPONSE = "no_response"
+    ACTIVITY_RECOVERED = "activity_recovered"
+    COORDINATOR_RESOLVED = "coordinator_resolved"
+
+
+class DeclineReason(StrEnum):
+    """Optional, one-tap, always skippable context on a decline.
+
+    `ALREADY_ACTIVE` is the valuable one: it is a person telling us the sensor is wrong, which is
+    ground truth no wearable produces on its own and which feeds the data-quality assessment.
+    """
+
+    NOT_FOR_ME = "not_for_me"
+    BAD_DAY = "bad_day"
+    ALREADY_ACTIVE = "already_active"
+    # Added with the dimensional learner. These four are the reasons that carry information
+    # about a *kind* of activity rather than about one listing, and each maps to a
+    # `PreferenceDimension`. `BAD_DAY` deliberately maps to nothing: "just not today" is not
+    # evidence about the suggestion, and scoring it as though it were is the mistake this
+    # expansion exists to stop.
+    TOO_FAR = "too_far"
+    TOO_TIRING = "too_tiring"
+    BAD_TIMING = "bad_timing"
+    PREFER_SOMETHING_ELSE = "prefer_something_else"
+
+
+class FollowThrough(StrEnum):
+    """What happened after someone accepted -- the signal `ACCEPTED` was standing in for.
+
+    `UNABLE` is recorded as a poor fit for *this option*, never as a fact about the person. It
+    ranks the candidate down so something else is offered next time; it is not a capability
+    judgement, is never shown to a coordinator as one, and can never raise a decision rung.
+    """
+
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    NOT_THIS_TIME = "not_this_time"
+    UNABLE = "unable"
+
+
+class DailyMetric(BaseModel):
+    day: date
+    steps: int = Field(ge=0)
+    active_minutes: int = Field(ge=0)
+    sleep_hours: float | None = Field(default=None, ge=0, le=24)
+    wear_hours: float = Field(ge=0, le=24)
+    source: str = "synthetic"
+
+
+class ContextSignal(BaseModel):
+    rainy: bool = False
+    air_quality: str = "normal"
+    holiday: bool = False
+    note: str | None = None
+
+
+class BaselineSummary(BaseModel):
+    window_days: int
+    median_steps: float
+    mad_steps: float
+    data_quality: float = Field(ge=0, le=1)
+    # The anchored reference: the median over the EARLIEST valid days on record, as opposed to
+    # `median_steps`, which is a rolling median over the most recent window.
+    #
+    # They exist separately because a rolling median has no memory. A person whose activity falls
+    # and stays down drags their own baseline down with them, and within about a month the system
+    # reports them as normal -- measured at day 17 for a 56% decline. The rolling median is still
+    # the right instrument for "is today unusual for them lately"; the reference answers "is this
+    # person living the life they were when we started", which is the question a rolling median
+    # structurally cannot answer.
+    #
+    # Honest limitation: if observation began while the person was already declining, the
+    # reference anchors to that. It is a reference, not a statement of health.
+    reference_steps: float = 0
+    reference_window_days: int = 0
+    # The value the policy actually reasons about: the rolling median, floored so it cannot sit
+    # more than a fixed fraction below the anchored reference. See `BASELINE_DRIFT_FLOOR`.
+    #
+    # `median_steps` stays the honest rolling number and is what the UI shows as "a typical day".
+    # This is the one the ladder uses, because a baseline that has followed a person down is no
+    # longer a description of them.
+    effective_median_steps: float = 0
+
+
+class DataQualityAssessment(BaseModel):
+    evidence_id: str
+    assessed_at: datetime
+    source: str
+    confidence: float = Field(ge=0, le=1)
+    safe_to_interpret: bool
+    reasons: list[str]
+    device_suspected: bool = False
+    device_suspected_reason: str | None = None
+    # Set when the person has told us a day we read as quiet was not, either by disputing the day
+    # or by declining with "already active". It is the only input to this assessment that does not
+    # come from a sensor, so it is flagged separately rather than folded into `reasons`.
+    self_reported_conflict: bool = False
+    self_reported_conflict_note: str | None = None
+
+
+class SignalSummary(BaseModel):
+    current_steps: int
+    delta_percent: float
+    # Deviation from the anchored reference rather than the rolling baseline. Stays meaningful
+    # after a sustained decline has been absorbed into `delta_percent`, which is exactly when the
+    # person most needs someone to notice.
+    reference_delta_percent: float = 0
+    # `BaselineSummary.effective_median_steps`, carried here so `policy.decide` can tell a
+    # genuinely tiny baseline from a large one without taking a second argument. A percentage
+    # deviation from three steps a day is arithmetic, not evidence.
+    baseline_median_steps: float = 0
+    robust_z: float
+    sustained_low_days: int
+    confidence: float = Field(ge=0, le=1)
+    context: ContextSignal
+    quality: DataQualityAssessment
+
+
+class StatedContextExplanation(BaseModel):
+    """The person's own account of a quiet stretch, while it is still in force.
+
+    Exposed as structured fields rather than left implicit in `rationale` because the web's
+    Decision Audit panel captions the `stated_explanation` gate (`decided_by_gate`) from these
+    fields, and is explicitly forbidden from string-matching the free-text rationale to do it (see
+    `apps/web/lib/view-models.ts`).
+
+    `explains_through` is a *simulated* day, like `stated_on` -- see `context_explanation.py` for
+    why a wall-clock window would never expire in a demo.
+    """
+
+    value: str
+    label: str
+    rationale: str
+    stated_on: date
+    explains_through: date
+
+
+class PersonState(BaseModel):
+    person_id: str
+    display_name: str
+    preferred_language: str
+    age: int | None = None
+    context_note: str | None = None
+    consent_active: bool
+    current_day: date
+    attention_band: AttentionBand
+    baseline: BaselineSummary
+    signal: SignalSummary
+    last_decision: Decision
+    rationale: list[str]
+    # Which rung of the ladder produced `last_decision` -- see `PolicyGate`. Reported rather than
+    # reconstructed: `rationale` is free text a consumer must never parse, and the pair
+    # (decision, signal) is not enough to recover the gate, because the weekly contact cap and the
+    # accepted-outreach cooldown share a rung and return an identical `SUPPRESS`.
+    decided_by_gate: PolicyGate
+    permitted_actions: list[Decision]
+    # At most one, and only when the missing fact would change the decision. Never a queue.
+    pending_question: ContextQuestion | None = None
+    # At most one, and only when a sustained clamp plausibly means the person's life has changed.
+    # See `BaselineConfirmationQuestion` and `baseline_confirmation.py`.
+    pending_baseline_confirmation: BaselineConfirmationQuestion | None = None
+    # Set only while the person's own explanation of a quiet stretch is still in force, and only
+    # when it is an answer that explains anything -- "I would rather not say" never appears here.
+    stated_explanation: StatedContextExplanation | None = None
+    # Set for seven simulated days after this person's review threshold changed in a way the
+    # senior should hear about (a loosening approved, or a revert/expiry back to sooner). Fixed
+    # wording from `review_threshold.py`; no number, no internal vocabulary. See ADR 0008.
+    review_threshold_notice: ReviewThresholdNotice | None = None
+
+
+class Intervention(BaseModel):
+    intervention_id: str
+    person_id: str
+    decision: Decision
+    title: str
+    message: str
+    created_at: datetime
+    status: str = "proposed"
+    outcome: str | None = None
+    # What happened after acceptance, once the person has told us. `None` covers both "not asked
+    # yet" and "asked, chose not to say" -- the UI must not read silence here as a failure.
+    follow_through: str | None = None
+    # Whether it was any good, once they have said. Distinct from `follow_through`: someone can
+    # attend something dutifully and not enjoy it, and ranking must be able to tell those apart.
+    enjoyment: str | None = None
+    # Already present inside `evidence`, lifted out because every consumer that groups or labels
+    # outreach needs it and none of them should be parsing an untyped dict to get it.
+    candidate_key: str | None = None
+    # The first simulated day on which this offer, still unanswered, is recorded as silence
+    # (`no_response`) by the response clock -- see `RESPONSE_WINDOW_DAYS` in `sql_repository.py`.
+    # `None` once an outcome exists or the offer was withdrawn. A statement about when Care+
+    # stops waiting, never a deadline shown to the person: the senior surface must not render it.
+    awaiting_reply_until: date | None = None
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class ReviewAction(BaseModel):
+    review_evidence_id: str
+    status: CaseStatus
+    reviewer: str
+    note: str
+    recorded_at: datetime
+    # What Care+ suggested, as it read at the moment of this review -- a frozen copy, not a
+    # reference to the live case, so a later refresh cannot retroactively change what the human
+    # was looking at when they decided.
+    agent_recommendation: str | None = None
+    # What the human chose, and why they did not follow the suggestion. `None` on a review
+    # recorded before the structured choice existed, and on the automatic closures the system
+    # writes for itself (recovery, consent withdrawal) -- no human acted there, so claiming one
+    # agreed would be a fabricated fact.
+    human_action: HumanAction | None = None
+    override_reason: OverrideReason | None = None
+    # "This should have reached me sooner." `None` on reviews recorded before the question existed
+    # and on system closures, for the same reason `human_action` is: nobody was asked.
+    reached_too_late: bool | None = None
+    # What kind of known context explained the review, when the coordinator said. Only ever set
+    # beside an override for `known_context`.
+    context_gap_category: ContextGapCategory | None = None
+
+
+class PriorOutreach(BaseModel):
+    """One thing Care+ already did about this concern, before it asked for a human.
+
+    The case card could not answer "what have you tried?" at all: the day-one nudge and day-two
+    suggestion lived on a separate per-person card that defaulted to one persona regardless of
+    whose case was on screen, so a coordinator read "activity is 56% below across 4 days" with no
+    idea whether anything had been offered or whether the person had replied.
+
+    `outcome` and `follow_through` are the same enums the outreach history uses, and `None` means
+    "nothing recorded" -- never "no" and never "ignored". A tap is not success and silence is not
+    refusal; both distinctions are already load-bearing elsewhere and must not be flattened here.
+    """
+
+    intervention_id: str
+    decision: Decision
+    title: str
+    day: date
+    outcome: str | None = None
+    follow_through: str | None = None
+
+
+class SinceLastReviewAnchorKind(StrEnum):
+    """What "since" is measured from: the latest human review of the case, or -- before anyone has
+    reviewed it -- the moment it opened. A `system` closure is never an anchor: no human looked."""
+
+    LAST_REVIEW = "last_review"
+    CASE_OPENED = "case_opened"
+
+
+class SinceLastReviewKind(StrEnum):
+    """One kind of stored fact a case delta may report. Closed on purpose: each value has exactly
+    one fixed sentence template in `case_delta.py`, and a new kind of fact needs a new value.
+
+    Deliberately absent: anything the person told Care+ (a stated explanation, a disputed
+    day, a decline reason, a baseline confirmation) -- nothing the senior said reaches a
+    coordinator surface, not even the fact that they said something (`docs/care-priorities.md`).
+    Case status changes are absent too: on an unresolved case every status change is either a
+    human review, which becomes the anchor, or a system closure, which resolves the case.
+    """
+
+    DAYS_RECORDED = "days_recorded"
+    USABLE_DATA_DAYS = "usable_data_days"
+    BELOW_USUAL_RANGE_DAYS = "below_usual_range_days"
+    RAIN_STARTED = "rain_started"
+    RAIN_ENDED = "rain_ended"
+    HOLIDAY_STARTED = "holiday_started"
+    HOLIDAY_ENDED = "holiday_ended"
+    OUTREACH_OFFERED = "outreach_offered"
+    OUTREACH_ACCEPTED = "outreach_accepted"
+    OUTREACH_DECLINED = "outreach_declined"
+    OUTREACH_DEFERRED = "outreach_deferred"
+    OUTREACH_NO_RESPONSE = "outreach_no_response"
+    REVIEW_TIMING_PROPOSED = "review_timing_proposed"
+    REVIEW_TIMING_APPROVED = "review_timing_approved"
+    REVIEW_TIMING_REJECTED = "review_timing_rejected"
+    REVIEW_TIMING_REVERTED = "review_timing_reverted"
+    REVIEW_TIMING_EXPIRED = "review_timing_expired"
+
+
+class SinceLastReviewItem(BaseModel):
+    """One thing that happened on a case since its anchor, as a fixed sentence over stored rows.
+
+    `text` is a template filled only with counts and ISO days -- no note, no free text, no step
+    count or percentage. `count` is set on the three day-count kinds; `day` on events that belong
+    to one simulated day. `evidence_ids` name the rows the sentence was read from.
+    """
+
+    kind: SinceLastReviewKind
+    text: str
+    count: int | None = Field(default=None, ge=0)
+    day: date | None = None
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class SinceLastReview(BaseModel):
+    """What changed on an unresolved case since a human last looked at it (UX audit P1-6).
+
+    Server-produced so the Care Team never infers a delta in the browser. Derived on read by
+    `case_delta.since_last_review` from append-only rows; nothing new is stored. `anchor_day` is
+    the simulated day the anchor happened on (`None` only for a legacy case with no opening day
+    and no decision recorded before it); `anchor_recorded_at` is its wall-clock timestamp.
+    `nothing_new` is true exactly when `items` is empty.
+    """
+
+    anchor_kind: SinceLastReviewAnchorKind
+    anchor_day: date | None = None
+    anchor_recorded_at: datetime
+    nothing_new: bool
+    items: list[SinceLastReviewItem] = Field(default_factory=list)
+
+
+class ReviewCase(BaseModel):
+    case_id: str
+    person_id: str
+    title: str
+    status: CaseStatus
+    priority: int = Field(ge=1, le=5)
+    opened_at: datetime
+    summary: str
+    evidence: list[str]
+    recommendation: str
+    reviewer_note: str | None = None
+    decision_evidence_id: str
+    consent_active: bool
+    action_history: list[ReviewAction]
+    # ── The case clock ────────────────────────────────────────────────────────────────────────
+    # Counted in simulated days, the same clock the response window uses. Wall time says nothing
+    # here: nothing advances except `POST /v1/simulation/advance`, so a case "three days old" by
+    # the calendar may have seen no new reading at all. `opened_at` above stays as it was -- it
+    # records when the row was written, which is a different (and much less useful) fact.
+    #
+    # `None` only for a case opened before this clock existed; every case the current code creates
+    # stores its opening day.
+    opened_day: date | None = None
+    # Inclusive: the day a case opens is day one of its review, because a coordinator reading
+    # "0 days" about a case on their screen right now would be reading a falsehood. Counted to the
+    # latest day that refreshed the case, not to today -- a case nothing has re-confirmed has not
+    # quietly aged.
+    days_in_review: int | None = None
+    # When Care+ will put this back in front of a human if it is still open. `None` once the
+    # case is closed, and never shown to a senior: this is a promise Care+ makes to the care
+    # team about its own queue, not a deadline anyone is being held to.
+    review_by_day: date | None = None
+    # The most recent human (or `system`) action on the case, lifted out of `action_history` so a
+    # card can show "who, when" without the caller re-deriving it. `None` until someone acts.
+    last_reviewed_at: datetime | None = None
+    reviewer: str | None = None
+    # Why it closed. `None` while it is open or acknowledged -- acknowledging is not an ending.
+    resolution: CaseResolution | None = None
+    # ── What Care+ already did ───────────────────────────────────────────────────────────
+    # Every piece of outreach in this run up to and including the day the case opened, oldest
+    # first. Derived on read from rows that already exist; nothing new is stored.
+    prior_outreach: list[PriorOutreach] = Field(default_factory=list)
+    # Why this needed a person, in one sentence, authored from two facts the case already has:
+    # which rung of the ladder stopped, and what was tried before it. A deterministic template in
+    # `sql_repository._why_human`, never model-written -- an LLM-authored case summary would mean
+    # a reviewer could no longer be sure they were reading policy output rather than a model's
+    # paraphrase of it, on the one surface where that certainty matters most.
+    why_human: str = ""
+    # What changed since the latest human review (or since the case opened, before any). `None`
+    # once the case is resolved: a closed case has no next review to prepare for.
+    since_last_review: SinceLastReview | None = None
+
+
+class CoordinatorPersonRow(BaseModel):
+    """One person on the care team's roster: who they are and whether anything needs doing.
+
+    Care Team used to lead with a queue of cases and five counts, which meant a coordinator could
+    see who had a case open and nothing else -- not who was fine, not whose tracker had gone dark,
+    not who was being nudged right now. "No one needs human review" is a true sentence that
+    answers a different question from the one a coordinator asks at the start of a shift.
+
+    What is deliberately absent is the design. No step count, no percentage, no priority score, no
+    ordering that reads as a ranking of people. `attention_band` is a word (`stable` / `watch` /
+    `review`) and every other field is a standing, a small count of missing days, or a class of
+    decision -- each of them already visible on the queue card for anyone with a case, and none of
+    them a number about a person's body. A per-person risk score on this screen would turn a care
+    queue into a leaderboard, which is the one thing this surface must never become.
+    """
+
+    person_id: str
+    display_name: str
+    attention_band: AttentionBand
+    consent_active: bool
+    # How many of this person's last seven recorded days had too little tracker wear-time to be
+    # interpreted -- the days `quality.assess_data_quality` marks `device_suspected`. A count of
+    # missing readings, not a wellbeing signal: the strongest thing this may ever be called on a
+    # coordinator surface is "tracker may not have synced".
+    tracker_not_synced_days: int = 0
+    # The person's unresolved case, if they have one. The id rather than a bare flag so the queue
+    # and the roster can agree about which card a row refers to.
+    open_case_id: str | None = None
+    # The class of the most recent decision, so "Care+ is already checking in on her" is
+    # visible without opening anything. Never a message and never its content.
+    last_decision: Decision | None = None
+
+
+# ── Care priorities ───────────────────────────────────────────────────────────────────────────
+#
+# Who a caregiver should follow up with first. Derived in `triage.py` from decisions the policy
+# ladder already made; read-only, and it can never lift anyone above what the ladder permitted.
+
+
+class FollowUpWindow(StrEnum):
+    """How soon a person, not Care+, should follow up. Outreach timeframes, not triage.
+
+    The two contact windows are reachable only from a decision `policy.decide` already returned;
+    see `triage.py`. Daily activity data cannot support anything finer than a day, which is why
+    there is no "within the hour".
+    """
+
+    REACH_OUT_TODAY = "reach_out_today"
+    CHECK_IN_WITHIN_48H = "check_in_within_48h"
+    KEEP_AN_EYE_ON = "keep_an_eye_on"
+    NO_ACTION_NEEDED = "no_action_needed"
+
+
+class PriorityHold(StrEnum):
+    """Why someone is set aside rather than ranked. Neither is a statement about their wellbeing."""
+
+    CONSENT_WITHDRAWN = "consent_withdrawn"
+    DATA_NOT_READABLE = "data_not_readable"
+
+
+class CareNoteKind(StrEnum):
+    PERSISTENCE = "persistence"
+    CHANGE = "change"
+    ACTIVITY_LEVEL = "activity_level"
+    OUTREACH_HISTORY = "outreach_history"
+    CONTEXT = "context"
+    SPACE = "space"
+    TRACKER = "tracker"
+    CASE = "case"
+
+
+class CareNote(BaseModel):
+    """One thing a caregiver should know before they reach out. A deterministic template, never
+    model-written, and never the content of anything a senior told Care+."""
+
+    kind: CareNoteKind
+    text: str
+
+
+class CareTeamGroup(StrEnum):
+    """Which part of the Care Team workflow a person's row belongs in. Decided in `triage.py` from
+    the same facts as the follow-up window, so the two can never disagree; a client only labels it.
+    See `docs/care-priorities.md`."""
+
+    NEEDS_JUDGEMENT = "needs_judgement"
+    WAITING_FOR_SENIOR = "waiting_for_senior"
+    SILVERLOOP_HANDLING = "silverloop_handling"
+    NO_ATTENTION_NEEDED = "no_attention_needed"
+
+
+class CareTeamGroupReason(StrEnum):
+    """The one fact that placed a row in its `CareTeamGroup`. Each reason belongs to one group."""
+
+    # needs_judgement
+    OPEN_CASE = "open_case"
+    MONITORING_DUE_BACK = "monitoring_due_back"
+    # silverloop_handling
+    MONITORING_UNTIL_REVIEW_DAY = "monitoring_until_review_day"
+    KEEP_AN_EYE_ON = "keep_an_eye_on"
+    # needs_judgement (declared here to keep the contract's enum order unchanged)
+    CHECK_IN_SUGGESTED = "check_in_suggested"
+    # waiting_for_senior
+    AWAITING_REPLY = "awaiting_reply"
+    # no_attention_needed
+    CONSENT_WITHDRAWN = "consent_withdrawn"
+    TRACKER_UNCLEAR = "tracker_unclear"
+    NOTHING_NEEDED = "nothing_needed"
+
+
+class CarePriorityRow(BaseModel):
+    """One person on the care-priority board.
+
+    Like `CoordinatorPersonRow`, it carries no step count, no percentage and no score. Changes are
+    described in bands inside `take_note`. `position` is a place in the reading order, derived from
+    named facts in a fixed order, not a number about anyone.
+    """
+
+    position: int = Field(ge=1)
+    person_id: str
+    display_name: str
+    follow_up_window: FollowUpWindow
+    hold: PriorityHold | None = None
+    headline: str
+    suggested_approach: str
+    take_note: list[CareNote]
+    open_case_id: str | None = None
+    # No `decided_by_gate`: on this surface a gate name would disclose what the coordinator must not
+    # learn (`stated_explanation` says the senior explained their week). The row traces back to the
+    # decision through `evidence_ids` instead.
+    # The simulated day of the reading behind the row.
+    as_of_day: date
+    # The data-quality assessment for that reading, plus the case's decision evidence if one is
+    # open. These rows are views over evidence and are never evidence themselves.
+    evidence_ids: list[str]
+    # Where Care Team places this person, and the fact that put them there. Decided in `triage.py`
+    # together with the follow-up window, so a client maps these to labels and never re-derives
+    # them. The case a group refers to is `open_case_id` (open or acknowledged, never resolved).
+    care_team_group: CareTeamGroup
+    care_team_group_reason: CareTeamGroupReason
+    # The simulated day `open_case_id` comes back to the queue. `None` when there is no unresolved
+    # case, or the case predates the case clock and no such day was ever recorded.
+    review_back_on_day: date | None
+    # The last simulated day Care+ waits for a reply to an outreach offer still open, if any.
+    awaiting_reply_until: date | None
+    # A proposed change to this person's review timing is waiting for a coordinator's decision.
+    review_timing_proposal_waiting: bool
+
+
+class ThresholdReference(BaseModel):
+    label: str
+    rule: str
+    source: str
+
+
+class CarePriorityBoard(BaseModel):
+    top_k: int = Field(ge=1)
+    # At most `top_k` people, and only from the two contact windows. It is never padded with people
+    # Care+ is merely watching.
+    follow_up_first: list[CarePriorityRow]
+    # Everyone on the caseload in reading order, including the people who are fine.
+    people: list[CarePriorityRow]
+    boundary_note: str
+    thresholds: list[ThresholdReference]
+
+
+class Programme(BaseModel):
+    programme_id: str
+    name: str
+    venue: str
+    distance_km: float
+    next_session: datetime
+    accessibility: list[str]
+    evidence_source: str = "synthetic fixture"
+
+
+class AuditEvent(BaseModel):
+    event_id: str
+    at: datetime
+    event_type: str
+    actor: str
+    person_id: str | None = None
+    decision: Decision | None = None
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class AdvanceRequest(BaseModel):
+    event: str = Field(
+        default="activity_declines",
+        description=(
+            "activity_declines, rain_explains_decline, rain_clears_activity_low, recovery, "
+            "low_wear, consent_revoked, public_holiday, programme_becomes_full, or "
+            "weather_turns"
+        ),
+    )
+    event_id: str | None = Field(
+        default=None,
+        min_length=4,
+        max_length=96,
+        description="Optional client idempotency key scoped to the active scenario run.",
+    )
+    person_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Optional target person. Defaults to the demo person when omitted.",
+    )
+
+
+class AdvanceResponse(BaseModel):
+    state: PersonState
+    created_intervention: Intervention | None = None
+    created_case: ReviewCase | None = None
+    audit_event: AuditEvent
+    loop_trace: list[DecisionTraceStep]
+
+
+class DecisionTraceStep(BaseModel):
+    order: int = Field(ge=1)
+    stage: str
+    status: TraceStatus
+    title: str
+    detail: str
+    evidence_id: str | None = None
+
+
+class SimulationHistoryEntry(BaseModel):
+    """One stored `advance()` result, replayed for a multi-day narrative timeline."""
+
+    day: date
+    event_name: str
+    decision: Decision
+    loop_trace: list[DecisionTraceStep]
+
+
+class OutcomeRequest(BaseModel):
+    outcome: OutcomeKind = Field(
+        description=(
+            "accepted, declined, deferred, no_response, or activity_recovered. `accepted` means "
+            "the person asked to see more -- report what they actually did via the follow-through "
+            "route, not here."
+        )
+    )
+    reason: DeclineReason | None = Field(
+        default=None,
+        description=(
+            "Optional context, only meaningful alongside `declined`. Always skippable; never "
+            "required to submit a response."
+        ),
+    )
+
+
+class OutcomeResponse(BaseModel):
+    intervention: Intervention
+    outcome_evidence_id: str
+    outcome: OutcomeKind
+    preference_before: float
+    preference_after: float
+    candidate_key: str
+    audit_event: AuditEvent
+
+
+# ── The follow-through loop ───────────────────────────────────────────────────────────────────
+#
+# Everything below exists because outreach used to end at the sentence. A person tapped "Yes,
+# tell me more", was told nothing more, and the tap was recorded as a success. These models cover
+# the three beats that were missing: showing the thing that was offered, asking later whether it
+# happened, and looking at the days afterwards to see whether anything changed.
+
+
+class OutreachStep(BaseModel):
+    """One step of a movement option, written to be read aloud off a phone at arm's length."""
+
+    order: int = Field(ge=1)
+    text: str
+
+
+class OutreachDetail(BaseModel):
+    """What "tell me more" actually shows.
+
+    Derived deterministically from the intervention's `candidate_key`. No model writes any of
+    this: the wording is fixed, reviewed content, because it is the one screen that tells a
+    person to move their body and it must not vary run to run.
+
+    `boundary_note` is not decoration. This is general wellbeing content, not exercise
+    prescription, and the screen has to say so in its own words rather than relying on a policy
+    document nobody reading it will ever see.
+    """
+
+    kind: Literal["movement_routine", "programme_details", "none"]
+    title: str
+    intro: str
+    steps: list[OutreachStep] = Field(default_factory=list)
+    stop_note: str
+    boundary_note: str
+    programme: Programme | None = None
+    # The catalogue listing behind this suggestion, when there is one. `Programme` carries seven
+    # fields; a person deciding whether to go needs the address, the bus, the duration, whether to
+    # book and who to ring -- all of which live here. Without it the payoff screen showed strictly
+    # less than the browse page for the very same activity.
+    activity: ActivityCandidate | None = None
+    source: str | None = None
+
+
+class FollowThroughRequest(BaseModel):
+    follow_through: FollowThrough = Field(
+        description="completed, partial, not_this_time, or unable"
+    )
+    note: str | None = Field(default=None, max_length=280)
+
+
+class FollowThroughResponse(BaseModel):
+    intervention: Intervention
+    follow_through_evidence_id: str
+    follow_through: FollowThrough
+    preference_before: float
+    preference_after: float
+    candidate_key: str
+    audit_event: AuditEvent
+
+
+class FollowUpObservation(BaseModel):
+    """What the person's activity did in the days after one piece of outreach.
+
+    This is the question the product could not previously answer -- "does reaching out change
+    anything?" -- and the data to answer it was already on disk, unread.
+
+    It is deliberately not a claim of cause. One person over a few days cannot establish that a
+    suggestion did anything, and `caveat` says so on every single observation rather than in a
+    footnote somewhere. Causal comparison belongs to the evaluation harness, across many people;
+    this is a description of one person's week and is labelled as one.
+    """
+
+    intervention_id: str
+    # False while the observation window is still open or has too few valid-wear days. Every
+    # numeric field below is meaningless when this is False, and consumers must check it.
+    available: bool
+    reason_unavailable: str | None = None
+    observed_from: date | None = None
+    observed_to: date | None = None
+    days_observed: int = 0
+    valid_days_observed: int = 0
+    steps_before: float = 0
+    steps_after: float = 0
+    change_percent: float = 0
+    reference_steps: float = 0
+    # Moved back toward the person's own anchored reference, not toward any population target.
+    returned_toward_usual: bool = False
+    interpretation: str = ""
+    caveat: str = ""
+
+
+class OutreachSummary(BaseModel):
+    """One completed pass of the loop: what was offered, what was said, what happened next.
+
+    Serves three readers off one shape -- the senior's own history, the coordinator's "what
+    happened after" column, and the operations effectiveness panel -- so the three can never drift
+    into telling different stories about the same event.
+    """
+
+    intervention_id: str
+    person_id: str
+    created_at: datetime
+    decision: Decision
+    candidate_key: str
+    title: str
+    outcome: str | None = None
+    outcome_reason: str | None = None
+    follow_through: str | None = None
+    follow_up: FollowUpObservation | None = None
+    # Same meaning as `Intervention.awaiting_reply_until`: set only while the offer is still open.
+    awaiting_reply_until: date | None = None
+
+
+class ActivityPosition(StrEnum):
+    """Where one usable day sits against the person's own usual level, in the ladder's own terms.
+
+    Two values, not three, on purpose: the policy has exactly one line -- a day is low below
+    `analytics.LOW_DAY_FRACTION` of the effective baseline -- and no matching "high" line. Inventing
+    one here would be a judgement the ladder never makes, so every usable day at or above the low
+    line is reported as exactly that: usual or higher.
+    """
+
+    LOWER = "lower"
+    USUAL_OR_HIGHER = "usual_or_higher"
+
+
+class ActivityRelativeDay(BaseModel):
+    day: date
+    # False when the tracker was not worn long enough to read (`quality.assess_data_quality`). Such
+    # a day is silence, not a low day, and never carries a position.
+    reading_usable: bool
+    # `None` when the reading is unusable or there is no usual level to compare against.
+    position: ActivityPosition | None = None
+
+
+class ActivityRelativeToUsual(BaseModel):
+    """Recent days relative to the person's own usual level, derived on read for a coordinator.
+
+    Deliberately carries no step counts, percentages or scores. The classification is the server's
+    -- the ladder's low-day rule, against the same effective baseline today's decision used -- so a
+    browser renders words and never re-derives a policy cut-off.
+    """
+
+    person_id: str
+    # The run's most recent stored day: the day the usual level is taken as of.
+    as_of_day: date
+    # False when the person has withdrawn consent. Nothing about their days is read back then:
+    # `days` is empty, `usual_available` is false and both counts are zero.
+    consent_active: bool
+    # False when there is no valid history yet to form a usual level from, and whenever
+    # `consent_active` is false (no comparison is made).
+    usual_available: bool
+    # Oldest first: the most recent stored days, at most the requested window. Empty when
+    # `consent_active` is false.
+    days: list[ActivityRelativeDay]
+    lower_days: int = Field(ge=0)
+    usable_days: int = Field(ge=0)
+
+
+class CandidatePreference(BaseModel):
+    """A durable, person-owned preference about one kind of suggestion.
+
+    Suppression here is deterministic and separate from the Beta-Bernoulli learner: repeated
+    declines remove an option from the permitted set rather than merely ranking it lower. Keeping
+    it out of the learner preserves the invariant that learning only ever reorders what policy
+    already allowed -- this narrows the set, and narrowing is a safety-preserving direction.
+
+    The person can always reverse it, which is why `suppressed` is writable by the senior and by
+    nobody else.
+    """
+
+    candidate_key: str
+    label: str
+    suppressed: bool = False
+    suppressed_reason: str | None = None
+    declines: int = 0
+    times_offered: int = 0
+    times_accepted: int = 0
+    times_completed: int = 0
+
+
+class CandidatePreferenceRequest(BaseModel):
+    suppressed: bool
+    reason: str | None = Field(default=None, max_length=240)
+
+
+class CandidatePreferenceResponse(BaseModel):
+    preference: CandidatePreference
+    audit_event: AuditEvent
+
+
+class DayDisputeRequest(BaseModel):
+    """A person correcting Care+'s reading of one of their own days.
+
+    `accurate=False` does not delete or rewrite the recorded metric -- the observation stays
+    exactly as the device reported it. It attaches a competing account from the person, which the
+    quality assessment weighs and the audit trail keeps. Overwriting sensor data with self-report
+    would destroy the provenance guarantee; ignoring the person entirely would be worse.
+    """
+
+    day: date
+    accurate: bool
+    note: str | None = Field(default=None, max_length=280)
+
+
+class DayDisputeResponse(BaseModel):
+    day: date
+    accurate: bool
+    dispute_evidence_id: str
+    audit_event: AuditEvent
+
+
+class ConsentRequest(BaseModel):
+    active: bool
+    reason: str = Field(min_length=2, max_length=240)
+
+
+class ConsentResponse(BaseModel):
+    consent_active: bool
+    consent_evidence_id: str
+    withdrawn_intervention_ids: list[str]
+    audit_event: AuditEvent
+
+
+class ReviewRequest(BaseModel):
+    status: CaseStatus
+    # The coordinator's own words. Kept on the review row and shown back on the case; the
+    # operator-readable audit trail records only that it exists (`note_present`), under the same
+    # rule every free-text field a senior can write already follows. It used to be audited
+    # verbatim, which was survivable only while the web sent one of two canned sentences.
+    reviewer_note: str = Field(min_length=2, max_length=500)
+    # Optional so the two-field request that predates the structured choice stays valid. It is
+    # deliberately NOT defaulted to `AGREE`: a review that recorded no choice recorded no choice,
+    # and inferring agreement from silence would put words in a coordinator's mouth and inflate
+    # the one number this field exists to make honest.
+    human_action: HumanAction | None = None
+    override_reason: OverrideReason | None = None
+    # The coordinator's mark that this case should have reached them sooner. While this person's
+    # review threshold is loosened it reverts that loosening from the next simulated day (ADR 0008).
+    reached_too_late: bool = False
+    # What kind of known context explained this review. Optional, and only with an override for
+    # `known_context`. Stored on the review row and tallied for the care team; the audit trail
+    # records only whether one was given. It changes no decision, proposal or review setting.
+    context_gap_category: ContextGapCategory | None = None
+    # Set only by the Simulator's "Start from chapter n", which records the earlier chapters'
+    # reviews to skip ahead. Refused (403) while sign-in is on. With sign-in off the review is
+    # recorded with reviewer `"demo-script"` (never `"system"`, which means a system closure) and
+    # the audit detail carries `recorded_by_demo_script: true`. It still counts as a human review
+    # for review-setting calibration: that is the point of skipping a chapter.
+    recorded_by_demo_script: bool = False
+
+    @model_validator(mode="after")
+    def _override_needs_a_reason(self) -> ReviewRequest:
+        """Overruling the system without saying why is the one combination that is not allowed.
+
+        Not a safety gate -- nothing about the decision changes either way -- but a record that
+        says "a human disagreed" and cannot say what with is worth very little, and the whole
+        point of the closed `OverrideReason` vocabulary is to be countable.
+        """
+        if self.human_action == HumanAction.OVERRIDE and self.override_reason is None:
+            raise ValueError("override_reason is required when human_action is 'override'")
+        return self
+
+    @model_validator(mode="after")
+    def _not_a_concern_cannot_be_too_late(self) -> ReviewRequest:
+        """Not a concern for this person, and this should have reached me sooner, contradict
+        each other, and the first can unlock a loosening while the second reverts one. A request
+        claiming both would let whichever the server reads first win, so it is refused outright.
+        """
+        if self.reached_too_late and self.override_reason == OverrideReason.NOT_A_CONCERN:
+            raise ValueError("reached_too_late cannot be set with override_reason 'not_a_concern'")
+        return self
+
+    @model_validator(mode="after")
+    def _context_gap_needs_known_context(self) -> ReviewRequest:
+        """A context-gap category describes known context, so it is refused beside any other
+        choice: a category on an agreement or a data-doubt override would be tallied as context
+        Care+ missed when the coordinator said no such thing."""
+        if self.context_gap_category is not None and not (
+            self.human_action == HumanAction.OVERRIDE
+            and self.override_reason == OverrideReason.KNOWN_CONTEXT
+        ):
+            raise ValueError(
+                "context_gap_category is allowed only with human_action 'override' and "
+                "override_reason 'known_context'"
+            )
+        return self
+
+
+class ReviewLesson(BaseModel):
+    """What Care+ learned from one review, derived on read from the stored review.
+
+    `summary` is fixed template text chosen by `kind` and `reason` -- never the coordinator's note
+    and never an activity figure.
+    """
+
+    review_id: str
+    kind: ReviewLessonKind
+    reason: ReviewLessonReason
+    context_gap_category: ContextGapCategory | None = None
+    summary: str
+
+
+class CaseReviewResponse(BaseModel):
+    case: ReviewCase
+    review_evidence_id: str
+    outcome: OutcomeKind | None
+    audit_event: AuditEvent
+    lesson: ReviewLesson
+
+
+# ── The review-threshold calibrator: contract (ADR 0008) ──────────────────────────────────────
+#
+# The bounds below are repeated as literals because this module must never import
+# `review_threshold.py` (which imports it). `review_threshold.py` owns the constants; its tests pin
+# that these field bounds agree with them.
+
+
+class ReviewThresholdValue(BaseModel):
+    """One point on the allowed grid: review when activity is at least `severity_pct` below the
+    personal baseline for at least `persistence_days` valid-wear days.
+
+    Fourteen points: 40..55% in steps of 5 for 3..5 days, plus 30% and 35% at three days only.
+    Persistence cannot go below three days, so asking sooner is severity-only, and the "mixed"
+    values (30%/35% for four or five days) are refused: every allowed setting stays componentwise
+    comparable with the starting setting, so going back can never ask later in either dimension.
+    """
+
+    severity_pct: int = Field(ge=30, le=55, multiple_of=5)
+    persistence_days: int = Field(ge=3, le=5)
+
+    @model_validator(mode="after")
+    def _no_mixed_settings(self) -> ReviewThresholdValue:
+        if self.severity_pct < 40 and self.persistence_days != 3:
+            raise ValueError(
+                "below 40% a review setting must stay at three days (no mixed settings)"
+            )
+        return self
+
+
+class ReviewThresholdFloor(BaseModel):
+    """The absolute review floor (60% for three days). Not a point on the allowed grid -- no one
+    can choose it -- so it is deliberately a separate shape from `ReviewThresholdValue`, whose
+    range validation it would fail."""
+
+    severity_pct: int
+    persistence_days: int
+
+
+class ReviewThresholdBounds(BaseModel):
+    default: ReviewThresholdValue
+    minimum: ReviewThresholdValue
+    maximum: ReviewThresholdValue
+    floor: ReviewThresholdFloor
+    severity_step_pct: int
+    persistence_step_days: int
+    grace_days: int
+    checking_period_days: int
+    expiry_days: int
+    cooldown_days: int
+    weekly_proposal_cap: int
+    proposals_per_round: int
+
+
+class ReviewThresholdNotice(BaseModel):
+    """What the senior is told, in fixed wording, after their review threshold changed."""
+
+    notice_id: str
+    kind: ReviewThresholdNoticeKind
+    message: str
+    shown_from_day: date
+
+
+class ReviewThresholdProposal(BaseModel):
+    """One calibrator output: a proposed change, a considered no-change, or a write-up of a revert.
+
+    `reasoning` and `agent_run` are shown to coordinators only and never copied into the audit
+    trail. `proposed` is `None` for `no_change` and `write_up`.
+    """
+
+    proposal_id: str
+    output_kind: ReviewThresholdOutputKind
+    proposer: ReviewThresholdProposer
+    round_id: str | None = None
+    round_index: int | None = None
+    previous: ReviewThresholdValue
+    proposed: ReviewThresholdValue | None = None
+    cause: ReviewThresholdCause | None = None
+    reasoning: str
+    cited_evidence_ids: list[str] = Field(default_factory=list)
+    trigger_case_id: str | None = None
+    trigger_review_ids: list[str] = Field(default_factory=list)
+    reported_by: str | None = None
+    coordinator_reason: OverrideReason | None = None
+    write_up_for_decision_id: str | None = None
+    proposed_on_day: date
+    status: Literal["open", "approved", "rejected", "not_applicable"]
+    agent_run: dict[str, Any] | None = None
+
+
+class ReviewThresholdReplayEpisode(BaseModel):
+    first_low_day: date
+    # True for the trailing episode that has not recovered by the last stored day. Its `None`
+    # review days mean "not yet", never "recovered before asking".
+    ongoing: bool = False
+    current_review_day: date | None = None
+    # `None` on a finished episode when it recovered before the candidate (or its floor/shadow
+    # check) asked; on an ongoing episode, only that the candidate has not asked yet.
+    candidate_review_day: date | None = None
+    # Candidate minus current, in days; negative means sooner.
+    days_later: int | None = None
+    candidate_reached_via: Literal["threshold", "floor", "shadow_check"] | None = None
+
+
+class ReviewThresholdReplay(BaseModel):
+    """Calculated by code from stored synthetic history; never written by a model.
+
+    `episodes` lists every episode in the window in which either setting asked, the trailing
+    unfinished one included (`ongoing=True`). `reviews_with_current` and `reviews_with_candidate`
+    count **finished episodes only**: an ongoing episode's missing review is "not yet", so it can
+    never be read as a review the candidate would have saved. `max_days_later` likewise reads
+    finished episodes only.
+    """
+
+    current: ReviewThresholdValue
+    candidate: ReviewThresholdValue
+    window_start_day: date
+    window_end_day: date
+    episodes: list[ReviewThresholdReplayEpisode] = Field(default_factory=list)
+    reviews_with_current: int = Field(ge=0)
+    reviews_with_candidate: int = Field(ge=0)
+    max_days_later: int | None = None
+    disclosure: str
+
+
+class ReviewThresholdDecisionRecord(BaseModel):
+    decision_id: str
+    kind: ReviewThresholdDecisionKind
+    proposal_id: str | None = None
+    ends_approval_id: str | None = None
+    affects_decision_id: str | None = None
+    revert_trigger: ReviewThresholdRevertTrigger | None = None
+    before: ReviewThresholdValue
+    after: ReviewThresholdValue | None = None
+    decided_by: str
+    rejection_reason: ReviewThresholdRejectionReason | None = None
+    note: str | None = None
+    cause_confirmed: bool | None = None
+    replay: ReviewThresholdReplay | None = None
+    trigger_case_id: str | None = None
+    trigger_review_id: str | None = None
+    decided_on_day: date
+    effective_from_day: date
+    decided_at: datetime
+
+
+class ReviewThresholdCheck(BaseModel):
+    approval_decision_id: str
+    checking_until_day: date
+    false_alarms_since: int = Field(ge=0)
+    status: Literal["checking", "confirmed", "unresolved", "reverted"]
+
+
+class ReviewReceiptEntry(BaseModel):
+    """One review and how it stands against the receipt's review setting. No reviewer and no note:
+    the receipt says which judgements moved a setting, not who made them or in what words."""
+
+    review_id: str
+    case_id: str
+    # The day the reviewed case opened; `None` for a case opened before the case clock existed.
+    opened_day: date | None = None
+    recorded_at: datetime
+    lesson: ReviewLesson
+    status: ReviewReceiptStatus
+    # Set exactly when `status` is `excluded`.
+    exclusion: ReviewReceiptExclusion | None = None
+    # Whether the proposal the receipt describes cited this review.
+    cited: bool
+    led_to_proposal_id: str | None = None
+    led_to_decision_id: str | None = None
+
+
+class ReviewSettingReceipt(BaseModel):
+    """Which reviews counted toward a review setting, which were excluded and why.
+
+    Derived on read from existing review, proposal and decision rows. `subject` names what the
+    receipt is about: the open proposal, the proposal behind the live approval, or -- with neither
+    -- the next proposal the fixed rule would make as of today ("`counted` of `needed`").
+    """
+
+    subject: Literal["open_proposal", "live_setting", "next_proposal"]
+    proposal_id: str | None = None
+    as_of_day: date
+    # When the live setting took effect; reviews before it do not count. `None` while the untouched
+    # starting setting is live.
+    counted_from_day: date | None = None
+    window_start_day: date
+    needed: int = Field(ge=0)
+    counted: int = Field(ge=0)
+    entries: list[ReviewReceiptEntry] = Field(default_factory=list)
+    # The fixed counting rule, in coordinator-facing wording.
+    rule: str
+
+
+class ContextGapCount(BaseModel):
+    # `None` counts known-context overrides recorded without a category.
+    category: ContextGapCategory | None = None
+    count: int = Field(ge=0)
+
+
+class ContextGapTally(BaseModel):
+    """Known-context overrides for this person in the active run, by category. Shown to the care
+    team; read by no decision, proposal or review setting."""
+
+    total: int = Field(ge=0)
+    by_category: list[ContextGapCount] = Field(default_factory=list)
+    disclosure: str
+
+
+class ReviewThresholdState(BaseModel):
+    person_id: str
+    current_day: date
+    consent_active: bool
+    live: ReviewThresholdValue
+    live_source: Literal["starting_setting", "approved", "reverted", "expired"]
+    live_decision_id: str | None = None
+    starting_setting_confirmed: bool
+    expires_on_day: date | None = None
+    cooldown_until_day: date | None = None
+    bounds: ReviewThresholdBounds
+    open_proposal: ReviewThresholdProposal | None = None
+    # Rejected proposals in the latest round; manual set opens at `bounds.proposals_per_round`.
+    round_rejections: int = Field(ge=0)
+    manual_set_allowed: bool
+    proposals_this_week_by_you: int = Field(ge=0)
+    check: ReviewThresholdCheck | None = None
+    proposals: list[ReviewThresholdProposal] = Field(default_factory=list)
+    decisions: list[ReviewThresholdDecisionRecord] = Field(default_factory=list)
+    senior_notice_preview: ReviewThresholdNotice | None = None
+    # The fixed notice the senior would see if `open_proposal` were approved today; `None` when
+    # there is no open proposal or approving it would tell the senior nothing.
+    senior_notice_if_approved: ReviewThresholdNotice | None = None
+    # Which reviews counted toward the proposal or setting on screen, and which did not and why.
+    receipt: ReviewSettingReceipt
+    # Known-context overrides for this person in the active run. Changes nothing.
+    context_gaps: ContextGapTally
+
+
+class ReviewThresholdApproveRequest(BaseModel):
+    cause_confirmed: bool
+    # The simulated day the coordinator was looking at. A stale day is refused (409): the replay
+    # they approved may no longer describe the history the server holds.
+    shown_on_day: date
+    note: str | None = Field(default=None, max_length=500)
+    # Set only by the Simulator's "Start from chapter n", which approves an earlier chapter's
+    # proposal to skip ahead. Refused (403) while sign-in is on. With sign-in off the decision is
+    # recorded with `decided_by` `"demo-script"` and the audit detail carries
+    # `recorded_by_demo_script: true`. It is still an approval, and takes effect like any other.
+    recorded_by_demo_script: bool = False
+
+
+class ReviewThresholdRejectRequest(BaseModel):
+    reason: ReviewThresholdRejectionReason
+    note: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def _system_reasons_are_system_only(self) -> ReviewThresholdRejectRequest:
+        """`consent_withdrawn` and `superseded` record that the system closed a proposal -- the
+        person withdrew consent, or a revert or expiry moved the value it was made against. A
+        coordinator choosing either would falsify that record."""
+        if self.reason in (
+            ReviewThresholdRejectionReason.CONSENT_WITHDRAWN,
+            ReviewThresholdRejectionReason.SUPERSEDED,
+        ):
+            raise ValueError(f"reason '{self.reason.value}' is recorded by the system only")
+        return self
+
+
+class ReviewThresholdManualSetRequest(BaseModel):
+    threshold: ReviewThresholdValue
+    note: str = Field(min_length=2, max_length=500)
+    shown_on_day: date
+
+
+class ReviewThresholdShownRequest(BaseModel):
+    shown_on_day: date
+
+
+class ReviewThresholdDecisionResponse(BaseModel):
+    state: ReviewThresholdState
+    decision: ReviewThresholdDecisionRecord
+    audit_event: AuditEvent
+
+
+class SeniorHomePreview(BaseModel):
+    """One persona's senior home content for an evaluator.
+
+    Read-only; not the senior's own screen.
+    """
+
+    person_id: str
+    state: PersonState
+    latest_intervention: Intervention | None = None
+    # "Preview for evaluation. This is not the senior's own screen; nothing here can be answered or
+    # recorded."
+    disclosure: str
+
+
+class ServerErrorCode(StrEnum):
+    """How a server-side failure is classified (`error_responses.py`)."""
+
+    # A stored snapshot predates the current contract; resetting the demo recovers.
+    STORED_STATE_INCOMPATIBLE = "stored_state_incompatible"
+    # Any other server-side failure the API classifies rather than exposing framework text.
+    INTERNAL_ERROR = "internal_error"
+
+
+class ServerErrorBody(BaseModel):
+    """The body of every classified 500. `detail` repeats `message` for clients that read
+    `detail`, the FastAPI convention the rest of the API follows. Plain language only: no field
+    path, stored value or framework text."""
+
+    code: ServerErrorCode
+    message: str
+    detail: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    version: str
+    mode: str
+    llm_enabled: bool
+
+
+class ReadinessResponse(BaseModel):
+    status: Literal["ready", "not_ready"]
+    database_backend: str
+    runtime_profile: Literal["shared", "offline"]
+    database_connected: bool
+    migration_revision: str | None
+    expected_migration_revision: str
+    tables_without_rls: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Public ORM tables whose PostgreSQL row-level security is off. The browser never "
+            "reaches these tables directly -- `anon` and `authenticated` are denied by policy -- "
+            "and a table with RLS disabled has lost that denial, so any name here makes `status` "
+            "`not_ready`. Always empty off PostgreSQL: SQLite has no such flag to report on, and "
+            "no Data API to be exposed to."
+        ),
+    )
+
+
+class DemoResetResponse(BaseModel):
+    state: PersonState
+    seed: int
+    scenario_version: str
+    fixture_checksum: str
+
+
+# ── The user-initiated loop ───────────────────────────────────────────────────────────────────
+#
+# Everything above this line begins with a policy trigger: the wearable changed, the ladder
+# decided. These models are the second entry point, where the senior starts the loop themselves.
+#
+# "Find me something to do tomorrow" is not a behavioural anomaly and must never be modelled as
+# one. It reaches the same planner, the same permitted-set guardrail and the same learner, but it
+# does not require -- and does not create -- a wellbeing concern.
+
+
+class TimeWindow(StrEnum):
+    MORNING = "morning"
+    AFTERNOON = "afternoon"
+    EVENING = "evening"
+    ANY = "any"
+
+
+class SocialPreference(StrEnum):
+    SOCIAL = "social"
+    SOLO = "solo"
+    EITHER = "either"
+
+
+class ActivityEnvironment(StrEnum):
+    INDOOR = "indoor"
+    OUTDOOR = "outdoor"
+    SHELTERED = "sheltered"
+    EITHER = "either"
+
+
+class ActivityIntensity(StrEnum):
+    LIGHT = "light"
+    MODERATE = "moderate"
+    EITHER = "either"
+
+
+class IndoorOutdoor(StrEnum):
+    """What a *listing* says about its surroundings, as opposed to what a *request* asks for.
+
+    Deliberately not `ActivityEnvironment`: a request may say "either", which a listing cannot,
+    and a listing may say "unknown", which a request cannot. `activity_search`'s
+    `_ENVIRONMENT_COMPATIBLE` is the one bridge between them. Declared here, above
+    `ActivityIntent`, because an intent's `excluded_environments` is a list of things the
+    *catalogue* can be, not of things a request can ask for.
+    """
+
+    INDOOR = "indoor"
+    OUTDOOR = "outdoor"
+    SHELTERED = "sheltered"
+    UNKNOWN = "unknown"
+
+
+class IntentParser(StrEnum):
+    """Which of the two parsers produced an intent.
+
+    They exist as a pair because the offline profile forbids the planner (`runtime.py`), and the
+    demo has to survive a dead network. `CHIPS` and `KEYWORD` are deterministic and always
+    available; `LLM` is better at real sentences and only runs when the planner is live. All three
+    emit the same `ActivityIntent`, so nothing downstream can tell them apart or needs to.
+    """
+
+    CHIPS = "chips"
+    KEYWORD = "keyword"
+    LLM = "llm"
+
+
+class ActivityIntent(BaseModel):
+    """A request for something to do, as structure rather than as a sentence.
+
+    The model's entire job is to fill this in. It never answers the request, never names an
+    activity and never invents a constraint the person did not express -- which is why every
+    field defaults to "no preference" rather than to a plausible guess.
+
+    `unparsed_terms` is the honesty valve. Anything the parser did not understand is carried here
+    and shown back to the person, so a misread request is visible before it is acted on rather
+    than silently narrowing the search.
+    """
+
+    # Bounded at the schema, not only at the request: the LLM parser fills this model too, and a
+    # field with no ceiling is a field an adversarial request can use to stuff the next prompt.
+    raw_text: str | None = Field(default=None, max_length=400)
+    on_date: date | None = None
+    time_window: TimeWindow = TimeWindow.ANY
+    max_distance_m: int | None = Field(default=None, ge=0, le=50_000)
+    # Whether the person gave a distance as a *number*. "Within 800 m" is a limit they know they
+    # have; "near me" is a preference. Only the first is a barrier, so only the first filters --
+    # a vague phrase read as a hard 1 km cut-off silently removed half the catalogue, including
+    # the 1.2 km sheltered walk, from someone who had not asked for anything of the sort.
+    distance_is_explicit: bool = False
+    social_preference: SocialPreference = SocialPreference.EITHER
+    environment: ActivityEnvironment = ActivityEnvironment.EITHER
+    intensity: ActivityIntensity = ActivityIntensity.EITHER
+    language: str | None = Field(default=None, max_length=40)
+    # What kind of thing they asked for. A *soft* axis: it ranks, it never filters. The catalogue
+    # is small, so a hard content filter would turn most requests into "nothing matched" -- the
+    # honest failure here is showing a walk below the tai chi they asked for, never hiding it.
+    activity_types: list[ActivityType] = Field(default_factory=list, max_length=5)
+    # What they ruled out. All three are *hard*, and all three exist because of negation: a
+    # sentence like "nothing outdoors today" or "no walking, my knee" used to be read as its own
+    # opposite and then hard-filtered to it. An exclusion cannot on its own empty the catalogue,
+    # and showing someone the one thing they said they could not do is the harmful error here.
+    excluded_activity_types: list[ActivityType] = Field(default_factory=list, max_length=5)
+    excluded_environments: list[IndoorOutdoor] = Field(default_factory=list, max_length=3)
+    excluded_social: list[SocialPreference] = Field(default_factory=list, max_length=2)
+    # Set by the server from the parser that actually ran; a client-supplied value is overwritten.
+    parsed_by: IntentParser = IntentParser.CHIPS
+    unparsed_terms: list[Annotated[str, Field(max_length=40)]] = Field(
+        default_factory=list, max_length=20
+    )
+
+
+class ActivitySource(StrEnum):
+    """Where a listing came from. Never decorative.
+
+    Only `AAC_FIXTURE` carries real data in this build. The others exist so the adapter shape is
+    visible in the contract, and a candidate may not claim one of them until that integration
+    actually retrieved it -- see `integration_status`.
+    """
+
+    AAC_FIXTURE = "aac_fixture"
+    ONEPA = "onepa"
+    ACTIVESG = "activesg"
+    HEALTHY365_HANDOFF = "healthy365_handoff"
+
+
+class IntegrationStatus(StrEnum):
+    FIXTURE = "fixture"
+    FUTURE_AUTHORISED = "future_authorised"
+    LIVE = "live"
+
+
+class ActivityAvailability(StrEnum):
+    AVAILABLE = "available"
+    FULL = "full"
+    UNKNOWN = "unknown"
+
+
+class ActivityLocation(BaseModel):
+    name: str
+    address: str | None = None
+    postal_code: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class DistanceBasis(StrEnum):
+    """Where a candidate's `distance_m` came from, so a card never implies a measurement it
+    does not have.
+
+    `LISTING_STATIC` is the only basis in this build: a fixed figure typed into the listing with
+    no origin and no route behind it. A future routing adapter (walk or public transport from a
+    place the person chose to share) would add its own member here rather than reuse this one.
+    `UNKNOWN` accompanies a `None` distance.
+    """
+
+    LISTING_STATIC = "listing_static"
+    UNKNOWN = "unknown"
+
+
+class ActivityBooking(StrEnum):
+    """Whether a person can simply turn up, and if not, what they must do first.
+
+    `UNKNOWN` is a real answer and must render as "Not listed". Telling someone to just turn up to
+    something that needed booking wastes a journey they may have found difficult to make.
+    """
+
+    DROP_IN = "drop_in"
+    REGISTER = "register"
+    UNKNOWN = "unknown"
+
+
+class ActivityCandidate(BaseModel):
+    """One thing a person could actually go and do.
+
+    The rule that governs this model: **the planner may rank candidates; it may never author
+    one.** Every field here is retrieved, and `UNKNOWN` is a real answer that must render as "Not
+    listed" rather than being filled in with something plausible. A fabricated language tag or an
+    invented session time is the failure that would make the whole product untrustworthy, and it
+    is invisible in a demo -- which is exactly why the schema, not the prompt, has to prevent it.
+
+    `retrieved_at` and `source` travel with the candidate so a card can always say where its
+    facts came from and how stale they are.
+    """
+
+    activity_id: str
+    source: ActivitySource
+    integration_status: IntegrationStatus
+    title: str
+    provider: str
+    start_at: datetime | None = None
+    location: ActivityLocation
+    # The display badge, and only that. It reads as words ("Group class") because a card should,
+    # and it is populated from `ontology.FORMAT_LABEL[format]` rather than typed per listing.
+    # Nothing ranks, learns or diversifies on it any more: `format` and `activity_type` below
+    # carry the two facts it used to conflate.
+    category: str | None = None
+    # What the thing *is*. `None` means the listing is not labelled, which is a different fact
+    # from `ActivityType.OTHER` ("labelled, and none of the above") -- and neither is ever
+    # guessed from the title in product code. Fixture listings carry hand-authored values and
+    # `ontology.normalise` exists only to check them.
+    activity_type: ActivityType | None = None
+    activity_families: list[ActivityFamily] = Field(default_factory=list)
+    # How it is run: a class, a led group activity, a drop-in, something self-guided, one to one.
+    format: Format | None = None
+    indoor_outdoor: IndoorOutdoor = IndoorOutdoor.UNKNOWN
+    intensity: ActivityIntensity | None = None
+    # Whether the activity actually puts someone among other people. `None` means the listing
+    # does not say, and must render as "Not listed" -- a group session and an unlabelled one are
+    # not the same thing, and guessing here would fabricate the single attribute most likely to
+    # matter to someone who asked to meet people.
+    social_shape: SocialPreference | None = None
+    accessibility_tags: list[str] = Field(default_factory=list)
+    language_tags: list[str] = Field(default_factory=list)
+    capacity: int | None = None
+    availability: ActivityAvailability = ActivityAvailability.UNKNOWN
+    price: str | None = None
+    source_url: str | None = None
+    retrieved_at: datetime
+    distance_m: int | None = None
+    distance_basis: DistanceBasis = DistanceBasis.UNKNOWN
+    # Everything below exists so a person can decide, and then actually go, from this one card.
+    # Splitting "what is it", "how do I get there", "do I need to book" and "who do I call" across
+    # separate places is exactly the cross-checking that stops someone attending -- and it falls
+    # hardest on the people least able to chase it down.
+    #
+    # All optional, all `None`/empty when genuinely unknown, and all rendered as "Not listed"
+    # rather than guessed. A fabricated bus number is worse than no bus number.
+    description: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=600)
+    what_to_bring: list[str] = Field(default_factory=list)
+    booking: ActivityBooking = ActivityBooking.UNKNOWN
+    booking_note: str | None = None
+    contact_phone: str | None = None
+    contact_note: str | None = None
+    getting_there: list[str] = Field(default_factory=list)
+    good_to_know: list[str] = Field(default_factory=list)
+
+
+class ReasonBasis(StrEnum):
+    """What a "why this fits you" line is grounded in. No line may exist without one."""
+
+    INTENT = "intent"
+    PREFERENCE = "preference"
+    CONTEXT = "context"
+    CATALOGUE = "catalogue"
+    # The person's own recorded responses to this exact listing -- interested, went, enjoyed.
+    HISTORY = "history"
+    # Promoted by the diversity pass so the top three are not three of the same kind of thing.
+    # The line says so plainly; it is never dressed up as a fit the evidence does not support.
+    VARIETY = "variety"
+
+
+class ActivityReason(BaseModel):
+    text: str
+    basis: ReasonBasis
+
+
+class FilterOutcome(BaseModel):
+    """A candidate the deterministic filter removed, and why.
+
+    Kept and returned because the filter runs *before* the model sees anything, so this is the
+    only record of what was excluded from its view. Without it, "the agent chose well" is
+    unfalsifiable -- the interesting question is always what it never got to consider.
+    """
+
+    activity_id: str
+    title: str
+    rule: str
+    detail: str
+
+
+class ScoreFactor(BaseModel):
+    """One named, bounded component of a candidate's deterministic rank.
+
+    `value` is in [-1, 1] and `contribution = value * weight`. The names are fixed
+    (`activity_search.RANKING_WEIGHTS`) so an evaluator can compare the same factor across
+    candidates and searches; `note` says, in words, what the value was grounded in.
+    """
+
+    name: str
+    value: float = Field(ge=-1, le=1)
+    weight: float
+    contribution: float
+    note: str
+
+
+class ScoreBreakdown(BaseModel):
+    """Why the deterministic ranker put a candidate where it did -- for the evaluator, never the
+    senior.
+
+    A senior's card shows at most three grounded "why this fits you" lines; this is the fuller
+    account behind the order, including the negatives (friction, a learned dislike, a recent
+    "not for me") that a card never lists because they are not reasons something suits someone.
+    Deliberately NOT a field of `RankedActivity`: that model travels to the senior client inside
+    `ActivityQueryResponse`, and "the UI never renders it" is not a boundary -- the payload is.
+    The breakdown reaches evaluators through the `activity_search` audit event's detail and the
+    ranking evaluation artifact, both of which are operator surfaces.
+    """
+
+    factors: list[ScoreFactor]
+    total: float
+    # The primary sort key (`activity_search.sort_key_for`): how much of today's request this
+    # listing can satisfy, less a recent "not for me" on it. Stated on its own because it is not
+    # derivable from `factors` -- a listing that answers none of what was asked keeps the tier of
+    # an unjudged fit while earning no intent credit.
+    tier: float
+    # True when the diversity pass moved this candidate into the top three because the three
+    # above it were all the same kind of thing. The order is then not purely by `total`, and
+    # this flag is what makes that honest.
+    variety_promoted: bool = False
+    # How many positive, grounded reason lines did not fit on the face of the three-line card:
+    # always `len(RankedActivity.more_reasons)`, the lines the card shows when it is opened. The
+    # name predates those lines being shown -- nothing counted here is hidden, and it is never a
+    # negative. Non-zero means the face alone understates what the order rests on.
+    reasons_suppressed: int = 0
+    # True when a better-scoring session of the same programme already holds a top-three slot
+    # and this one was moved below the top three so the person sees three different things.
+    series_deferred: bool = False
+    # How much of what is known about this person this listing could actually be judged on. A
+    # sparsely described listing is scored on less; reporting that separately is what stops it
+    # out-scoring a fully described identical one simply by being unanswerable.
+    coverage: float = Field(default=0.0, ge=0, le=1)
+    # How many axes -- asked-for and learned -- this listing genuinely matches. The tie-break at
+    # equal total: UNKNOWN is out of both sides of every fit, so it is never a penalty, and this
+    # is what stops it being free as well.
+    matched_axes: int = Field(default=0, ge=0)
+
+
+class RankedActivity(BaseModel):
+    candidate: ActivityCandidate
+    rank: int = Field(ge=1)
+    # The face of the card: at most three, and each traceable to a stored field via its `basis`.
+    reasons: list[ActivityReason] = Field(default_factory=list)
+    # Every other grounded reason the ranker composed for this listing, shown when the card is
+    # opened -- same rules as `reasons` (a line only for a factor that contributed positively),
+    # in the same basis order. Empty whenever the face held everything; its length is the
+    # breakdown's `reasons_suppressed`.
+    more_reasons: list[ActivityReason] = Field(default_factory=list)
+    selected_by: Literal["agent", "ranker"] = "ranker"
+    # Which programme this session belongs to (`activity_search.series_key`), so a screen can fold
+    # sessions of one programme into one card by the ranker's own definition of "the same
+    # programme". Opaque; compare for equality only.
+    series_key: str | None = None
+
+
+class ActivityQueryRequest(BaseModel):
+    """Either free text or an intent assembled from chips. Text wins when both are present."""
+
+    text: str | None = Field(default=None, max_length=400)
+    intent: ActivityIntent | None = None
+
+
+class ActivityQueryResponse(BaseModel):
+    query_id: str
+    intent: ActivityIntent
+    # Plain sentences for the "here is what I understood" confirmation step. This is what makes
+    # the crude keyword parser safe to ship: a misread is corrected by the person before anything
+    # acts on it, rather than quietly returning the wrong options.
+    understood: list[str]
+    results: list[RankedActivity]
+    filtered_out: list[FilterOutcome] = Field(default_factory=list)
+    # True when the person's own request could not be satisfied at all. A first-class answer, not
+    # an error -- the same principle as `NO_ACTION`.
+    nothing_matched: bool = False
+    audit_event: AuditEvent
+
+
+class FactConfidence(StrEnum):
+    """Qualitative on purpose. A number here would imply a precision the evidence behind most of
+    these facts (one tap, three days) cannot support.
+
+    Declared here, above the preference models, because a resolved preference and a world-model
+    fact have to grade the same evidence on the same scale -- two vocabularies for "how sure are
+    we" is how the ranker's number and the Privacy screen's wording came to mean different
+    things about the very same row.
+    """
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class PreferenceDimension(StrEnum):
+    """The axes a decline can teach, as opposed to the single candidate it was about.
+
+    This is what makes "too far" different from "just not today". A per-candidate posterior can
+    only ever say "not this one"; a dimension transfers to activities that have never been
+    offered, which is the whole point of learning anything.
+
+    Ranking only, exactly like the per-candidate learner: a dimension can reorder what the policy
+    already permitted and can never permit, escalate or unblock anything.
+
+    Two of these are *ordinal*: DISTANCE and INTENSITY carry a `pivot` and a `direction` rather
+    than a value from a closed list, because "1.2 km was too far" is a statement about a ceiling
+    and reading it as the nominal bucket the listing happened to fall in taught the opposite
+    ("avoid things near home"). The rest are nominal.
+    """
+
+    DISTANCE = "distance"
+    INTENSITY = "intensity"
+    TIMING = "timing"
+    SOCIAL = "social"
+    ENVIRONMENT = "environment"
+    # DEPRECATED, never written, never removed. `category` holds a *format* label ("Group class",
+    # "Social group"), so a "not for me" on a morning walk taught a dislike of nine unrelated
+    # programmes. `ACTIVITY_TYPE` is the content axis now. The member stays because rows written
+    # before the split are still in the table and still have to be readable (and forgettable).
+    CATEGORY = "category"
+    # What the thing *is* (`ontology.ActivityType`), single-valued and closed, so a stated value
+    # can be validated and a "not for me" teaches something a person would recognise.
+    ACTIVITY_TYPE = "activity_type"
+
+
+class ClarificationScope(StrEnum):
+    """How far a decline reaches, when the person chose to say. Always optional, always skippable.
+
+    Unclarified means item-level only: one "bad timing" is about the session in front of them,
+    not about mornings in general, and one "not for me" is about that listing, not every walk --
+    the 14-day cooldown already holds that listing back. Both are recorded (`THIS_SLOT`,
+    `THIS_ONE`) and held back from the resolved set until a second answer agrees about a
+    *different programme*: turning the same class down again, on another day or at another of its
+    sessions, is still an answer about that class and widens nothing. A chip (`time_of_day`,
+    `weekday`, `this_activity_type`) is the only thing that widens a single tap into a statement
+    about a *kind* of activity before then. `this_one`, `this_venue` and `this_format` on a "not
+    for me" teach no dimension at all.
+
+    The ordinal reasons are the exception and take no chip: "too far" and "too tiring" record a
+    ceiling at the listing's own distance or intensity, which applies at once and only narrows.
+    """
+
+    # `bad_timing`
+    TIME_OF_DAY = "time_of_day"
+    WEEKDAY = "weekday"
+    THIS_SLOT = "this_slot"
+    # `not_for_me`
+    THIS_ACTIVITY_TYPE = "this_activity_type"
+    THIS_FORMAT = "this_format"
+    THIS_VENUE = "this_venue"
+    THIS_ONE = "this_one"
+
+
+class DimensionPreference(BaseModel):
+    dimension: PreferenceDimension
+    value: str
+    # -1 strongly against, +1 strongly for. Small magnitudes are weak evidence and must read that
+    # way wherever this is shown. Derived for a learned belief -- `(positive_evidence -
+    # negative_evidence) / (positive_evidence + negative_evidence + 2)` -- and set outright for a
+    # stated one, which is not evidence that accumulates but a person saying so.
+    strength: float = Field(ge=-1, le=1)
+    # `senior_statement` outranks `inferred`: something a person said in their own words is not
+    # the same class of evidence as something derived from their taps, and the two must stay
+    # distinguishable so a person can be shown, and can correct, what they told us.
+    source: Literal["senior_statement", "decline_reason", "inferred"]
+    confirmed: bool = False
+    observations: int = 0
+    updated_at: datetime
+    # A temporary preference -- "no walks this week" -- is a fact until this moment and nothing
+    # after. Readers treat an expired preference as absent; `None` means it does not expire.
+    expires_at: datetime | None = None
+    # The person's own words, when the preference came from them. Shown back verbatim on the
+    # Privacy screen so what they agreed to is recoverable, never paraphrased.
+    stated_text: str | None = None
+    # When this belief was first recorded. `None` on beliefs recorded before the field existed;
+    # never backfilled, because a guessed first date would be a fabricated one.
+    first_observed_at: datetime | None = None
+    # Evidence for and against, kept apart rather than folded into one scalar. One number could
+    # not say whether 0.0 meant "nothing known" or "two things that disagree", so a like on one
+    # axis silently cancelled an avoid on another and the card then read "nothing learned
+    # applies". `strength` and `confidence` are both derived from these, and separately.
+    positive_evidence: float = Field(default=0.0, ge=0)
+    negative_evidence: float = Field(default=0.0, ge=0)
+    # The ordinal half. `pivot` is the number the person's own answer put a line at -- metres for
+    # DISTANCE, a rung on the intensity ladder for INTENSITY -- and `direction` says which side
+    # of it they want. `None` on every nominal axis.
+    pivot: float | None = None
+    direction: Literal["lower", "higher"] | None = None
+    # How far the answer reaches, when a clarification chip said. `None` means unclarified, which
+    # is item-level: see `ClarificationScope`.
+    scope: ClarificationScope | None = None
+    # The single most recent thing this belief was folded from (a response id, a plan id, a
+    # statement). Two folds of the same origin are one observation, not two.
+    origin_id: str | None = None
+    # Set when this belief has been retracted (`forget`) or consumed by a statement that ratified
+    # it ("That's right"). A superseded row is never read, never rendered and never scored -- it
+    # stays only so the audit trail is not rewritten. The next tap starts a fresh belief from
+    # zero rather than resurrecting this one's count.
+    superseded_by: str | None = None
+
+
+class SourceTier(IntEnum):
+    """How a belief came to be held, ordered. The higher tier wins an axis **outright**.
+
+    Averaging a person's own words with what Care+ guessed from their taps is how three
+    stated preferences came to be a constant offset that changed nothing, and how a guess could
+    halve something someone said in plain words. Within one axis only the highest active tier
+    contributes; across axes, contributions sum.
+
+    `CURRENT_REQUEST` never enters preference utility at all. An axis the person constrained
+    *today* belongs to the filter (if it is a hard ask) or to request fit (if it is soft), and
+    scoring it a second time from history is the double count that made "indoor" worth four
+    separate nudges.
+    """
+
+    DEFAULT = 0
+    # One or two distinct origins. Shown as "just a hint"; capped well below a stated belief.
+    WEAK_LEARNED = 1
+    # Three or more agreeing origins.
+    STRONG_LEARNED = 2
+    # An `ActivityGoal`, which is a closed-vocabulary thing the person chose.
+    STATED_GOAL = 3
+    # `senior_statement`: the person's own standing words.
+    STATED = 4
+    # A statement that consumed an inferred row ("That's right"). One belief, not two.
+    RATIFIED = 5
+    # A statement with an `expires_on_day` still ahead: a promise about this week.
+    TEMPORARY_STATED = 6
+    # Today's `ActivityIntent`. Never scored as a preference -- see the class docstring.
+    CURRENT_REQUEST = 7
+
+
+class ResolvedPreference(BaseModel):
+    """What the ranker actually reads: one active belief, with sentiment, confidence and evidence
+    finally separate from one another.
+
+    **Derived, never persisted.** Rebuilt per request from the rows that already exist, exactly
+    like `PersonWorldModel` -- a read model cannot drift from its evidence, and a second store of
+    the same belief is a second thing to keep true.
+
+    `strength` says which way the belief leans and `confidence` how much sits behind it; one
+    signed scalar used to carry both, so "nothing known" and "two things that disagree" were the
+    same number. `weight` is the tier's own say, bounded to [0, 1] so the ADR 0005 argument that
+    a social nudge cannot outvote a real acceptance stays structural rather than arithmetical.
+    """
+
+    dimension: PreferenceDimension
+    # Nominal axes. On an ordinal axis this is the direction token the row is keyed by, and the
+    # number that actually means something is `pivot`.
+    value: str | None = None
+    # The ordinal half: metres for DISTANCE, a rung on the intensity ladder for INTENSITY.
+    pivot: float | None = None
+    direction: Literal["lower", "higher"] | None = None
+    sentiment: Literal["like", "avoid"]
+    # Bounded, and the bound is load-bearing: `preferences.social_shape_score` is derived from it
+    # and ADR 0005's tie-break bound rests on that derivation staying inside [-1, 1].
+    strength: float = Field(ge=-1, le=1)
+    confidence: FactConfidence
+    positive_evidence: float = Field(default=0.0, ge=0)
+    negative_evidence: float = Field(default=0.0, ge=0)
+    # DISTINCT origins. A person saying the same thing three times is one piece of evidence.
+    evidence_count: int = Field(default=0, ge=0)
+    # This belief's own tier, and the highest tier active in its resolution group
+    # (`preferences._resolution_group`): the whole axis on TIMING, ENVIRONMENT, SOCIAL and
+    # INTENSITY; on DISTANCE, the lines with a pivot together, and the beliefs with no number in
+    # two groups by which way they lean (near: "near" liked, "far" avoided, the `less_travel` goal;
+    # far: the other two, never read); and the single (axis, value)
+    # on ACTIVITY_TYPE (and deprecated CATEGORY), where one kind of activity says nothing about
+    # another. A belief contributes to preference utility
+    # only when the two are equal -- the supersedes-rather-than-average rule, stated as data
+    # rather than buried in a scoring loop. Equal tiers on one value both win and, leaning
+    # opposite ways, cancel.
+    tier: SourceTier
+    winning_tier: SourceTier
+    weight: float = Field(default=0.0, ge=0, le=1)
+    scope: ClarificationScope | None = None
+    expires_on_day: date | None = None
+    source: Literal["senior_statement", "decline_reason", "inferred"]
+    run_id: str | None = None
+    superseded_by: str | None = None
+    stated_text: str | None = None
+    # Keys of the rows behind this belief, and of the other active beliefs on the same
+    # `(dimension, value)` that lean the other way: `dimension:value:source` for a stored row,
+    # `goal:dimension:value` for a goal (`preferences.goal_key`). A contradiction is shown, never
+    # scored: the person settles it.
+    supporting: list[str] = Field(default_factory=list)
+    contradicted_by: list[str] = Field(default_factory=list)
+
+
+class ActivityPreferences(BaseModel):
+    person_id: str
+    dimensions: list[DimensionPreference] = Field(default_factory=list)
+    # The same beliefs, resolved: tiers applied, superseded rows dropped, evidence counted.
+    # `dimensions` stays the raw record the Privacy screen renders and the person edits; this is
+    # what ranks. Both are derived from the same rows in the same read, so they cannot disagree.
+    resolved: list[ResolvedPreference] = Field(default_factory=list)
+
+
+class PreferenceStance(StrEnum):
+    """What a person is telling Care+ about a kind of activity, in their own control.
+
+    `PREFER` and `AVOID` write a confirmed `senior_statement` preference at full strength (the
+    same tier a confirmed proposed memory reaches). `FORGET` removes every preference the person
+    holds on that (dimension, value) -- learned or stated -- because a person's own belief about
+    themselves outranks anything inferred from their taps. Ranking only, like everything a
+    preference touches: none of this can permit, block or escalate an action.
+    """
+
+    PREFER = "prefer"
+    AVOID = "avoid"
+    FORGET = "forget"
+
+
+class PreferenceStatementRequest(BaseModel):
+    stance: PreferenceStance
+    # A temporary statement: the last simulated day it applies. `None` means until changed.
+    until: date | None = None
+    stated_text: str | None = Field(default=None, max_length=280)
+
+
+class PreferenceStatementResponse(BaseModel):
+    dimension: PreferenceDimension
+    value: str
+    stance: PreferenceStance
+    # The preference now on record for this stance, or `None` after FORGET.
+    preference: DimensionPreference | None = None
+    audit_event: AuditEvent
+
+
+# ── Closing the loop: was it any good, and what did that teach us ─────────────────────────────
+#
+# `FollowThrough` records whether something happened. It says nothing about whether it was worth
+# happening, so the system could rank an activity someone dutifully attended and quietly hated
+# exactly as highly as one they loved.
+
+
+class Enjoyment(StrEnum):
+    ENJOYED = "enjoyed"
+    OKAY = "okay"
+    NOT_FOR_ME = "not_for_me"
+
+
+class LikedAspect(StrEnum):
+    """What made it good, when the person chooses to say.
+
+    These map onto `PreferenceDimension`, which is the point: "the people" is evidence about
+    company, "the location" about distance, "the timing" about time of day. It is the only place
+    in the product where a person tells us what worked rather than only what did not.
+    """
+
+    PEOPLE = "people"
+    LOCATION = "location"
+    ACTIVITY = "activity"
+    TIMING = "timing"
+
+
+class EnjoymentRequest(BaseModel):
+    enjoyment: Enjoyment
+    liked: list[LikedAspect] = Field(default_factory=list)
+
+
+class EnjoymentResponse(BaseModel):
+    intervention: Intervention
+    enjoyment_evidence_id: str
+    enjoyment: Enjoyment
+    liked: list[LikedAspect]
+    # What this taught, returned so the senior can be shown it and correct it. Learning a person
+    # cannot see is learning they cannot dispute.
+    preferences_updated: list[DimensionPreference] = Field(default_factory=list)
+    audit_event: AuditEvent
+
+
+# ── Proposed memory ───────────────────────────────────────────────────────────────────────────
+
+
+class MemoryDecision(StrEnum):
+    REMEMBER = "remember"
+    JUST_TODAY = "just_today"
+    NO = "no"
+
+
+class ProposedMemory(BaseModel):
+    """Something Care+ believes it has learned, held back until the person agrees to it.
+
+    The alternative -- storing it silently -- is what makes a system feel like it is watching
+    rather than helping. A belief the person never agreed to is also one they can never correct,
+    because they do not know it exists.
+
+    `statement` and `question` are the exact words shown. They are stored rather than generated at
+    render time so that what a person agreed to is recoverable later, word for word.
+    """
+
+    proposal_id: str
+    dimension: PreferenceDimension
+    value: str
+    statement: str
+    question: str
+    source_text: str | None = None
+    created_at: datetime
+
+
+class MemoryDecisionRequest(BaseModel):
+    decision: MemoryDecision
+
+
+class MemoryDecisionResponse(BaseModel):
+    proposal_id: str
+    decision: MemoryDecision
+    # Populated only for REMEMBER. `JUST_TODAY` deliberately stores nothing durable: it is
+    # permission for this search, not a fact about the person.
+    preference: DimensionPreference | None = None
+    audit_event: AuditEvent
+
+
+# ── The one question worth asking ─────────────────────────────────────────────────────────────
+
+
+class ContextAnswerValue(StrEnum):
+    """The five answers the one question offers, and the only five it accepts.
+
+    The options are fixed server-side (`context_question._OPTIONS`); the senior surface renders
+    them as taps, never as a text box. `value` was nonetheless a bare `str`, so anything a client
+    sent -- a paragraph, an injected instruction -- was stored, echoed back and written into the
+    audit detail verbatim, and anything longer than the column became a 500 on PostgreSQL. Closed
+    here so the operator-readable audit trail can keep recording the token unredacted, which is
+    the whole reason it is exempt from the free-text redaction rule the `note` beside it obeys.
+
+    `PREFER_NOT_TO_SAY` is not a client-side dismissal: a question Care+ calls optional must
+    be answerable with "no", and recording that is what stops it being asked again.
+    """
+
+    RESTING = "resting"
+    AWAY = "away"
+    OTHER_PLANS = "other_plans"
+    NOT_FEELING_IT = "not_feeling_it"
+    PREFER_NOT_TO_SAY = "prefer_not_to_say"
+
+
+class ContextAnswerOption(BaseModel):
+    value: ContextAnswerValue
+    label: str
+
+
+class ContextQuestion(BaseModel):
+    """A single question, asked only when the missing fact would change what Care+ does.
+
+    The restraint is the feature. A question that does not change the outcome reads as scripted,
+    and a system that asks whenever it is uncertain becomes an interrogation -- which is exactly
+    what the people this is for have too much of already.
+
+    `asked_because` names the specific gap, so the question is auditable as decision-changing
+    rather than merely conversational.
+    """
+
+    question_id: str
+    question: str
+    options: list[ContextAnswerOption]
+    asked_because: str
+
+
+class ContextAnswerRequest(BaseModel):
+    question_id: str
+    value: ContextAnswerValue
+    note: str | None = Field(default=None, max_length=280)
+
+
+class ContextAnswerResponse(BaseModel):
+    question_id: str
+    value: ContextAnswerValue
+    # An answer may raise a proposed memory ("you said you don't like walking alone -- remember
+    # that?"), but never writes one on its own. Same rule as everywhere else here.
+    proposed_memory: ProposedMemory | None = None
+    audit_event: AuditEvent
+
+
+# ── Candidate baseline confirmation ───────────────────────────────────────────────────────────
+
+
+class BaselineConfirmationDecision(StrEnum):
+    """Two answers, deliberately not more: this is a yes/no judgement about a person's own life,
+    not a multiple-choice survey, and offering a middle option would misstate what is being asked.
+    """
+
+    CONFIRM = "confirm"
+    DECLINE = "decline"
+
+
+class BaselineConfirmationQuestion(BaseModel):
+    """Asked only when `analytics.BASELINE_DRIFT_FLOOR`'s clamp has been binding long enough that
+    it plausibly describes a permanent change rather than a passing decline -- see
+    `baseline_confirmation.py`. `question` is the exact plain-language wording shown; there is no
+    percentage, band or internal vocabulary in it, by the same rule every senior-facing surface in
+    this product follows.
+
+    `streak_days` and `asked_because` are never rendered -- they exist so the decision is
+    auditable as earned rather than merely asked.
+    """
+
+    question_id: str
+    question: str
+    asked_because: str
+    streak_days: int
+
+
+class BaselineConfirmationRequest(BaseModel):
+    decision: BaselineConfirmationDecision
+
+
+class BaselineConfirmationResponse(BaseModel):
+    question_id: str
+    decision: BaselineConfirmationDecision
+    # The reference now in effect for this person, whichever way the decision went -- unchanged on
+    # a decline, the newly confirmed value on a confirm.
+    reference_steps: float
+    audit_event: AuditEvent
+
+
+# ── Goals and the week ────────────────────────────────────────────────────────────────────────
+
+
+class GoalKind(StrEnum):
+    """Lifestyle goals only. Never a health target, never a step count, never a quota.
+
+    A week view that reads as something a person is failing would be worse than no week view at
+    all, which is why `target_per_week` is optional and why nothing here is ever scored.
+    """
+
+    GET_OUT_MORE = "get_out_more"
+    MEET_PEOPLE = "meet_people"
+    MORNING_ACTIVITY = "morning_activity"
+    LESS_TRAVEL = "less_travel"
+
+
+class ActivityGoal(BaseModel):
+    goal_id: str
+    kind: GoalKind
+    text: str
+    target_per_week: int | None = Field(default=None, ge=1, le=14)
+    active: bool = True
+    created_at: datetime
+
+
+class ActivityGoalRequest(BaseModel):
+    kind: GoalKind
+    target_per_week: int | None = Field(default=None, ge=1, le=14)
+    active: bool = True
+
+
+class PlannedFollowThrough(StrEnum):
+    """What happened to a planned activity, in the person's words: they went, they did not, or it
+    was cancelled. Three answers with no right one. `CANCELLED` is a fact about the listing, not
+    the person, and teaches nothing about them."""
+
+    WENT = "went"
+    DID_NOT_GO = "did_not_go"
+    CANCELLED = "cancelled"
+
+
+class PlannedActivity(BaseModel):
+    plan_id: str
+    day: date
+    activity: ActivityCandidate
+    # `chosen` means the person picked it; `suggested` means Care+ is offering to fill a gap
+    # and nothing is committed. The distinction has to survive to the screen.
+    origin: Literal["chosen", "suggested"] = "chosen"
+    replaced_reason: str | None = None
+    # The loop after the plan: what the person said happened, and whether it was any good. Both
+    # `None` until they say; `awaiting_report` is true once the day has passed with nothing said,
+    # which is when the home screen asks -- once, gently, and never as a deadline.
+    follow_through: PlannedFollowThrough | None = None
+    enjoyment: Enjoyment | None = None
+    awaiting_report: bool = False
+
+
+class PlannedFollowThroughRequest(BaseModel):
+    follow_through: PlannedFollowThrough
+    note: str | None = Field(default=None, max_length=280)
+
+
+class PlannedFollowThroughResponse(BaseModel):
+    plan_id: str
+    follow_through: PlannedFollowThrough
+    week: WeekPlan
+    audit_event: AuditEvent
+
+
+class PlannedEnjoymentRequest(BaseModel):
+    enjoyment: Enjoyment
+    liked: list[LikedAspect] = Field(default_factory=list)
+
+
+class PlannedEnjoymentResponse(BaseModel):
+    plan_id: str
+    enjoyment: Enjoyment
+    liked: list[LikedAspect]
+    # What this taught, returned so the person can be shown it and correct it.
+    preferences_updated: list[DimensionPreference] = Field(default_factory=list)
+    week: WeekPlan
+    audit_event: AuditEvent
+
+
+class ActivityOfferResponse(StrEnum):
+    """The two things a person can say to a search result. `INTERESTED` is a plan, not a booking
+    -- Care+ books nothing -- and `NOT_FOR_ME` is a decline whose optional reason is the one
+    piece of evidence the dimensional learner may learn a *kind* of activity from."""
+
+    INTERESTED = "interested"
+    NOT_FOR_ME = "not_for_me"
+
+
+class ActivityResponseRequest(BaseModel):
+    response: ActivityOfferResponse
+    # Optional, only meaningful with `not_for_me`, always skippable.
+    reason: DeclineReason | None = None
+    # How far that reason reaches, when the person chose to say. Optional and skippable in its
+    # own right: an unclarified `bad_timing` or `not_for_me` stays item-level until a second
+    # agreeing answer, which is the honest reading of one tap; `too_far` and `too_tiring` record a
+    # ceiling at once and take no clarification.
+    clarification: ClarificationScope | None = None
+    # The `query_id` of the search this card came from -- an opaque correlation label for the
+    # evaluator, never used for ownership.
+    query_id: str | None = Field(default=None, max_length=64)
+    rank_shown: int | None = Field(default=None, ge=1, le=50)
+    # The day to plan an `interested` listing on. Defaults to the listing's own session day.
+    day: date | None = None
+
+
+class ActivityResponseResponse(BaseModel):
+    response_id: str
+    activity_id: str
+    response: ActivityOfferResponse
+    # True when an `interested` was put on the person's week. False when the listing's day is
+    # outside the week being planned (recorded, not planned) or for a decline.
+    planned: bool = False
+    plan_day: date | None = None
+    week: WeekPlan | None = None
+    # What a reasoned decline taught. Shown back so the person can see, and correct, it.
+    preferences_updated: list[DimensionPreference] = Field(default_factory=list)
+    # One plain sentence for the card.
+    note: str
+    audit_event: AuditEvent
+
+
+class WeekPlan(BaseModel):
+    person_id: str
+    week_starting: date
+    entries: list[PlannedActivity] = Field(default_factory=list)
+    goals: list[ActivityGoal] = Field(default_factory=list)
+    # An offer, phrased as an offer. Empty when the week is fine as it is -- a plan with nothing
+    # in it is a valid week, not a gap to be filled.
+    gap_prompt: str | None = None
+
+
+class PlanActivityRequest(BaseModel):
+    activity_id: str
+    day: date
+
+
+# ── Replanning ────────────────────────────────────────────────────────────────────────────────
+
+
+class ReplanReason(StrEnum):
+    """Why a planned activity can no longer happen -- the *code*, never the sentence.
+
+    The wording a person reads is built in `replanning.py` from the code plus the listing's own
+    title, so a reason can never be phrased as something it is not. `WEATHER` exists precisely so
+    the simulator no longer has to fabricate a catalogue fact ("fully booked") to represent a
+    context one: a forecast that turned is a forecast that turned.
+    """
+
+    FULL = "full"
+    CANCELLED = "cancelled"
+    WEATHER = "weather"
+
+
+class ReplanResolution(StrEnum):
+    """How a replan offer ended. `NO_ALTERNATIVE` is not a failure: "this can no longer happen and
+    nothing similar was found" is a complete, honest answer, and recording it is what lets the
+    gap be counted rather than guessed at. `EXPIRED` is the day passing with nothing said."""
+
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    EXPIRED = "expired"
+    NO_ALTERNATIVE = "no_alternative"
+
+
+class ReplanOffer(BaseModel):
+    """One offer to replace a planned activity the world changed under, and what the person said.
+
+    Written by the simulator's own `advance()` in the same transaction as the change that
+    invalidated the plan, so an offer cannot exist without the fact behind it. `resolution` is
+    `None` while the offer is open.
+    """
+
+    offer_id: str
+    plan_id: str
+    reason: ReplanReason
+    # The listing that was actually offered at the time, or `None` when nothing similar survived
+    # the same filter the search uses.
+    alternative_activity_id: str | None = None
+    offered_at: datetime
+    resolved_at: datetime | None = None
+    resolution: ReplanResolution | None = None
+
+
+class ReplanNotice(BaseModel):
+    """A planned activity that can no longer happen, and what Care+ suggests instead.
+
+    The whole sequence this exists for: goal -> plan -> the world changes -> replan -> ASK -> the
+    person decides. `alternative` is a proposal and nothing else; nothing is ever swapped without
+    the person saying so, because silently substituting a different activity would be the system
+    making a decision about someone's day on their behalf.
+
+    `offer_id` is the server's own record of this offer. It is what "no thanks" is recorded
+    against: before it existed, declining lived in browser state and the same notice came back on
+    the next reload.
+    """
+
+    plan_id: str
+    original_title: str
+    reason: str
+    # The machine-readable form of `reason`, so a surface can tell "fully booked" from "the
+    # forecast turned" without reading the sentence.
+    reason_code: ReplanReason
+    alternative: RankedActivity | None = None
+    message: str
+    # `None` only for a notice computed outside the offer store (the pure `notices_for` view used
+    # by tests and by the detection pass itself).
+    offer_id: str | None = None
+
+
+class ReplacePlannedActivityRequest(BaseModel):
+    """The person's answer to a replan offer: this one instead. The day is not theirs to pass --
+    it is the day the original plan was on."""
+
+    activity_id: str
+
+
+# ── The personal world model, as typed facts ──────────────────────────────────────────────────
+#
+# What Care+ knows about one person, assembled read-only from the stores that already hold
+# it -- the baseline, the dimensional preferences, the person's own mutes and goals, their
+# answers, the persona profile -- with every fact carrying where it came from and how much sits
+# behind it. Nothing here is a new store: a derived view cannot drift from the evidence, and a
+# fact with no row behind it cannot exist.
+
+
+class FactSourceType(StrEnum):
+    """Who or what a fact came from. The distinction the mandate is built on: an inference is
+    never presented as something the person said."""
+
+    EXPLICIT = "explicit"  # the person told us, in their own words or by a deliberate choice
+    INFERRED = "inferred"  # learned from observations and outcomes
+    EXTERNAL = "external"  # retrieved from a trusted source (none in this build)
+    FIXTURE = "fixture"  # synthetic demo data, labelled as such
+
+
+class FactCategory(StrEnum):
+    IDENTITY = "identity"
+    ROUTINE = "routine"
+    ACTIVITY_PREFERENCE = "activity_preference"
+    INTERACTION = "interaction"
+    CONTEXT = "context"
+    LEARNED_RESPONSE = "learned_response"
+
+
+class PersonFact(BaseModel):
+    key: str
+    category: FactCategory
+    # One plain sentence a person could read about themselves. Never a percentage, band or score.
+    statement: str
+    value: str
+    source_type: FactSourceType
+    # The concrete store or mechanism, e.g. `dimension_preference:senior_statement`,
+    # `baseline_confirmation`, `persona_profile`.
+    source: str
+    confidence: FactConfidence
+    evidence_count: int = Field(ge=0)
+    first_observed_at: datetime | None = None
+    last_observed_at: datetime | None = None
+    expires_at: datetime | None = None
+    confirmed: bool = False
+    evidence_ids: list[str] = Field(default_factory=list)
+    # Keys of facts about the same thing that point the other way. Precedence is stated >
+    # confirmed > inferred, and it is applied where the facts are used (`dimension_score`); here
+    # the disagreement is shown rather than averaged away.
+    contradicts: list[str] = Field(default_factory=list)
+    # Which side of a disagreement the ranker actually uses, decided by the resolver's own tiers
+    # (`ResolvedPreference.tier == winning_tier`) so no screen re-ranks fact kinds. `None` when
+    # `contradicts` is empty. `this_applies`: this fact's belief is in effect and no contradicting
+    # one is. `other_applies`: a contradicting belief is in effect and this one is not.
+    # `neither_applies`: a higher-tier belief elsewhere in the resolution group (another value on
+    # TIMING, SOCIAL or ENVIRONMENT) wins, so neither side is used. `undecided`: equal tiers, both
+    # in effect, leaning opposite ways -- they cancel until the person settles it.
+    contradiction_outcome: (
+        Literal["this_applies", "other_applies", "neither_applies", "undecided"] | None
+    ) = None
+    # Whether this preference or goal is a belief the ranker currently uses (its tier wins its
+    # resolution group, `preferences.belief_in_effect`). `False` for a belief held back, outranked
+    # or not resolved, and for a DISTANCE belief with no number that is never read (one leaning
+    # far, or a learned one); `None` for a
+    # fact that is not a preference belief at all (identity, routine, history, a goal that names
+    # no preference axis).
+    in_effect: bool | None = None
+    # An inferred fact nothing has reinforced for a long stretch of the person's simulated
+    # calendar. Still shown, still counted, but labelled -- staleness is stated, never decayed
+    # silently into a smaller number.
+    stale: bool = False
+
+
+class WorldModelQuality(BaseModel):
+    """Is the model becoming richer, or merely larger? Counts, never rates."""
+
+    facts: int = 0
+    explicit: int = 0
+    inferred: int = 0
+    external: int = 0
+    fixture: int = 0
+    confirmed: int = 0
+    single_evidence: int = 0
+    temporary: int = 0
+    expired_excluded: int = 0
+    contradictions: int = 0
+    stale: int = 0
+
+
+class PersonWorldModel(BaseModel):
+    person_id: str
+    as_of_day: date
+    facts: list[PersonFact] = Field(default_factory=list)
+    # What Care+ does not know about this person and will not guess. Stated, not hidden.
+    gaps: list[str] = Field(default_factory=list)
+    quality: WorldModelQuality
+
+
+class OperationalMetrics(BaseModel):
+    people: int
+    scenario_run_id: str
+    audit_events: int
+    decision_evidence: int
+    interventions: int
+    outcomes: int
+    open_cases: int
+    no_action_decisions: int
+    consent_active: bool
+    last_decision: Decision | None
+    last_observed_at: datetime | None
+    source_classification_counts: dict[str, int]
+    preference_scores: dict[str, float]
+    candidate_preference_scores: dict[str, float]
+    candidate_labels: dict[str, str] = Field(default_factory=dict)
+    candidate_offer_counts: dict[str, int] = Field(default_factory=dict)
+    candidate_accepted_counts: dict[str, int] = Field(default_factory=dict)
+    # Outreach-planner observability. Every one of these is derived from data the planner
+    # already writes into `InterventionRow.evidence_json` and that nothing has ever read back.
+    #
+    # `planner_agreed_with_ranker` counts agent-mode runs whose choice matched the deterministic
+    # ranker's top pick, which is recorded *before* the planner runs. It is a redundancy measure,
+    # not a quality one: agreement says the planner added nothing, disagreement says nothing
+    # about which was right. Read it over `planner_contested_runs` -- the agent-mode runs where
+    # the policy permitted at least two candidates -- because a planner handed one option can
+    # only agree. The guardrail counters answer "which safety rules actually bind in practice",
+    # which is otherwise a claim with no number behind it.
+    #
+    # All default to zero so a run with the planner disabled reports honestly rather than absent.
+    planner_runs: int = 0
+    planner_agent_selected: int = 0
+    planner_contested_runs: int = 0
+    planner_agreed_with_ranker: int = 0
+    planner_fallback_modes: dict[str, int] = Field(default_factory=dict)
+    planner_guardrail_rejections: int = 0
+    planner_guardrail_violations: int = 0
+    # What the model cost, across all three LLM entry points (outreach planning, activity
+    # reranking, intent parsing). Built by `sql_repository._llm_cost_observability` from evidence
+    # those paths already write; nothing new is recorded to produce them.
+    #
+    # Counts and sums, never rates and never prices -- a rate here would be quoted without its
+    # denominator within the week. `llm_calls` counts runs that actually reached a model, so
+    # under `LLM_ENABLED=false` every one of these is zero and says so honestly.
+    # `llm_fallbacks_by_mode` includes the `agent` mode too, so the modes sum to the number of
+    # runs. `guardrail_rejections_by_rule` names which safety rules actually bind in practice.
+    llm_calls: int = 0
+    llm_latency_ms_total: int = 0
+    llm_tokens_total: int = 0
+    llm_fallbacks_by_mode: dict[str, int] = Field(default_factory=dict)
+    guardrail_rejections_by_rule: dict[str, int] = Field(default_factory=dict)
+    # Follow-through observability. `candidate_accepted_counts` counts taps; these count what
+    # happened next, and the gap between the two is the number that says whether outreach is
+    # landing or merely being acknowledged.
+    candidate_followed_counts: dict[str, int] = Field(default_factory=dict)
+    candidate_completed_counts: dict[str, int] = Field(default_factory=dict)
+    follow_through_reported: int = 0
+    follow_through_completed: int = 0
+    # Deferred effect. `follow_up_returned_toward_usual` is a count of observations, NOT a success
+    # rate and NOT a causal claim -- a person can return to their usual activity for every reason
+    # under the sun. It is reported with its denominator so it cannot be quoted without one.
+    follow_up_observations: int = 0
+    follow_up_returned_toward_usual: int = 0
+    suppressed_candidates: int = 0
+    day_disputes: int = 0
+    # Days in this run whose tracker wear-time was too low for the reading to be interpreted --
+    # the days `quality.assess_data_quality` marks `device_suspected`. Until this existed, that
+    # flag was computed, written into a careful sentence, and then rendered nowhere a coordinator
+    # could see it: a care team could not tell "three of this week's readings never arrived" from
+    # "this week was quiet", which are opposite problems.
+    #
+    # A data-collection fact, never a wellbeing signal, and it changes no decision: a sparse day
+    # is still NO_ACTION and still `stable`, because a reading nobody can interpret supports
+    # nothing either way. The strongest wording any surface may put on it is "tracker may not have
+    # synced".
+    device_suspected_days: int = 0
+    # The shape of what is known about this person -- counts by provenance, never the content.
+    # A coordinator or evaluator may see that three things were stated and two inferred; the
+    # activity preferences themselves stay on the senior's own surface, by the standing decision
+    # that care-team visibility into the user-initiated loop is aggregate only.
+    world_model_quality: WorldModelQuality = Field(default_factory=WorldModelQuality)
+    # The user-initiated loop's funnel, as counts with their own denominators beside them:
+    # searches run, results shown, taps either way, plans made, reports back, and what those
+    # reports said. `activity_decline_reasons` is per `DeclineReason`. None of these is a rate.
+    activity_searches: int = 0
+    activity_results_shown: int = 0
+    activity_interested: int = 0
+    activity_not_for_me: int = 0
+    activity_decline_reasons: dict[str, int] = Field(default_factory=dict)
+    activities_planned: int = 0
+    # `plans_due` is the honest denominator for reports: week entries whose day has passed.
+    # `activities_planned` includes days still to come, and a report cannot exist for those.
+    plans_due: int = 0
+    activity_reports: int = 0
+    activity_went: int = 0
+    activity_enjoyed: int = 0
+    # Replanning, as counts with their own denominator beside them: how often the world changed
+    # under a plan and the person was told, and what they said. Before these, the strongest
+    # agentic moment the product has had no evidence and no measure at all (audit F finding 8).
+    # `replans_offered` is the denominator; the two answers do not sum to it, because an offer
+    # can still be open, or have expired with the day.
+    replans_offered: int = 0
+    replans_accepted: int = 0
+    replans_declined: int = 0
+    # The response clock. `awaiting_reply` is outreach still open inside its response window;
+    # `no_reply_recorded` is outreach whose latest outcome is `no_response` -- recorded by the
+    # clock once the window closed, or by a coordinator. Two numbers rather than one, because
+    # "nobody has answered yet" and "nobody answered" are different states, and the difference
+    # `interventions - outcomes` the UI used to compute conflated both with withdrawn offers.
+    awaiting_reply: int = 0
+    no_reply_recorded: int = 0
+    # Override memory, as two counts rather than one rate. `coordinator_reviews` counts reviews a
+    # human actually recorded a choice on -- not every `CaseReviewRow`, because the system writes
+    # its own closures for recovery and consent withdrawal and folding those into the denominator
+    # would make the system look more agreed-with the more cases resolved themselves.
+    # `coordinator_overrides` is the subset where the human did not follow the recommendation. A
+    # percentage is deliberately absent: this is a prototype with a handful of reviews, and a
+    # "agreement rate" computed from three of them would be quoted without its denominator within
+    # the week.
+    coordinator_reviews: int = 0
+    coordinator_overrides: int = 0
+    # Learned from the timestamps of responses already on record -- the first genuinely new belief
+    # about a person the system holds beyond their step baseline. `None` until there are enough
+    # responses for the hour to mean anything.
+    typical_response_hour: int | None = None
+    typical_response_hour_sample: int = 0
+    policy_version: str
+    persistence: str
+    offline_ready: bool
+
+
+class CoordinatorFleetMetrics(BaseModel):
+    """The care team's caseload totals: `OperationalMetrics` counters summed across people.
+
+    Exactly the sum of `GET /v1/metrics?person_id=...` over the people `GET /v1/coordinator/people`
+    lists (a person with no readings yet is on neither), read once for the whole caseload instead
+    of once per person. Counts only -- no rate, score, step count or percentage about anyone, and
+    `world_model_quality` stays counts by provenance, never a fact.
+    """
+
+    # Every person the database holds -- the same number `OperationalMetrics.people` reports.
+    people: int
+    # How many people the sums below cover: the roster's people.
+    people_included: int
+    no_action_decisions: int
+    interventions: int
+    awaiting_reply: int
+    no_reply_recorded: int
+    coordinator_reviews: int
+    coordinator_overrides: int
+    device_suspected_days: int
+    world_model_quality: WorldModelQuality = Field(default_factory=WorldModelQuality)
+
+
+# ── Evaluator-only: the Activity Ranker Inspector ─────────────────────────────────────────────
+#
+# Everything below is reachable only through `/v1/evaluator/ranker/*` (role `demo_operator`) and
+# is never a field of anything a senior or coordinator receives. A trace is built from one
+# execution of the production ranker (`activity_search.rank_with_trace`) and is never persisted:
+# no audit event, no preference, no engagement, no plan. Values are structured; wording is the
+# web view-model's job, so nothing here is prose a model wrote. In particular no trace carries a
+# model's reasoning, a prompt, a read tool's arguments, guardrail rejection text, exception text,
+# or anything a person stated in their own words (`stated_text`, goal text).
+
+
+class RankerRequestCounterfactual(BaseModel):
+    """Changes to the parsed request, applied to a copy of the intent (then re-validated)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    time_window: TimeWindow | None = None
+    social_preference: SocialPreference | None = None
+    environment: ActivityEnvironment | None = None
+    activity_types: list[ActivityType] | None = Field(default=None, max_length=5)
+    max_distance_m: int | None = Field(default=None, ge=0, le=50_000)
+    distance_is_explicit: bool | None = None
+
+
+class RankerWorldModelCounterfactual(BaseModel):
+    """Changes to what is held about the person, appended to the rows and then re-resolved."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Folded through `preferences.apply_decline(TOO_FAR)` on a copy of a listing at this distance,
+    # exactly the shape a real "too far" leaves behind.
+    travel_ceiling_m: int | None = Field(default=None, ge=1, le=50_000)
+    # A time-boxed "avoid" statement, the shape `state_preference(..., until=)` writes.
+    temporary_avoid_activity_type: ActivityType | None = None
+    # The last simulated day the avoid applies. Defaults to six days after the run's today.
+    temporary_avoid_until: date | None = None
+
+
+class RankerWorldCounterfactual(BaseModel):
+    """Changes to the world the ranker reads: today's rain, and listings marked full."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rain: bool | None = None
+    mark_full: list[str] = Field(default_factory=list, max_length=50)
+
+
+class RankerCounterfactual(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request: RankerRequestCounterfactual | None = None
+    world_model: RankerWorldModelCounterfactual | None = None
+    world: RankerWorldCounterfactual | None = None
+
+
+class RankerFeedbackKind(StrEnum):
+    NOT_FOR_ME = "not_for_me"
+    INTERESTED = "interested"
+    ENJOYMENT = "enjoyment"
+
+
+class RankerFeedbackPreview(BaseModel):
+    """One response to preview, folded through the production learners and never saved."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    activity_id: str = Field(max_length=120)
+    response: RankerFeedbackKind
+    # `not_for_me` only.
+    reason: DeclineReason | None = None
+    clarification: ClarificationScope | None = None
+    # `enjoyment` only: the verdict after going, and what was liked.
+    enjoyment: Enjoyment | None = None
+    liked: list[LikedAspect] = Field(default_factory=list, max_length=4)
+
+    @model_validator(mode="after")
+    def _fields_match_the_response(self) -> RankerFeedbackPreview:
+        if self.response is not RankerFeedbackKind.NOT_FOR_ME and (
+            self.reason is not None or self.clarification is not None
+        ):
+            raise ValueError("reason and clarification apply to not_for_me only")
+        if self.clarification is not None and self.reason is None:
+            raise ValueError("clarification needs a reason")
+        if self.response is RankerFeedbackKind.ENJOYMENT and self.enjoyment is None:
+            raise ValueError("enjoyment needs a verdict")
+        if self.response is not RankerFeedbackKind.ENJOYMENT and (
+            self.enjoyment is not None or self.liked
+        ):
+            raise ValueError("enjoyment and liked apply to enjoyment only")
+        return self
+
+
+class RankerInspectRequest(BaseModel):
+    """One inspection. `text` wins over `intent`, exactly as on `POST /v1/activities/search`.
+
+    `baseline` is the execution on screen: the person's live state, with `history_preset` folded
+    in when one is given. A `variant` (and `changes`) exists only when a `counterfactual` or a
+    `feedback` preview is given, and is that baseline with them applied -- so `changes` is the
+    preview's effect alone, never the preset's.
+
+    `compare_preset_to_live` asks instead what the preset itself changed: the baseline is live
+    state and the variant is live state plus the preset. It needs a preset and cannot be combined
+    with a counterfactual or feedback (422).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    person_id: str = Field(max_length=80)
+    text: str | None = Field(default=None, max_length=400)
+    intent: ActivityIntent | None = None
+    history_preset: str | None = Field(default=None, max_length=80)
+    counterfactual: RankerCounterfactual | None = None
+    feedback: RankerFeedbackPreview | None = None
+    compare_preset_to_live: bool = False
+    # Run the intent planner and the bounded LLM re-rank exactly as search would. Off by default;
+    # meaningful only when the server has the LLM enabled.
+    run_planner: bool = False
+
+
+class TracePerson(BaseModel):
+    person_id: str
+    display_name: str
+
+
+class TraceRequest(BaseModel):
+    raw_text: str | None = None
+    source: Literal["text", "chips", "none"]
+
+
+class TraceIntentAxis(BaseModel):
+    """One field of the parsed request and how the pipeline treats it: `hard` filters, `soft`
+    only ranks, `exclusion` filters out what was ruled out, `open` was not asked about."""
+
+    axis: str
+    values: list[str] = Field(default_factory=list)
+    kind: Literal["hard", "soft", "exclusion", "open"]
+
+
+class TraceParsedIntent(BaseModel):
+    intent: ActivityIntent
+    parser: IntentParser
+    intent_mode: str
+    axes: list[TraceIntentAxis]
+    unparsed_terms: list[str] = Field(default_factory=list)
+    # How many LLM-returned unparsed terms were withheld because they do not appear in the request.
+    unparsed_terms_withheld: int = 0
+    # True when the LLM parser supplied a `language` the request text does not contain. The value
+    # is kept on `intent` because the filter, the reason lines and `understood` used it verbatim.
+    language_model_supplied_ungrounded: bool = False
+    understood: list[str] = Field(default_factory=list)
+
+
+FactProvenance = Literal["person_said", "learned", "temporary", "goal", "scripted_history"]
+# `never_widens`: a stated DISTANCE belief with no number that leans far ("I like going further",
+# "avoid things nearby") -- a statement about distance only ever narrows how far is comfortable, so
+# it never moves the tolerance. `no_distance_line`: a learned DISTANCE row with no pivot, written
+# before DISTANCE became ordinal; there is no line to read. `deprecated_axis` is CATEGORY alone.
+FactNotUsedReason = Literal[
+    "constrained_by_request",
+    "not_winning_tier",
+    "zero_strength",
+    "deprecated_axis",
+    "recorded_not_applied",
+    "never_widens",
+    "no_distance_line",
+]
+
+
+class TraceFact(BaseModel):
+    """One belief about the person as the ranker read it (or, for `recorded_not_applied`, a stored
+    row the resolver held back). Never carries the person's own words."""
+
+    fact_key: str
+    dimension: PreferenceDimension
+    value: str | None = None
+    pivot: float | None = None
+    direction: Literal["lower", "higher"] | None = None
+    sentiment: Literal["like", "avoid"]
+    strength: float
+    confidence: FactConfidence | None = None
+    positive_evidence: float = 0.0
+    negative_evidence: float = 0.0
+    evidence_count: int = 0
+    # `SourceTier` member name, lower-case (`weak_learned` ... `temporary_stated`); `None` for a
+    # row the resolver never tiered.
+    tier: str | None = None
+    winning: bool = False
+    # `scripted_history` only when a scripted preset alone produced the row; a live row a preset
+    # added evidence to keeps its live provenance and sets `scripted_contribution`.
+    provenance: FactProvenance
+    scripted_contribution: bool = False
+    source: Literal["senior_statement", "decline_reason", "inferred"]
+    scope: ClarificationScope | None = None
+    expires_on_day: date | None = None
+    status: Literal["applied", "recorded_not_applied"] = "applied"
+    not_applied_reason: Literal["held_back_item_level", "expired", "no_evidence"] | None = None
+    used_in_scoring: bool
+    # `not_winning_tier`: a higher-tier belief wins this belief's resolution group -- the whole
+    # axis on TIMING, ENVIRONMENT, SOCIAL and INTENSITY, every line (pivot) on DISTANCE, every
+    # DISTANCE belief with no number leaning the same way, and only the same activity type on
+    # ACTIVITY_TYPE (`ResolvedPreference.winning_tier`).
+    not_used_reason: FactNotUsedReason | None = None
+    contradicted_by: list[str] = Field(default_factory=list)
+    # True when this fact exists or changed only because of the preset, counterfactual or
+    # feedback this variant applied.
+    changed_by_preview: bool = False
+
+
+class UnknownAxis(BaseModel):
+    """A preference axis nothing is known about and the request left open. Materiality is measured
+    by re-running the ranker once per tested value with a hypothetical stated like."""
+
+    dimension: PreferenceDimension
+    tested_values: list[str]
+    changing_values: list[str]
+    changes_top_three: bool
+
+
+class TracePersonContext(BaseModel):
+    facts: list[TraceFact]
+    unknown_axes: list[UnknownAxis]
+    travel_tolerance_m: int
+    # `stated_near`: a stated (or goal) "somewhere near" with no number capped the tolerance at
+    # `preferences.NEARBY_RADIUS_M`.
+    travel_tolerance_basis: Literal["default", "learned_ceiling", "learned_floor", "stated_near"]
+    # Where this search starts charging for distance (`activity_search.travel_cost_start`): the
+    # tolerance above, narrowed to `asked_radius_m` when a distance phrase asked for less.
+    travel_cost_starts_m: int
+    travel_cost_start_basis: Literal[
+        "default", "learned_ceiling", "learned_floor", "stated_near", "asked_radius"
+    ]
+    # The radius a distance *phrase* implied today; `None` when none, or when it was a number
+    # (a number filters instead, and is never charged).
+    asked_radius_m: int | None = None
+    # What "near" means with no number (`preferences.NEARBY_RADIUS_M`): the cap a `stated_near`
+    # tolerance basis applied, and the radius "somewhere near me" asks for. Always set, so a
+    # screen restates no backend constant.
+    nearby_radius_m: int
+    consent_active: bool
+
+
+class TraceRetrieval(BaseModel):
+    catalogue_count: int
+    sources: list[ActivitySource]
+    integration_statuses: list[IntegrationStatus]
+    rain_forecast: bool
+    rain_source: Literal["simulation_context", "counterfactual"]
+    pre_filter_stage: bool = False
+
+
+class TraceFilterOutcome(BaseModel):
+    activity_id: str
+    title: str
+    status: Literal["kept", "removed"]
+    rule: str | None = None
+    detail: str | None = None
+
+
+class TraceFiltering(BaseModel):
+    rules_in_order: list[str]
+    kept_count: int
+    removed_count: int
+    by_rule: dict[str, int]
+    outcomes: list[TraceFilterOutcome]
+
+
+class TraceSortKey(BaseModel):
+    tier: float
+    total: float
+    matched_axes: int
+    distance_m: int | None = None
+    title: str
+    start_at: datetime | None = None
+    activity_id: str
+
+
+# Why an outcome is `unknown` (`preferences.UnknownReason`): `listing_silent` -- the listing does
+# not say; `mismatch_not_counted` -- it does say, differently, and the rule counts that neither way
+# (another kind of activity, or a listing labelled "none of the above").
+TraceUnknownReason = Literal["listing_silent", "mismatch_not_counted"]
+
+
+class TraceRequestAxis(BaseModel):
+    axis: str
+    dimension: PreferenceDimension | None = None
+    outcome: Literal["match", "mismatch", "unknown", "not_applicable"]
+    # `None` unless `outcome` is `unknown`.
+    unknown_reason: TraceUnknownReason | None = None
+
+
+class TracePreferenceAxis(BaseModel):
+    fact_key: str
+    dimension: PreferenceDimension
+    value: str | None = None
+    pivot: float | None = None
+    direction: Literal["lower", "higher"] | None = None
+    strength: float
+    tier: str
+    outcome: Literal["match", "mismatch", "unknown"]
+    # `None` unless `outcome` is `unknown`.
+    unknown_reason: TraceUnknownReason | None = None
+    # Display-only share of the preference factor's value; the factor is summed from the raw walk.
+    contribution: float
+
+
+class TraceEngagementCounts(BaseModel):
+    interested: int = 0
+    not_for_me: int = 0
+    went: int = 0
+    did_not_go: int = 0
+    enjoyed: int = 0
+    not_enjoyed: int = 0
+
+
+class TraceEngagement(BaseModel):
+    series: TraceEngagementCounts
+    own: TraceEngagementCounts
+    last_not_for_me: date | None = None
+    in_cooldown: bool = False
+
+
+# `grounded`: a line on the card's face explains the factor. `on_expand`: the line is in
+# `more_reasons`, shown when the card is opened. `silent_by_design`: the ranker writes no line for
+# this contribution by construction. `unsupported`: none of those -- a defect.
+IntegrityClass = Literal["grounded", "on_expand", "silent_by_design", "unsupported"]
+SilentByDesign = Literal["contradicted_avoid_belief", "history_silenced_not_enjoyed"]
+
+
+class IntegrityFinding(BaseModel):
+    activity_id: str
+    factor: str
+    contribution: float
+    classification: IntegrityClass
+    silent_reason: SilentByDesign | None = None
+
+
+class ReasonWithoutPositiveFactor(BaseModel):
+    activity_id: str
+    basis: ReasonBasis
+    factor: str
+    contribution: float
+
+
+class CandidateIntegrity(BaseModel):
+    positive_factors: list[str]
+    findings: list[IntegrityFinding]
+    reasons_without_positive_factor: list[ReasonWithoutPositiveFactor]
+
+
+class TraceStagePositions(BaseModel):
+    after_sort: int
+    after_series_dedupe: int
+    after_variety: int
+    final: int | None = None
+
+
+class CandidateTrace(BaseModel):
+    activity_id: str
+    title: str
+    programme_key: str
+    provider: str
+    location_name: str
+    activity_type: ActivityType | None = None
+    category: str | None = None
+    indoor_outdoor: IndoorOutdoor
+    intensity: ActivityIntensity | None = None
+    social_shape: SocialPreference | None = None
+    distance_m: int | None = None
+    start_at: datetime | None = None
+    availability: ActivityAvailability
+    language_tags: list[str] = Field(default_factory=list)
+    factors: list[ScoreFactor]
+    total: float
+    tier: float
+    sort_key: TraceSortKey
+    matched_axes: int
+    coverage: float
+    request_axes: list[TraceRequestAxis]
+    request_constrained: int
+    request_judged: int
+    request_matched: int
+    preference_axes: list[TracePreferenceAxis]
+    engagement: TraceEngagement | None = None
+    travel_tolerance_m: int
+    asked_radius_m: int | None = None
+    rain_applied: bool
+    # The face of the final card, and the lines it shows when opened (`RankedActivity.reasons` and
+    # `.more_reasons`, after any variety rebuild). Together they are every eligible line.
+    reasons_shown: list[ActivityReason]
+    more_reasons: list[ActivityReason]
+    # Every line scoring collected, before `_compose_reasons` split it and before any variety
+    # rebuild -- including lines then found ineligible, and the catalogue filler. Display only:
+    # integrity is judged on `reasons_shown` and `more_reasons` alone.
+    reasons_before_composition: list[ActivityReason]
+    # `len(more_reasons)`.
+    reasons_suppressed: int
+    series_deferred: bool
+    variety_promoted: bool
+    positions: TraceStagePositions
+    # Present only for candidates in the final top three.
+    integrity: CandidateIntegrity | None = None
+
+
+class TraceSortKeyField(BaseModel):
+    name: Literal["tier", "total", "matched_axes", "distance_m", "title", "start_at", "activity_id"]
+    direction: Literal["descending", "ascending"]
+
+
+class TraceScoring(BaseModel):
+    weights: dict[str, float]
+    factor_order: list[str]
+    # One plain sentence per factor (`activity_search.RANKING_FACTOR_DESCRIPTIONS`), same keys.
+    factor_descriptions: dict[str, str]
+    # What each recorded answer is worth on the engagement factor
+    # (`activity_search.ENGAGEMENT_WEIGHTS`): interested, attended, enjoyed, durable_not_for_me,
+    # not_enjoyed.
+    engagement_weights: dict[str, float]
+    # How many top places the series dedupe and variety swap protect.
+    top_n: int
+    bounded: bool = True
+    diversity_score_margin: float
+    decline_cooldown_days: int
+    candidates: list[CandidateTrace]
+
+
+class TraceSort(BaseModel):
+    keys: list[TraceSortKeyField]
+    order_before_postprocess: list[str]
+
+
+class TraceSeriesDeferral(BaseModel):
+    activity_id: str
+    series_holder_id: str
+    from_position: int
+    to_position: int
+
+
+class TraceSeriesDedupe(BaseModel):
+    ran: bool
+    changed: bool
+    deferred: list[TraceSeriesDeferral]
+    refilled: list[str]
+    order_after: list[str]
+
+
+class TraceVarietyConsidered(BaseModel):
+    activity_id: str
+    kind: str
+    tier: float
+    total: float
+    outcome: Literal["different_tier", "outside_margin"]
+
+
+class TraceVarietySwap(BaseModel):
+    promoted_id: str
+    displaced_id: str
+    from_position: int
+    to_position: int
+    shared_kind: str
+    promoted_kind: str
+    tier: float
+    third_total: float
+    promoted_total: float
+    margin: float
+    reasons_before: list[ActivityReason]
+    reasons_after: list[ActivityReason]
+    # The promoted card's `more_reasons` after the rebuild: what it already had beyond its face,
+    # plus any line the VARIETY note pushed off it.
+    more_reasons_after: list[ActivityReason]
+    # The promoted breakdown's `reasons_suppressed`: `len(more_reasons_after)`.
+    reasons_suppressed_recorded: int
+
+
+class TraceVariety(BaseModel):
+    status: Literal[
+        "not_enough_candidates",
+        "top_three_mixed",
+        "top_three_unkinded",
+        "no_candidate_within_margin",
+        "swapped",
+    ]
+    shared_kind: str | None = None
+    considered: list[TraceVarietyConsidered] = Field(default_factory=list)
+    swap: TraceVarietySwap | None = None
+    order_after: list[str]
+
+
+class TracePostProcessing(BaseModel):
+    series_dedupe: TraceSeriesDedupe
+    variety: TraceVariety
+
+
+class TraceToolCall(BaseModel):
+    """One planner tool call, stripped to names and keys. A read tool's arguments and every
+    summary are withheld; a proposal carries only the keys it offered that were permitted."""
+
+    iteration: int
+    tool_name: str
+    ok: bool
+    proposed_keys: list[str] = Field(default_factory=list)
+    unknown_key_count: int = 0
+
+
+class TracePlannerMovement(BaseModel):
+    activity_id: str
+    deterministic_rank: int
+    final_rank: int | None = None
+
+
+class TraceIntentPlanner(BaseModel):
+    ran: bool
+    mode: str
+
+
+LlmStageStatus = Literal[
+    "agent",
+    "fallback_disabled",
+    "fallback_error",
+    "fallback_exhausted",
+    "fallback_no_proposal",
+    "not_run_in_preview",
+    "no_candidates",
+]
+
+
+class TraceLlmRerank(BaseModel):
+    status: LlmStageStatus
+    ran: bool
+    planner_enabled: bool
+    # `off` when the server has the planner disabled (`provider` still names what is configured).
+    transport: Literal["live", "recorded", "off"]
+    provider: str
+    # True when a recorded transport is asked to re-rank a state that is not the person's live one
+    # (a preset, counterfactual or feedback applied): a recording holds only the requests it
+    # captured, so a changed context misses it and falls back (`fallback_error`).
+    recording_may_miss: bool = False
+    model: str | None = None
+    window_size: int
+    max_promotion: int
+    min_shown_after_narrowing: int
+    max_iterations: int
+    deterministic_window: list[str]
+    iterations: int = 0
+    tool_calls: list[TraceToolCall] = Field(default_factory=list)
+    guardrail_rule_counts: dict[str, int] = Field(default_factory=dict)
+    rejected_proposal_count: int = 0
+    fallback_error_class: str | None = None
+    final_order: list[str] = Field(default_factory=list)
+    narrowed: list[str] = Field(default_factory=list)
+    movements: list[TracePlannerMovement] = Field(default_factory=list)
+    intent_planner: TraceIntentPlanner
+    evidence_id: str | None = None
+
+
+class TraceRecommendation(BaseModel):
+    activity_id: str
+    rank: int
+    selection_stage: Literal["sort", "series_dedupe", "variety", "planner"]
+    selected_by: Literal["agent", "ranker"]
+
+
+class TraceWebCard(BaseModel):
+    """How the senior screen's presentation-only grouping (one card per `series_key`, headlining
+    the best-ranked session) would fold the final order into its first three cards."""
+
+    title: str
+    location_name: str
+    headline_activity_id: str
+    member_ids: list[str]
+
+
+class TraceFinalRecommendations(BaseModel):
+    shown_limit: int
+    result_count: int
+    nothing_matched: bool
+    top: list[TraceRecommendation]
+    web_cards: list[TraceWebCard]
+    web_grouping_changes_top_three: bool
+
+
+class TraceIntegrity(BaseModel):
+    grounded: int
+    on_expand: int
+    silent_by_design: dict[str, int]
+    unsupported: int
+    reason_without_positive_factor: int
+    findings: list[IntegrityFinding]
+
+
+class TraceCatalogueUnknown(BaseModel):
+    field: Literal[
+        "start_at",
+        "distance_m",
+        "indoor_outdoor",
+        "intensity",
+        "social_shape",
+        "activity_type",
+        "language_tags",
+        "availability",
+    ]
+    activity_ids: list[str]
+
+
+class TraceScriptedEvent(BaseModel):
+    origin_id: str
+    kind: Literal["not_for_me", "interested", "enjoyment"]
+    programme_key: str
+    activity_id: str
+    days_ago: int
+    reason: DeclineReason | None = None
+    clarification: ClarificationScope | None = None
+    enjoyment: Enjoyment | None = None
+    liked: list[LikedAspect] = Field(default_factory=list)
+
+
+class TraceScriptedHistory(BaseModel):
+    preset_id: str
+    person_id: str
+    events: list[TraceScriptedEvent]
+
+
+class TraceWorldModelEffect(BaseModel):
+    control: Literal["travel_ceiling_m", "temporary_avoid_activity_type"]
+    effect: Literal["applied", "no_effect"]
+    no_effect_reason: Literal["outranked_by_higher_tier", "not_below_tolerance"] | None = None
+
+
+class TraceLearningPreview(BaseModel):
+    feedback: RankerFeedbackPreview
+    activity_title: str
+    consent_active: bool
+    duplicate_same_day: bool
+    teaches_dimension: bool
+    facts_before: list[TraceFact]
+    engagement_before: TraceEngagement | None = None
+    engagement_after: TraceEngagement | None = None
+
+
+class TraceApplied(BaseModel):
+    history_preset: TraceScriptedHistory | None = None
+    counterfactual: RankerCounterfactual | None = None
+    world_model_effects: list[TraceWorldModelEffect] = Field(default_factory=list)
+    learning_preview: TraceLearningPreview | None = None
+
+
+class ActivityRankingTrace(BaseModel):
+    trace_id: str
+    generated_at: datetime
+    variant: Literal["baseline", "variant"]
+    # True when this trace's state is not the person's live state: a scripted preset, a
+    # counterfactual or a feedback preview is applied.
+    preview: bool
+    saved: Literal[False] = False
+    person: TracePerson
+    today: date
+    run_id: str
+    applied: TraceApplied
+    request: TraceRequest
+    parsed_intent: TraceParsedIntent
+    person_context: TracePersonContext
+    retrieval: TraceRetrieval
+    filtering: TraceFiltering
+    scoring: TraceScoring
+    sort: TraceSort
+    post_processing: TracePostProcessing
+    llm_rerank: TraceLlmRerank
+    final_recommendations: TraceFinalRecommendations
+    integrity: TraceIntegrity
+    catalogue_unknowns: list[TraceCatalogueUnknown]
+    evidence_ids: list[str]
+
+
+class RankChange(BaseModel):
+    """One structured difference between a baseline and a variant trace. No prose: the web
+    view-model words it from these fields."""
+
+    kind: Literal[
+        "rank_moved",
+        "entered_top_three",
+        "left_top_three",
+        "filter_status_changed",
+        "factor_delta",
+        "fact_added",
+        "fact_removed",
+        "fact_changed",
+    ]
+    activity_id: str | None = None
+    baseline_rank: int | None = None
+    variant_rank: int | None = None
+    baseline_rule: str | None = None
+    variant_rule: str | None = None
+    factor: str | None = None
+    baseline_contribution: float | None = None
+    variant_contribution: float | None = None
+    delta: float | None = None
+    fact_key: str | None = None
+    baseline_strength: float | None = None
+    variant_strength: float | None = None
+    baseline_pivot: float | None = None
+    variant_pivot: float | None = None
+    # `fact_changed` only: which of value, pivot, strength, confidence, evidence, tier, status and
+    # used_in_scoring differ. Empty for every other kind.
+    changed_fields: list[str] = Field(default_factory=list)
+
+
+class RankerInspectResponse(BaseModel):
+    baseline: ActivityRankingTrace
+    variant: ActivityRankingTrace | None = None
+    changes: list[RankChange] | None = None
+
+
+class RankerPresetEvent(BaseModel):
+    kind: Literal["not_for_me", "interested", "enjoyment"]
+    programme_key: str
+    days_ago: int
+    reason: DeclineReason | None = None
+    clarification: ClarificationScope | None = None
+    enjoyment: Enjoyment | None = None
+    liked: list[LikedAspect] = Field(default_factory=list)
+
+
+class RankerHistoryPreset(BaseModel):
+    preset_id: str
+    person_id: str
+    title: str
+    events: list[RankerPresetEvent]
+
+
+class RankerCounterfactualControls(BaseModel):
+    time_windows: list[TimeWindow]
+    social_preferences: list[SocialPreference]
+    environments: list[ActivityEnvironment]
+    activity_types: list[ActivityType]
+    max_distance_m: int
+    travel_ceiling_m_min: int
+    travel_ceiling_m_max: int
+    decline_reasons: list[DeclineReason]
+    clarification_scopes: list[ClarificationScope]
+    enjoyments: list[Enjoyment]
+    liked_aspects: list[LikedAspect]
+
+
+class RankerPresetsResponse(BaseModel):
+    presets: list[RankerHistoryPreset]
+    controls: RankerCounterfactualControls
+    people: list[TracePerson]
+
+
+# ── Family groups ─────────────────────────────────────────────────────────────
+
+
+class AccountRole(StrEnum):
+    """What someone signs up as. Only these two roles can be chosen; the rest are provisioned."""
+
+    SENIOR = "senior"
+    FAMILY = "family"
+
+
+class GroupRole(StrEnum):
+    OWNER = "owner"
+    MEMBER = "member"
+
+
+class MemberStatus(StrEnum):
+    ACTIVE = "active"
+    PENDING = "pending"
+
+
+class OnboardRequest(BaseModel):
+    role: AccountRole
+    display_name: str = Field(min_length=1, max_length=80)
+
+
+class MyGroup(BaseModel):
+    group_id: str
+    person_id: str
+    senior_name: str
+    my_role: GroupRole
+    my_status: MemberStatus
+
+
+class MeResponse(BaseModel):
+    """Who is signed in, and what they still have to do before using the app."""
+
+    sub: str
+    role: AuthRole | None
+    display_name: str | None
+    # The senior's own record, for a senior account.
+    person_id: str | None
+    # True until the account has chosen `senior` or `family` (`POST /v1/me/onboard`).
+    needs_onboarding: bool
+    groups: list[MyGroup] = Field(default_factory=list)
+
+
+class PinResponse(BaseModel):
+    pin: str
+    expires_at: datetime
+
+
+class CreateGroupRequest(BaseModel):
+    senior_pin: str = Field(pattern=r"^[0-9]{6}$")
+    relationship: str = Field(min_length=1, max_length=40)
+
+
+class JoinGroupRequest(BaseModel):
+    pin: str = Field(pattern=r"^[0-9]{6}$")
+    relationship: str = Field(min_length=1, max_length=40)
+
+
+class GroupMember(BaseModel):
+    member_id: str
+    display_name: str
+    relationship: str
+    role: GroupRole
+    status: MemberStatus
+    is_me: bool
+    joined_at: datetime
+
+
+class CareGroup(BaseModel):
+    group_id: str
+    person_id: str
+    senior_name: str
+    members: list[GroupMember]
+
+
+# ── Family calendar (appointments, availability, helpers) ─────────────────────
+
+
+class AppointmentKind(StrEnum):
+    MEDICAL = "medical"
+    THERAPY = "therapy"
+    ACTIVITY = "activity"
+    ERRAND = "errand"
+
+
+class RepeatRule(StrEnum):
+    NONE = "none"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+
+
+class AvailabilityStatus(StrEnum):
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+
+
+ClockTime = Annotated[str, Field(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")]
+
+
+class AppointmentRequest(BaseModel):
+    """A new or changed appointment. A repeating one is stored once and shown on every day it
+    repeats, until `repeat_until` (inclusive) or forever."""
+
+    title: str = Field(min_length=1, max_length=120)
+    kind: AppointmentKind
+    date: date
+    start: ClockTime
+    end: ClockTime
+    location: str | None = Field(default=None, max_length=160)
+    notes: str | None = Field(default=None, max_length=1000)
+    repeat: RepeatRule = RepeatRule.NONE
+    repeat_until: date | None = None
+
+    @model_validator(mode="after")
+    def _check_times(self) -> AppointmentRequest:
+        if self.end <= self.start:
+            raise ValueError("The end time needs to be after the start time.")
+        if self.repeat_until is not None and self.repeat_until < self.date:
+            raise ValueError("A repeat cannot end before the first day.")
+        return self
+
+
+class Appointment(AppointmentRequest):
+    appointment_id: str
+
+
+class AppointmentOccurrence(BaseModel):
+    """One day of an appointment. `occurrence_id` is `<appointment_id>@<YYYY-MM-DD>`: what
+    availability answers and helpers are attached to, so each week of a weekly visit has its own."""
+
+    occurrence_id: str
+    appointment_id: str
+    title: str
+    kind: AppointmentKind
+    date: date
+    start: str
+    end: str
+    location: str | None
+    notes: str | None
+    repeat: RepeatRule
+
+
+class CalendarMember(BaseModel):
+    member_id: str
+    display_name: str
+    relationship: str
+    # Which avatar colour (0-5) this member wears, by the order they joined.
+    colour: int
+    is_me: bool
+
+
+class AvailabilityEntryOut(BaseModel):
+    entry_id: str
+    member_id: str
+    date: date
+    start: str
+    end: str
+    status: AvailabilityStatus
+    # Set when this is an answer about one appointment rather than a window of free time.
+    occurrence_id: str | None
+
+
+class HelperAssignment(BaseModel):
+    occurrence_id: str
+    member_id: str
+
+
+class FamilyCalendar(BaseModel):
+    person_id: str
+    senior_name: str
+    group_id: str | None
+    from_date: date
+    to_date: date
+    members: list[CalendarMember]
+    appointments: list[AppointmentOccurrence]
+    availability: list[AvailabilityEntryOut]
+    assignments: list[HelperAssignment]
+
+
+class AvailabilityRequest(BaseModel):
+    """A window of time the caller is (or is not) free, whatever is on the calendar."""
+
+    date: date
+    start: ClockTime
+    end: ClockTime
+    status: AvailabilityStatus
+
+    @model_validator(mode="after")
+    def _check_times(self) -> AvailabilityRequest:
+        if self.end <= self.start:
+            raise ValueError("The end time needs to be after the start time.")
+        return self
+
+
+class OccurrenceAnswerRequest(BaseModel):
+    occurrence_id: str = Field(max_length=100)
+    status: AvailabilityStatus
+
+
+class OccurrenceRequest(BaseModel):
+    occurrence_id: str = Field(max_length=100)
+
+
+# ── The senior's watch ───────────────────────────────────────────────────────
+
+
+class WearableStatus(BaseModel):
+    """Whether the senior's watch is connected, when it last synced, and its battery. Simulated
+    until a real device adapter exists (`source` says so); never a health signal."""
+
+    connected: bool
+    last_synced_at: datetime | None
+    # 0-100, or None when no watch is connected.
+    battery_percent: int | None = Field(default=None, ge=0, le=100)
+    charging: bool
+    source: Literal["synthetic"]

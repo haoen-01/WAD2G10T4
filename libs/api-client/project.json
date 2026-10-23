@@ -1,0 +1,28 @@
+{
+  "name": "api-client",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/api-client/src",
+  "targets": {
+    "generate": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/src/generated"],
+      "options": {
+        "command": "./scripts/generate-contract.sh"
+      }
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "./scripts/check-contract.sh"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p libs/api-client/tsconfig.json"
+      }
+    }
+  },
+  "tags": ["scope:shared", "type:client"]
+}
