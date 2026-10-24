@@ -100,7 +100,9 @@ async function send(kind: CheckInKind, past: string) {
   min-width: 0;
 }
 
+/* Tall tiles, not pills: a pill's round ends crowd "Messaged" at phone width. */
 .checkin-btn {
+  border-radius: var(--sl-radius-sm);
   padding-inline: 0.35rem;
   display: flex;
   flex-direction: column;

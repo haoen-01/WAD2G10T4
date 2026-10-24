@@ -65,6 +65,7 @@ export function feedLine(entry: FamilyActivityEntry, options: FeedOptions = {}):
     case 'member_approved':
       return line(`let ${entry.subject_name || 'a new member'} into the group`, 'users');
     case 'member_declined':
+      // Defensive: the API never sends a subject name for declines.
       return line(
         entry.subject_name
           ? `declined ${entry.subject_name}’s request to join`
