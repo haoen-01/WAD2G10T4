@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -9,8 +10,11 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 
 from silverloop.db_models import Base, DecisionEvidenceRow
+from silverloop.family_calendar import FamilyCalendarStore
+from silverloop.family_groups import DEMO_FAMILY, DEMO_FAMILY_SUB, FamilyGroups
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.migrations import apply_rls_posture, upgrade_database
+from silverloop.models import CheckInKind, CheckInRequest
 from silverloop.schema_revision import expected_database_revision
 from silverloop.sql_repository import SqlAlchemyRepository, _sync_database_url
 
@@ -610,7 +614,7 @@ def test_the_dimension_preference_run_scope_mirror_replays_twice_over_an_alembic
             assert "ix_activity_dimension_preferences_run_id" in indexes
 
             version = session.scalar(text("select version_num from public.alembic_version"))
-            assert version == "b9d3e5f71a26"
+            assert version == "c4a7e1b93d58"
 
             # A decline_reason row is never standing: the mirror's backfill must catch it even
             # though Alembic's own backfill already ran before this row ever existed.
@@ -732,5 +736,45 @@ def test_the_replan_offer_mirror_replays_twice_and_leaves_the_table_answerable()
             assert column is not None, (
                 "the mirror did not add week_plan_entries.replaced_by_plan_id"
             )
+    finally:
+        repository.close()
+
+
+def test_postgres_demo_reset_clears_the_family_feed_before_the_members_it_points_at() -> None:
+    """The feed's rows reference `group_members` by foreign key. SQLite does not enforce those by
+    default, so only PostgreSQL proves the demo reset deletes in an order the database accepts, and
+    that the feed pages by cursor afterwards."""
+    database_url = dedicated_postgres_test_url()
+    upgrade_database(database_url)
+    repository = SqlAlchemyRepository(database_url)
+    try:
+        repository.reset()
+        groups = FamilyGroups(repository.sessions, repository)
+        calendar = FamilyCalendarStore(repository.sessions)
+        demo_members = {sub: relationship for sub, (_, relationship) in DEMO_FAMILY.items()}
+        groups.ensure_demo_group()
+        calendar.reset_demo(DEMO_PERSON_ID, date.today(), demo_members)
+        group_id = groups.me(DEMO_FAMILY_SUB, None, None).groups[0].group_id
+
+        # A newcomer joins, is approved, and checks in: their feed rows reference their member row.
+        newcomer = "demo-family-pg-newcomer"
+        pin = groups.create_join_pin(DEMO_FAMILY_SUB, group_id).pin
+        groups.join_group(newcomer, pin, "Nephew")
+        pending = next(
+            m for m in groups.group(DEMO_FAMILY_SUB, group_id).members if m.status == "pending"
+        )
+        groups.approve(DEMO_FAMILY_SUB, group_id, pending.member_id)
+        calendar.check_in(newcomer, group_id, CheckInRequest(kind=CheckInKind.VISITED, note="hi"))
+        assert len(calendar.activity(DEMO_FAMILY_SUB, group_id, 50, None).entries) == 7
+
+        calendar.reset_demo(DEMO_PERSON_ID, date.today(), demo_members)
+
+        first = calendar.activity(DEMO_FAMILY_SUB, group_id, 3, None)
+        assert len(first.entries) == 3 and first.next_before is not None
+        second = calendar.activity(DEMO_FAMILY_SUB, group_id, 3, first.next_before)
+        assert len(second.entries) == 2 and second.next_before is None
+        seen = [entry.activity_id for entry in [*first.entries, *second.entries]]
+        assert len(set(seen)) == 5
+        assert {entry.origin for entry in [*first.entries, *second.entries]} == {"demo_seed"}
     finally:
         repository.close()

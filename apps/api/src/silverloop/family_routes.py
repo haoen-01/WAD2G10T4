@@ -22,8 +22,11 @@ from silverloop.models import (
     AvailabilityEntryOut,
     AvailabilityRequest,
     CareGroup,
+    CheckInRequest,
     CreateGroupRequest,
     CurrentUser,
+    FamilyActivityEntry,
+    FamilyActivityPage,
     FamilyCalendar,
     JoinGroupRequest,
     MeResponse,
@@ -346,6 +349,41 @@ def register_family_routes(application: FastAPI) -> None:
         store = _calendar(request)
         _call(lambda: store.step_back(current_user.sub, group_id, body.occurrence_id))
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # ── Family activity feed and check-ins ────────────────────────────────────
+
+    @application.get(
+        "/v1/groups/{group_id}/activity",
+        response_model=FamilyActivityPage,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def group_activity(
+        request: Request,
+        group_id: str,
+        current_user: Family,
+        limit: Annotated[int, Query(ge=1, le=50)] = 20,
+        before: Annotated[str | None, Query(max_length=64)] = None,
+    ) -> FamilyActivityPage:
+        """What the family has done in the group, newest first. `before` is the `next_before` of
+        the previous page. Active members only; the senior never reads it."""
+        store = _calendar(request)
+        return _call(lambda: store.activity(current_user.sub, group_id, limit, before))
+
+    @application.post(
+        "/v1/groups/{group_id}/check-ins",
+        response_model=FamilyActivityEntry,
+        status_code=status.HTTP_201_CREATED,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def create_check_in(
+        request: Request, group_id: str, body: CheckInRequest, current_user: Family
+    ) -> FamilyActivityEntry:
+        """Tell the group you called, visited or messaged the senior, with an optional note for the
+        group. Nothing is sent to the senior."""
+        store = _calendar(request)
+        return _call(lambda: store.check_in(current_user.sub, group_id, body))
 
     # ── The senior's watch ────────────────────────────────────────────────────
 
