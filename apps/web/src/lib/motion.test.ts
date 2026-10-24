@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { DURATION, STAGGER, durationFor, enterFrom, staggerDelay } from './motion';
+import {
+  DURATION,
+  STAGGER,
+  durationFor,
+  enterFrom,
+  shouldDismissSheet,
+  staggerDelay,
+} from './motion';
 
 describe('staggerDelay', () => {
   it('starts at zero and steps up', () => {
@@ -32,5 +39,24 @@ describe('durationFor', () => {
   it('is instant when reduced', () => {
     assert.equal(durationFor(DURATION.slow, true), 0);
     assert.equal(durationFor(DURATION.slow, false), DURATION.slow);
+  });
+});
+
+describe('shouldDismissSheet', () => {
+  it('closes past 30% of the height', () => {
+    assert.equal(shouldDismissSheet(300, 0, 1000), true);
+    assert.equal(shouldDismissSheet(299, 0, 1000), false);
+  });
+
+  it('closes on a quick downward flick, however short', () => {
+    assert.equal(shouldDismissSheet(20, 500, 1000), true);
+    assert.equal(shouldDismissSheet(20, 499, 1000), false);
+  });
+
+  it('never closes on an upward pull or an unmeasured sheet', () => {
+    assert.equal(shouldDismissSheet(-400, 900, 1000), false);
+    assert.equal(shouldDismissSheet(0, 900, 1000), false);
+    assert.equal(shouldDismissSheet(400, 900, 0), false);
+    assert.equal(shouldDismissSheet(Number.NaN, 900, 1000), false);
   });
 });
