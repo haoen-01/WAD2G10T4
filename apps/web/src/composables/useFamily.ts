@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 
 import { currentGroup, loadMe } from '@/composables/useMe';
 import { showToast } from '@/composables/useToast';
-import { DEMO_FAMILY_SUBS, setDemoMember } from '@/composables/useViewMode';
+import { DEMO_FAMILY_SUBS, setDemoMember, useViewMode } from '@/composables/useViewMode';
 import { classifyApiError } from '@/lib/api-errors';
 import { todayIso } from '@/lib/calendar';
 import { AUTH_ENABLED } from '@/lib/config';
@@ -41,6 +41,22 @@ const state = reactive<FamilyState>({
   assignments: [],
   currentMemberId: null,
 });
+
+/**
+ * A tiny registry so other family-only code (the Home activity feed) can hear about changes made
+ * here without this file importing it (the senior screen loads this file, and must not pull in
+ * the feed or motion code). `saved`: the save queue drained. `viewer`: the demo switched member.
+ */
+export type FamilyChange = 'saved' | 'viewer';
+const listeners = new Set<(change: FamilyChange) => void>();
+export function onFamilyChange(listener: (change: FamilyChange) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+function notify(change: FamilyChange): void {
+  for (const listener of listeners) listener(change);
+}
+
 const elderName = ref('Your senior');
 const groupId = ref<string | null>(null);
 const personId = ref<string | null>(null);
@@ -113,7 +129,11 @@ function save(work: (group: string) => Promise<unknown>): Promise<void> {
     )
     .finally(() => {
       inFlight -= 1;
-      if (inFlight === 0) void refresh();
+      if (inFlight === 0) {
+        void refresh();
+        // The senior screen shares this queue, and the family routes refuse a senior.
+        if (groupId.value && useViewMode().mode.value !== 'senior') notify('saved');
+      }
     });
   return saving;
 }
@@ -137,6 +157,7 @@ function setCurrentMember(id: string): void {
   if (!sub) return;
   setDemoMember(sub);
   state.currentMemberId = id;
+  notify('viewer');
   void refresh();
 }
 

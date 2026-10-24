@@ -2,6 +2,7 @@
 import type { PersonState, WearableStatus } from '@silverloop/api-client';
 import { defineComponent, type PropType } from 'vue';
 
+import NumberTicker from '@/components/motion/NumberTicker.vue';
 import StatusWhyPanel from '@/components/home/StatusWhyPanel.vue';
 import WatchStatus from '@/components/home/WatchStatus.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
@@ -17,7 +18,7 @@ import { attentionBadge, decisionBadge } from '@/lib/labels';
  */
 export default defineComponent({
   name: 'HomeHero',
-  components: { LoopRing, StatusBadge, StatusWhyPanel, WatchStatus },
+  components: { LoopRing, NumberTicker, StatusBadge, StatusWhyPanel, WatchStatus },
 
   props: {
     person: { type: Object as PropType<PersonState | null>, default: null },
@@ -97,39 +98,44 @@ export default defineComponent({
       <StatusWhyPanel v-if="person" class="mt-2" :person="person" />
     </div>
 
-    <div
-      v-if="person"
-      class="col-12 col-lg-auto d-flex flex-nowrap align-items-center gap-3 gap-sm-4"
-    >
-      <LoopRing
-        :value="(percent ?? 0) / 100"
-        :size="narrow ? 148 : 196"
-        :stroke="narrow ? 14 : 18"
-        :color="low ? 'var(--sl-coral)' : 'var(--sl-jade)'"
-        :track="low ? 'var(--sl-coral-soft)' : 'var(--sl-jade-soft)'"
-      >
-        <span class="display-num ring-num">{{ percent ?? '–' }}<small>%</small></span>
-        <span class="ring-caption">of a usual day</span>
-      </LoopRing>
-      <dl class="ring-facts">
-        <div>
-          <dt>Today so far</dt>
-          <dd class="tabular">
-            {{ formatSteps(person.signal.current_steps) }}
-            ({{ signed(person.signal.delta_percent) }} from usual)
-          </dd>
-        </div>
-        <div>
-          <dt>Usual day</dt>
-          <dd class="tabular">{{ formatSteps(person.baseline.median_steps) }}</dd>
-        </div>
-        <div>
-          <!-- The demo's own simulated day, not the browser's real date (which the calendar
+    <div v-if="person" class="col-12 col-lg-auto">
+      <section class="hero-card sl-panel" aria-labelledby="today-heading">
+        <h2 id="today-heading" class="h5 mb-3">Today with {{ elder }}</h2>
+        <div class="d-flex flex-nowrap align-items-center gap-3 gap-sm-4">
+          <LoopRing
+            :value="(percent ?? 0) / 100"
+            :size="narrow ? 148 : 196"
+            :stroke="narrow ? 14 : 18"
+            :color="low ? 'var(--sl-coral)' : 'var(--sl-jade)'"
+            :track="low ? 'var(--sl-coral-soft)' : 'var(--sl-jade-soft)'"
+          >
+            <span class="display-num ring-num"
+              ><NumberTicker v-if="percent !== null" :value="percent" /><template v-else>–</template
+              ><small>%</small></span
+            >
+            <span class="ring-caption">of a usual day</span>
+          </LoopRing>
+          <dl class="ring-facts">
+            <div>
+              <dt>Today so far</dt>
+              <dd class="tabular">
+                {{ formatSteps(person.signal.current_steps) }}
+                ({{ signed(person.signal.delta_percent) }} from usual)
+              </dd>
+            </div>
+            <div>
+              <dt>Usual day</dt>
+              <dd class="tabular">{{ formatSteps(person.baseline.median_steps) }}</dd>
+            </div>
+            <div>
+              <!-- The demo's own simulated day, not the browser's real date (which the calendar
                below shows), so it is spelled out rather than labelled "Today" too. -->
-          <dt>Demo day</dt>
-          <dd>{{ formatIsoDay(person.current_day, { style: 'long' }) }}</dd>
+              <dt>Demo day</dt>
+              <dd>{{ formatIsoDay(person.current_day, { style: 'long' }) }}</dd>
+            </div>
+          </dl>
         </div>
-      </dl>
+      </section>
     </div>
   </header>
 </template>
@@ -158,6 +164,18 @@ export default defineComponent({
   margin-bottom: 0;
   font-size: 1.3rem;
   line-height: 1.45;
+}
+
+.hero-card {
+  box-shadow: var(--sl-float);
+  animation: hero-rise var(--sl-dur-slow) var(--sl-ease) both;
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
 }
 
 .ring-num {

@@ -6,8 +6,11 @@ import type {
   AvailabilityStatus,
   CalendarAppointment,
   CareGroup,
+  CheckInRequest,
   DailyMetric,
   DeclineReason,
+  FamilyActivityEntry,
+  FamilyActivityPage,
   FamilyCalendar,
   Intervention,
   MeResponse,
@@ -190,5 +193,24 @@ export async function stepBackFrom(groupId: string, occurrenceId: string): Promi
 /** The senior's watch: connected or not, last sync and battery. Simulated until a real device. */
 export async function getWearable(personId: string): Promise<WearableStatus> {
   const response = await http.get<WearableStatus>(`/v1/people/${personId}/wearable`);
+  return response.data;
+}
+
+// ── Family activity feed ─────────────────────────────────────────────────────
+
+/** The group's feed, newest first. Pass the last page's `next_before` as `before` for older entries. */
+export async function getGroupActivity(
+  groupId: string,
+  options: { limit?: number; before?: string } = {},
+): Promise<FamilyActivityPage> {
+  const response = await http.get<FamilyActivityPage>(`/v1/groups/${groupId}/activity`, {
+    params: { limit: options.limit, before: options.before },
+  });
+  return response.data;
+}
+
+/** A family member tells the group they were in touch with the senior. Care+ sends nothing. */
+export async function checkIn(groupId: string, body: CheckInRequest): Promise<FamilyActivityEntry> {
+  const response = await http.post<FamilyActivityEntry>(`/v1/groups/${groupId}/check-ins`, body);
   return response.data;
 }
