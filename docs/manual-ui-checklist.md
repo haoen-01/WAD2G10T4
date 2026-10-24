@@ -15,10 +15,15 @@
   never presented as a failing.
 - Coordinator review records acknowledgement and resolution without placing a call or booking.
 - API-offline errors identify port 8000 and do not show a blank page.
-- Reduced-motion CSS removes nonessential animation. Until 2026-09-06 this line was **half true**
-  and this checklist said so anyway: the rule disabled `transition` but not `animation`, so every
-  vendored dialog, popover, select and dropdown kept its `tw-animate-css` zoom and slide. Both are
-  covered now.
+- Reduced motion removes nonessential animation. The CSS rule in `theme.css` zeroes `transition`
+  and `animation`; the `motion-v` components in `components/motion/*` (feed stagger, number
+  ticker, press feedback, bottom sheet, avatar and PIN card entrances) check
+  `prefers-reduced-motion` themselves and fall back to instant or opacity-only, with no slide,
+  spring or drag on the sheet.
+- The calendar's phone bottom sheet behaves as a dialog: Tab stays inside it (and reaches a toast's
+  Undo), Escape, the close button and the backdrop close it, focus returns to what opened it, and
+  the page behind it neither scrolls nor takes focus.
+- The senior and sign-in screens never load the motion chunk (check the network panel).
 - Senior-facing secondary text clears WCAG **AAA** (7:1) and control borders clear SC 1.4.11 (3:1),
   computed in the browser from rendered styles rather than from the stylesheet.
 - A reader can change the text size from the senior header (Normal / Large / Largest); the stored

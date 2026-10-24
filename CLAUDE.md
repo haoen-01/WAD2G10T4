@@ -150,8 +150,11 @@ The product is Care+; the code, packages and API contract are still named `silve
 ```
 apps/api          FastAPI + SQLAlchemy 2 + Alembic (Python 3.13, uv). Owns all domain state.
 apps/web          Vue 3 + Vite SPA styled with Bootstrap 5. Home / senior / calendar / family.
-                  Calendar and family data (care group, appointments, availability, helpers) are
-                  stored by the API. Only Tasks are browser-only (localStorage); see docs/tasks.md.
+                  Calendar and family data (care group, appointments, availability, helpers,
+                  activity feed, check-ins, appointment notes) are stored by the API. Only Tasks
+                  are browser-only (localStorage); see docs/tasks.md. Family nav is a bottom tab
+                  bar on phones and a header pill on desktop (CSS only). Motion: motion-v 2.6.0 +
+                  @vueuse/core 14.4.0 (exact pins) in components/motion/*.
 apps/e2e          Playwright browser + API tests.
 libs/api-client   TypeScript SDK GENERATED from the OpenAPI snapshot. Do not hand-edit.
 tools/            synthetic-data generator.
@@ -232,6 +235,9 @@ integrations are future, authorised adapters only.
 - `analytics.py` (median/MAD baseline), `quality.py` (8h minimum wear-time gate), `learning.py`.
 - `family_groups.py` / `family_calendar.py` / `family_routes.py` — care groups and PINs, the shared
   calendar (appointments, availability, helpers), and their `/v1/me`, `/v1/groups/…` routes.
+  `family_activity.py` records the family activity feed (written in the same transaction as the
+  change it describes); `/v1/groups/{id}/activity`, `/check-ins` and the per-day appointment
+  `/notes` routes are for active group members only (a senior gets 403, anyone else 404).
 - `wearable_status.py` — the simulated watch status shown on Home (`GET /v1/people/{id}/wearable`,
   registered in `family_routes.py`).
 - `agent/` — the outreach planner (Anthropic or Bedrock, off by default) and its deterministic
@@ -275,6 +281,13 @@ matches the repo head.
 - Web: Vue SFCs with `<script setup lang="ts">`. Bootstrap classes before custom CSS; rules Bootstrap
   cannot express go in that component's `<style scoped>`. No new dependency without a reason.
   `pnpm typecheck` runs `vue-tsc` with unused imports as errors (there is no ESLint in `apps/web`).
+  Web unit tests: `pnpm --filter ./apps/web test` (`node --test` over `src/lib/*.test.ts`); keep
+  state changes in pure `lib/` functions so they can be tested there.
+- Motion: import `motion-v` / `@vueuse/core` only from lazily loaded family views and
+  `components/motion/*`, never from `AppLayout`, the senior screen or the sign-in screens (the nav
+  indicator stays CSS only). Every motion component honours `prefers-reduced-motion` via
+  `composables/useReducedMotion.ts`, and a swipe or drag always has a visible button that does the
+  same thing.
 - Branches: short-lived `feat/`, `fix/`, `test/`, `docs/` off `main`; conventional commit prefixes.
   Schema and safety-policy changes need a reviewer.
 - Every behavioural change needs a scenario or test update — add to `scenarios/*.yaml` for policy

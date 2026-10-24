@@ -31,6 +31,19 @@ evidence.
   Calendar and Family screens use the family API. The exception is tasks (Home, Senior, and shown
   on the Calendar): the API has no such concept yet, so they are kept in the browser's
   `localStorage` (`composables/useTasks.ts`, rules in `lib/tasks.ts`; see `docs/tasks.md`).
+- The family screens are an app-style shell: a bottom tab bar on phones and a header pill on
+  desktop (`components/ui/MainNav.vue`, CSS only). Home shows the family activity feed and
+  check-ins (`composables/useFamilyActivity.ts`: one polling store per app, 30 s and on focus,
+  paused while hidden); the Calendar's phone bottom sheet carries each day's family notes
+  (`composables/useAppointmentNotes.ts`, one per open sheet). The browser writes the feed's
+  sentences from structured entries (`lib/family-feed.ts`); state changes are pure functions in
+  `lib/*` with `node --test` coverage.
+- Motion uses `motion-v` (with `@vueuse/core`), pinned exactly, in `components/motion/*`. It is
+  imported only from the lazily loaded Home, Calendar and Family views, so its chunk never loads
+  with the senior or sign-in screens, and every motion component falls back to instant or
+  opacity-only under `prefers-reduced-motion`. Drags always have a button that does the same. The
+  bottom sheet and the toast host are teleported to `<body>`; while the sheet is open `#app` is
+  `inert`, and toasts stay outside it so they are announced and reachable.
 - FastAPI/Pydantic is the API source of truth; CI regenerates and verifies the TypeScript SDK.
 - SQLAlchemy 2 + Alembic own the PostgreSQL/SQLite schema. Supabase is the shared runtime, denies
   browser roles and accepts domain writes only through FastAPI. SQLite is explicit test and
@@ -94,9 +107,10 @@ scored as such; it is not attributable to the offer and is never reported as if 
 `apps/api/src/silverloop/` is about 45,000 lines, a third of it `sql_repository.py`. This is what
 each file owns; `docs/api.md` covers the HTTP surface these files back.
 
-**What the screens use.** The web app calls about 25 of the API's 80 routes: person state and
-metrics, interventions and their outcomes, `/v1/me`, care groups, the family calendar and the watch
-status (all listed in `apps/web/src/services/careApi.ts`). The e2e suite also calls
+**What the screens use.** The web app calls about 28 of the API's 85 routes: person state and
+metrics, interventions and their outcomes, `/v1/me`, care groups, the family calendar, the family
+activity feed and check-ins, per-day appointment notes and the watch status (all listed in
+`apps/web/src/services/careApi.ts`). The e2e suite also calls
 `/v1/demo/reset` and `/v1/simulation/advance`. The rest serve features with no current screen:
 coordinator review (queue, cases, review setting, care priorities), the evaluator ranker inspector,
 activity search, week plans, goals, preferences, the world model and replanning. Several of those
