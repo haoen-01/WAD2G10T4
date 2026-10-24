@@ -5,10 +5,12 @@ import { RouterLink } from 'vue-router';
 import AvailabilityGrid from '@/components/family/AvailabilityGrid.vue';
 import AvailabilityList from '@/components/family/AvailabilityList.vue';
 import AvailabilityPainter from '@/components/family/AvailabilityPainter.vue';
+import AvatarCluster from '@/components/family/AvatarCluster.vue';
 import CareShare from '@/components/family/CareShare.vue';
 import FamilyMemberCard from '@/components/family/FamilyMemberCard.vue';
 import GroupPanel from '@/components/family/GroupPanel.vue';
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
+import SeniorLocationCard from '@/components/family/SeniorLocationCard.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { useFamily } from '@/composables/useFamily';
 import { showToast } from '@/composables/useToast';
@@ -69,7 +71,13 @@ function remove(entry: AvailabilityEntry) {
         <h1 class="mb-0">Family</h1>
         <p class="text-body-secondary mb-0">Caring for {{ elderName }}</p>
       </div>
-      <RouterLink class="btn btn-outline-primary btn-lg" to="/groups/start" data-testid="to-groups">
+      <AvatarCluster :members="state.members" :current-id="state.currentMemberId" />
+      <RouterLink
+        class="btn btn-outline-primary"
+        :class="currentMember ? 'btn-sm' : 'btn-lg'"
+        to="/groups/start"
+        data-testid="to-groups"
+      >
         <Icon name="user-plus" class="me-1" />Join or create a family group
       </RouterLink>
     </header>
@@ -179,5 +187,7 @@ function remove(entry: AvailabilityEntry) {
         </div>
       </div>
     </section>
+
+    <SeniorLocationCard :elder="elderName" />
   </div>
 </template>
