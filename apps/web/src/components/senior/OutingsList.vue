@@ -69,7 +69,7 @@ function joinNames(people: FamilyMember[]): string {
 <style scoped>
 .outings {
   display: grid;
-  gap: 0.75rem;
+  gap: 1rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -78,7 +78,7 @@ function joinNames(people: FamilyMember[]): string {
 .outings li {
   display: flex;
   gap: 1rem;
-  padding: 0.85rem 1rem;
+  padding: 1rem 1.25rem;
   border-left: 6px solid var(--kind);
   border-radius: var(--sl-radius-sm);
   background: color-mix(in srgb, var(--kind) 7%, var(--sl-surface));
