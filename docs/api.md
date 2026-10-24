@@ -250,6 +250,9 @@ the senior's care group. **member** means an active member of that group.
 | POST   | `/v1/groups/{group_id}/helpers/step-back`                    | member    | Stop helping with one day; the availability answer is kept     |
 | GET    | `/v1/groups/{group_id}/activity`                             | member    | The family feed, newest first (`limit`, `before` cursor)       |
 | POST   | `/v1/groups/{group_id}/check-ins`                            | member    | Tell the group you called, visited or messaged the senior      |
+| GET    | `/v1/groups/{group_id}/appointments/{appointment_id}/notes`  | member    | The family's notes on one day of an appointment (`date`)       |
+| POST   | `/v1/groups/{group_id}/appointments/{appointment_id}/notes`  | member    | Add a note to one day of an appointment                        |
+| POST   | `/v1/groups/{group_id}/notes/{note_id}/delete`               | member    | Remove one of your own notes                                   |
 | GET    | `/v1/people/{person_id}/wearable`                            | reader    | Simulated watch status: connected, last sync, battery          |
 
 A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN entry. PINs are stored
@@ -266,7 +269,8 @@ group, is 404); the senior never does.
 
 Entries carry structured fields only, the browser writes the sentence: `kind` (`group_created`,
 `member_approved`, `member_declined`, `appointment_added`, `appointment_changed`,
-`appointment_removed`, `helper_joined`, `helper_stepped_back`, `availability_updated`, `check_in`),
+`appointment_removed`, `helper_joined`, `helper_stepped_back`, `availability_updated`, `check_in`,
+`note_added`),
 `actor_name`, `is_me`, `subject_name` (`member_approved` only), the appointment's title and kind as
 they were at the time, `on_date`, and `occurrence_id`. `occurrence_id` is worked out on read and is
 null once the appointment is gone or no longer has that day. Appointment entries (added, changed,
@@ -287,6 +291,31 @@ and needs a PostgreSQL test.
 `POST /v1/groups/{group_id}/check-ins` takes `{kind: called|visited|messaged, note?}` (note: at most
 200 characters, trimmed, blank is none) and returns the new entry with 201. The note is shown to the
 group only: nothing is sent to the senior, and it is never logged, audited or given to the agent.
+
+### Appointment notes
+
+A note belongs to one day of an appointment (a repeating appointment has a thread per day), like
+helpers and answers. It is for the family group only: the senior never reads notes, and the calendar
+response does not embed them. The appointment's own `notes` field stays what it was, its details and
+what to bring.
+
+`GET /v1/groups/{group_id}/appointments/{appointment_id}/notes?date=YYYY-MM-DD` returns the day's
+notes as `AppointmentNote` (`note_id`, `appointment_id`, `occurrence_id`, `member_id`, `author_name`,
+`is_mine`, `text`, `created_at`), oldest first, at most 100. `POST` on the same path takes
+`{date, text}` (text trimmed, 1-500 characters, blank is 422) and returns the note with 201.
+`POST /v1/groups/{group_id}/notes/{note_id}/delete` returns 204; only the author may remove a note
+(another member's is 403 "You can only remove your own notes"; an unknown note, or one in another
+group, is 404). A `date` that is not a day of the appointment, or an appointment not in the group,
+is 404. A day holds at most 100 notes: adding the 101st is 409 "This day already has the most notes
+it can hold" and records nothing. When an edit to the appointment (its date or repeat) leaves a day
+that is no longer one of its days, the notes on that day are deleted in the same transaction, since
+nobody could read or remove them any more; their `note_added` feed entries stay, as they hold no
+text, and the notes do not come back if the day returns. Only active members
+use notes (anyone else, a pending member or an unknown group is 404; a signed-in senior is 403).
+
+Adding a note records a `note_added` feed entry in the same transaction, with the appointment's
+title and kind and the note's day, and never the note's text. Deleting a note keeps that entry.
+Deleting an appointment deletes its notes. The text goes to no log, audit event or the agent.
 
 ## The follow-through loop (no screen)
 

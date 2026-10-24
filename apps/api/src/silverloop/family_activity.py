@@ -47,7 +47,7 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def _aware(value: datetime) -> datetime:
+def aware(value: datetime) -> datetime:
     # SQLite hands back naive datetimes; everything stored here is UTC.
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
@@ -157,7 +157,7 @@ def entries_out(
             FamilyActivityEntry(
                 activity_id=row.activity_id,
                 kind=FamilyActivityKind(row.kind),
-                at=_aware(row.created_at),
+                at=aware(row.created_at),
                 actor_member_id=row.actor_member_id,
                 actor_name=names.get(row.actor_member_id, FALLBACK_NAME),
                 is_me=subs.get(row.actor_member_id) == viewer_sub,
@@ -197,7 +197,7 @@ def page(
         cursor = session.get(FamilyActivityRow, before)
         if cursor is None or cursor.group_id != group_id:
             raise UnknownCursorError(before)
-        at = _aware(cursor.created_at)
+        at = aware(cursor.created_at)
         query = query.where(
             or_(
                 FamilyActivityRow.created_at < at,

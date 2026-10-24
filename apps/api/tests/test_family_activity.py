@@ -631,13 +631,13 @@ def test_a_demo_reset_leaves_exactly_the_seeded_entries_and_is_idempotent(
 ) -> None:
     group_id = _demo_group(demo)
     body = demo.get(f"/v1/groups/{group_id}/activity", params={"limit": 50}).json()
-    assert len(body["entries"]) == 5
+    assert len(body["entries"]) == 6
     assert {e["origin"] for e in body["entries"]} == {"demo_seed"}
     times = [e["at"] for e in body["entries"]]
-    assert times == sorted(times, reverse=True) and len(set(times)) == 5
+    assert times == sorted(times, reverse=True) and len(set(times)) == 6
     assert max(times) < datetime.now(UTC).isoformat()
     kinds = {e["kind"] for e in body["entries"]}
-    assert kinds == {"check_in", "helper_joined", "availability_updated"}
+    assert kinds == {"check_in", "helper_joined", "availability_updated", "note_added"}
     called = next(e for e in body["entries"] if e["check_in_kind"] == "called")
     assert (called["actor_name"], called["note"]) == ("Sarah", "She sounded cheerful")
     physio = next(e for e in body["entries"] if e["appointment_title"] == "Physiotherapy session")
@@ -646,7 +646,7 @@ def test_a_demo_reset_leaves_exactly_the_seeded_entries_and_is_idempotent(
 
     # Live activity is cleared by a reset, and the seed comes back the same.
     demo.post(f"/v1/groups/{group_id}/check-ins", json={"kind": "messaged", "note": "hello"})
-    assert len(_demo_summary(demo, group_id)) == 6
+    assert len(_demo_summary(demo, group_id)) == 7
     for _ in range(2):
         assert demo.post("/v1/demo/reset").status_code == 200
         assert _demo_summary(demo, group_id) == seeded
@@ -665,7 +665,7 @@ def test_a_demo_reset_clears_entries_by_members_who_are_removed(demo: TestClient
     demo.post(f"/v1/groups/{group_id}/check-ins", json={"kind": "visited"}, headers=newcomer)
     # The reset removes the newcomer; their feed rows must go first (the foreign key).
     assert demo.post("/v1/demo/reset").status_code == 200
-    assert len(_demo_summary(demo, group_id)) == 5
+    assert len(_demo_summary(demo, group_id)) == 6
 
 
 # ── Boundaries ────────────────────────────────────────────────────────────────

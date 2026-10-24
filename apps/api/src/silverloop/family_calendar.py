@@ -23,12 +23,13 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from silverloop import family_activity
 from silverloop.db_models import (
     AccountRow,
+    AppointmentNoteRow,
     AppointmentRow,
     AvailabilityEntryRow,
     CareGroupRow,
@@ -43,6 +44,8 @@ from silverloop.family_groups import FamilyGroupError
 from silverloop.models import (
     Appointment,
     AppointmentKind,
+    AppointmentNote,
+    AppointmentNoteRequest,
     AppointmentOccurrence,
     AppointmentRequest,
     AvailabilityEntryOut,
@@ -62,6 +65,7 @@ from silverloop.models import (
 
 AVATAR_COLOURS = 6
 MAX_RANGE_DAYS = 400
+MAX_NOTES_PER_DAY = 100
 
 
 def _utcnow() -> datetime:
@@ -360,6 +364,15 @@ class FamilyCalendarStore:
             self._apply(row, body)
             # Saving the form unchanged is not news.
             if _stored_fields(row) != before:
+                # Notes on a day the appointment no longer has could never be read or removed
+                # again, so they go now. Their feed entries stay: those hold no text.
+                for note in session.scalars(
+                    select(AppointmentNoteRow).where(
+                        AppointmentNoteRow.appointment_id == appointment_id
+                    )
+                ).all():
+                    if not self._occurs(row, note.on_date):
+                        session.delete(note)
                 record(
                     session,
                     group_id=group_id,
@@ -382,6 +395,11 @@ class FamilyCalendarStore:
                 kind=FamilyActivityKind.APPOINTMENT_REMOVED,
                 appointment=row,
                 day=_feed_day(row),
+            )
+            session.execute(
+                delete(AppointmentNoteRow).where(
+                    AppointmentNoteRow.appointment_id == appointment_id
+                )
             )
             session.execute(
                 delete(AvailabilityEntryRow).where(
@@ -623,6 +641,116 @@ class FamilyCalendarStore:
             [entry] = family_activity.entries_out(session, [row], sub, self._occurs)
             return entry
 
+    # ── Appointment notes (per day, for the group only) ──────────────────────
+
+    def _checked_occurrence(
+        self, session: Session, group_id: str, appointment_id: str, day: date
+    ) -> AppointmentRow:
+        row = self._appointment(session, group_id, appointment_id)
+        if not self._occurs(row, day):
+            raise FamilyGroupError(404, "Appointment not found")
+        return row
+
+    def list_notes(
+        self, sub: str, group_id: str, appointment_id: str, day: date
+    ) -> list[AppointmentNote]:
+        """The day's notes, oldest first (at most 100). A day the appointment no longer has is 404,
+        so notes left on a moved day are never shown. Active members only."""
+        with self.sessions() as session:
+            self._active_member(session, sub, group_id)
+            self._checked_occurrence(session, group_id, appointment_id, day)
+            rows = session.scalars(
+                select(AppointmentNoteRow)
+                .where(
+                    AppointmentNoteRow.appointment_id == appointment_id,
+                    AppointmentNoteRow.on_date == day,
+                )
+                .order_by(AppointmentNoteRow.created_at, AppointmentNoteRow.note_id)
+                .limit(MAX_NOTES_PER_DAY)
+            ).all()
+            return self._notes_out(session, rows, sub)
+
+    @staticmethod
+    def _notes_out(
+        session: Session, rows: list[AppointmentNoteRow], viewer_sub: str
+    ) -> list[AppointmentNote]:
+        member_ids = {row.member_id for row in rows}
+        authors: dict[str, tuple[str, str]] = {}
+        if member_ids:
+            for member, account in session.execute(
+                select(GroupMemberRow, AccountRow)
+                .outerjoin(AccountRow, AccountRow.sub == GroupMemberRow.sub)
+                .where(GroupMemberRow.member_id.in_(member_ids))
+            ):
+                authors[member.member_id] = (
+                    member.sub,
+                    account.display_name if account else family_activity.FALLBACK_NAME,
+                )
+        return [
+            AppointmentNote(
+                note_id=row.note_id,
+                appointment_id=row.appointment_id,
+                occurrence_id=occurrence_id(row.appointment_id, row.on_date),
+                member_id=row.member_id,
+                author_name=authors.get(row.member_id, ("", family_activity.FALLBACK_NAME))[1],
+                is_mine=authors.get(row.member_id, ("", ""))[0] == viewer_sub,
+                text=row.text,
+                created_at=family_activity.aware(row.created_at),
+            )
+            for row in rows
+        ]
+
+    def add_note(
+        self, sub: str, group_id: str, appointment_id: str, body: AppointmentNoteRequest
+    ) -> AppointmentNote:
+        """Add a note to one day of an appointment. The feed records that a note was added, never
+        what it said; the text goes to no log, audit event or agent."""
+        with self.sessions.begin() as session:
+            member = self._active_member(session, sub, group_id)
+            appointment = self._checked_occurrence(session, group_id, appointment_id, body.date)
+            held = session.scalar(
+                select(func.count())
+                .select_from(AppointmentNoteRow)
+                .where(
+                    AppointmentNoteRow.appointment_id == appointment_id,
+                    AppointmentNoteRow.on_date == body.date,
+                )
+            )
+            if (held or 0) >= MAX_NOTES_PER_DAY:
+                raise FamilyGroupError(409, "This day already has the most notes it can hold")
+            row = AppointmentNoteRow(
+                note_id=_id("note"),
+                group_id=group_id,
+                appointment_id=appointment_id,
+                on_date=body.date,
+                member_id=member.member_id,
+                text=body.text,
+                created_at=_utcnow(),
+            )
+            session.add(row)
+            record(
+                session,
+                group_id=group_id,
+                actor_member_id=member.member_id,
+                kind=FamilyActivityKind.NOTE_ADDED,
+                appointment=appointment,
+                day=body.date,
+            )
+            session.flush()
+            [note] = self._notes_out(session, [row], sub)
+            return note
+
+    def delete_note(self, sub: str, group_id: str, note_id: str) -> None:
+        """Remove your own note. The feed entry that it was added stays."""
+        with self.sessions.begin() as session:
+            member = self._active_member(session, sub, group_id)
+            row = session.get(AppointmentNoteRow, note_id)
+            if row is None or row.group_id != group_id:
+                raise FamilyGroupError(404, "Note not found")
+            if row.member_id != member.member_id:
+                raise FamilyGroupError(403, "You can only remove your own notes")
+            session.delete(row)
+
     # ── Offline demo ─────────────────────────────────────────────────────────
 
     def reset_demo(self, person_id: str, today: date, members: dict[str, str]) -> None:
@@ -636,8 +764,10 @@ class FamilyCalendarStore:
             if group is None:
                 return
             group_id = group.group_id
-            # The feed first: its rows point at members, which are removed further down.
+            # Notes and the feed first: their rows point at appointments and members, which are
+            # removed further down.
             for table in (
+                AppointmentNoteRow,
                 FamilyActivityRow,
                 HelperAssignmentRow,
                 AvailabilityEntryRow,
@@ -825,7 +955,19 @@ def _seed_demo_schedule(
         store._volunteer(session, member, rows[key], rows[key].start_date)
 
     # A few believable entries, backdated and consistent with the schedule above.
-    taichi, physio = rows["demo-taichi"], rows["demo-physio"]
+    taichi, physio, doctor = rows["demo-taichi"], rows["demo-physio"], rows["demo-doctor"]
+    note_at = now - timedelta(hours=8)
+    session.add(
+        AppointmentNoteRow(
+            note_id=_id("note"),
+            group_id=group_id,
+            appointment_id=doctor.appointment_id,
+            on_date=doctor.start_date,
+            member_id=sarah.member_id,
+            text="I'll bring her NRIC and health booklet, they're in the blue folder.",
+            created_at=note_at,
+        )
+    )
     seeded: list[tuple[timedelta, GroupMemberRow, dict[str, Any]]] = [
         (
             timedelta(days=3, hours=2),
@@ -857,6 +999,15 @@ def _seed_demo_schedule(
                 "kind": FamilyActivityKind.HELPER_JOINED,
                 "appointment": physio,
                 "day": physio.start_date,
+            },
+        ),
+        (
+            timedelta(hours=8),
+            sarah,
+            {
+                "kind": FamilyActivityKind.NOTE_ADDED,
+                "appointment": doctor,
+                "day": doctor.start_date,
             },
         ),
         (

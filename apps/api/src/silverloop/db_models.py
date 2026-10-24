@@ -1125,6 +1125,30 @@ class HelperAssignmentRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class AppointmentNoteRow(Base):
+    """A family member's note on one day of an appointment. Unlike the feed it is not append-only:
+    its author can delete it. Group-only text: never logged, audited, sent to the agent or shown to
+    the senior, and never copied into `family_activity` (the feed records only that a note was
+    added). Deleted with its appointment, when an edit to the appointment leaves its day no longer
+    one of its occurrences (the text could not be read or removed again), and by the demo reset
+    before the feed and appointments."""
+
+    __tablename__ = "appointment_notes"
+    __table_args__ = (
+        Index("ix_appointment_notes_day_created", "appointment_id", "on_date", "created_at"),
+    )
+
+    note_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("care_groups.group_id"), index=True)
+    appointment_id: Mapped[str] = mapped_column(
+        ForeignKey("appointments.appointment_id"), index=True
+    )
+    on_date: Mapped[date] = mapped_column(Date)
+    member_id: Mapped[str] = mapped_column(ForeignKey("group_members.member_id"), index=True)
+    text: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class FamilyActivityRow(Base):
     """One thing a family member did in the group, for the family's activity feed. Append-only:
     nothing updates or deletes a row except the demo reset. Written only by

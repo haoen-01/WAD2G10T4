@@ -155,6 +155,8 @@ export type {
   // Family calendar
   Appointment as CalendarAppointment,
   AppointmentKind,
+  AppointmentNote,
+  AppointmentNoteRequest,
   AppointmentOccurrence,
   AppointmentRequest,
   AvailabilityEntryOut,

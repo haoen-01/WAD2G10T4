@@ -46,6 +46,7 @@ begin
     'activity_dimension_preferences',
     'activity_goals',
     'activity_offer_responses',
+    'appointment_notes',
     'appointments',
     'audit_events',
     'auth_user_person_links',

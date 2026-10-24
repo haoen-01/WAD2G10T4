@@ -57,6 +57,9 @@ _needs a helper_.
 changed, who took one, free times shared, check-ins. Only active group members see it; the senior
 does not.
 
+**Appointment note.** A family member's note on one day of an appointment. Only active group members
+see it; the senior does not.
+
 **Check-in.** A family member telling the group they called, visited or messaged the senior, with an
 optional note. Care+ sends nothing and contacts no one.
 

@@ -1,5 +1,6 @@
-"""The family-group tables (Alembic `a4f6c2e81d37`), the family calendar (`b9d3e5f71a26`) and the
-family activity feed (`c4a7e1b93d58`), stepped through the real Alembic chain."""
+"""The family-group tables (Alembic `a4f6c2e81d37`), the family calendar (`b9d3e5f71a26`), the
+family activity feed (`c4a7e1b93d58`) and appointment notes (`d8e2b6a4c917`), stepped through the
+real Alembic chain."""
 
 from __future__ import annotations
 
@@ -16,10 +17,12 @@ _PREVIOUS_REVISION = "7c3e9a1f4b28"
 _FAMILY_REVISION = "a4f6c2e81d37"
 _CALENDAR_REVISION = "b9d3e5f71a26"
 _ACTIVITY_REVISION = "c4a7e1b93d58"
+_NOTES_REVISION = "d8e2b6a4c917"
 _API_ROOT = Path(__file__).resolve().parents[1]
 _TABLES = {"accounts", "care_groups", "group_members", "family_pins", "pin_attempts"}
 _CALENDAR_TABLES = {"appointments", "availability_entries", "helper_assignments"}
 _ACTIVITY_TABLES = {"family_activity"}
+_NOTES_TABLES = {"appointment_notes"}
 
 
 def _alembic_config(database_url: str) -> Config:
@@ -38,8 +41,8 @@ def _tables(database_url: str) -> set[str]:
         engine.dispose()
 
 
-def test_the_activity_revision_is_the_repository_head() -> None:
-    assert expected_database_revision() == _ACTIVITY_REVISION
+def test_the_notes_revision_is_the_repository_head() -> None:
+    assert expected_database_revision() == _NOTES_REVISION
 
 
 def test_upgrade_creates_the_family_tables_and_downgrade_removes_them(tmp_path: Path) -> None:
@@ -56,6 +59,14 @@ def test_upgrade_creates_the_family_tables_and_downgrade_removes_them(tmp_path: 
     assert not _ACTIVITY_TABLES & _tables(database_url)
 
     command.upgrade(config, _ACTIVITY_REVISION)
+    assert _tables(database_url) >= _ACTIVITY_TABLES
+    assert not _NOTES_TABLES & _tables(database_url)
+
+    command.upgrade(config, _NOTES_REVISION)
+    assert _tables(database_url) >= _NOTES_TABLES | _ACTIVITY_TABLES
+
+    command.downgrade(config, _ACTIVITY_REVISION)
+    assert not _NOTES_TABLES & _tables(database_url)
     assert _tables(database_url) >= _ACTIVITY_TABLES
 
     command.downgrade(config, _CALENDAR_REVISION)

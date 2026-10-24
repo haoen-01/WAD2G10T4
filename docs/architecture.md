@@ -119,7 +119,7 @@ Top-level modules:
   call sites into the outreach/activity planning agent. By far the largest module in the API.
 - `family_groups.py` / `family_calendar.py` / `family_activity.py` / `family_routes.py` -- care
   groups (sign-up as senior or family, the senior-link and join PINs, approval), the shared calendar
-  (appointments, family availability, who is helping), the family activity feed and check-ins, and
+  (appointments, family availability, who is helping, per-day appointment notes), the family activity feed and check-ins, and
   the `/v1/me` and `/v1/groups/...` routes for all of them. They own their own tables and share the
   repository's database sessions. `family_activity.py` imports nothing from the decision path
   (tested).
@@ -383,14 +383,15 @@ left alone ("write-once"), or updated in place:
   `family_pins` (hashed senior-link and join PINs, with expiry) and `pin_attempts` (wrong-PIN
   lockout); `appointments`, `availability_entries` and `helper_assignments` (the shared calendar);
   `family_activity` (the family feed: append-only, no FK to appointments, cleared only by the demo
-  reset).
+  reset); `appointment_notes` (per-day notes on an appointment, group-only, deletable by their
+  author; deleted with their appointment).
 
 ## Schema ownership
 
-SQLAlchemy 2 (`db_models.py`) and Alembic (`apps/api/alembic/versions/`, 22 revisions) are the
+SQLAlchemy 2 (`db_models.py`) and Alembic (`apps/api/alembic/versions/`, 23 revisions) are the
 schema of record for both PostgreSQL/Supabase and the SQLite test/offline
 fallback; `migrations.py` runs `alembic upgrade head` at API startup. `infra/supabase/migrations`
-is a **hand-maintained SQL mirror** of that schema for the Supabase project (23 files:
+is a **hand-maintained SQL mirror** of that schema for the Supabase project (24 files:
 Alembic's own DDL plus the explicit `REVOKE`-based deny policies for the `anon` and `authenticated`
 Data API roles, which do not belong in the Alembic chain because they are Supabase-platform
 concerns, not SQLAlchemy ones). Being hand-written rather than generated, the mirror has

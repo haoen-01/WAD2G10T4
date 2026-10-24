@@ -3832,6 +3832,7 @@ class FamilyActivityKind(StrEnum):
     HELPER_STEPPED_BACK = "helper_stepped_back"
     AVAILABILITY_UPDATED = "availability_updated"
     CHECK_IN = "check_in"
+    NOTE_ADDED = "note_added"
 
 
 class CheckInKind(StrEnum):
@@ -3884,6 +3885,34 @@ class FamilyActivityPage(BaseModel):
 
     entries: list[FamilyActivityEntry]
     next_before: str | None
+
+
+# ── Appointment notes ─────────────────────────────────────────────────────────
+
+
+class AppointmentNoteRequest(BaseModel):
+    """A note on one day of an appointment, for the family group only: the senior never reads it,
+    and it is never logged, audited or given to the agent."""
+
+    date: date
+    text: str = Field(min_length=1, max_length=500)
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def _strip_text(cls, value: object) -> object:
+        # Before the length checks, so a blank note is refused and only what is kept counts.
+        return value.strip() if isinstance(value, str) else value
+
+
+class AppointmentNote(BaseModel):
+    note_id: str
+    appointment_id: str
+    occurrence_id: str
+    member_id: str
+    author_name: str
+    is_mine: bool
+    text: str
+    created_at: datetime
 
 
 # ── The senior's watch ───────────────────────────────────────────────────────
