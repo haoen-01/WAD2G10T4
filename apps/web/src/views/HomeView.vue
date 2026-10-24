@@ -138,8 +138,6 @@ const weekTasks = computed(() =>
 
     <ErrorAlert v-if="error" :message="error" class="mb-4" @retry="load" />
 
-    <LoadingSpinner v-if="loading" />
-
     <!-- What the family has been doing, and a one-tap way to say you were in touch. Phones: the
          check-in first; wide screens: the feed on the left, the check-in beside it. -->
     <div v-if="!loading && currentGroup" class="row g-4 mb-4">
@@ -150,6 +148,8 @@ const weekTasks = computed(() =>
         <ActivityFeed :elder="elder" :members="state.members" />
       </div>
     </div>
+
+    <LoadingSpinner v-if="loading" />
 
     <!-- Bootstrap grid, in pairs that line up top and bottom. Wide screens (lg): the chart beside
          the weather, then the visits that need a helper beside the tasks. Phones: one column. -->

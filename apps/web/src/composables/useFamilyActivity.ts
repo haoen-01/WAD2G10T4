@@ -1,12 +1,21 @@
 import { useEventListener, useIntervalFn } from '@vueuse/core';
 import type { CheckInKind, FamilyActivityEntry } from '@silverloop/api-client';
-import { effectScope, getCurrentInstance, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, effectScope, getCurrentInstance, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { onFamilyChange } from '@/composables/useFamily';
 import { currentGroup, loadMe } from '@/composables/useMe';
-import { demoSub } from '@/composables/useViewMode';
 import { classifyApiError } from '@/lib/api-errors';
-import { mergeActivity } from '@/lib/family-feed';
+import {
+  addOptimistic,
+  applyFirstPage,
+  applyOlderPage,
+  emptyFeed,
+  isStale,
+  renderKey as keyOf,
+  rollbackCheckIn,
+  settleCheckIn,
+  type FeedState,
+} from '@/lib/family-feed-state';
 import * as api from '@/services/careApi';
 
 /**
@@ -24,8 +33,10 @@ import * as api from '@/services/careApi';
 const PAGE_SIZE = 20;
 const POLL_MS = 30_000;
 
-const entries = ref<FamilyActivityEntry[]>([]);
-const nextBefore = ref<string | null>(null);
+// The state changes are pure (`lib/family-feed-state.ts`); this file reads, writes and sequences.
+const feedState = ref<FeedState>(emptyFeed());
+const entries = computed(() => feedState.value.entries);
+const nextBefore = computed(() => feedState.value.nextBefore);
 const loaded = ref(false);
 const loading = ref(false);
 const loadingMore = ref(false);
@@ -39,14 +50,15 @@ let rerun = false;
 let pendingCount = 0;
 
 async function currentKey(): Promise<{ key: string; group: string | null }> {
-  await loadMe().catch(() => null);
+  // The account (`sub`) is part of the key, so another person signing in on this browser, or the
+  // demo's "Viewing as", never inherits the previous person's "You".
+  const me = await loadMe().catch(() => null);
   const group = currentGroup.value?.group_id ?? null;
-  return { key: `${group ?? 'none'}|${demoSub() ?? 'self'}`, group };
+  return { key: `${group ?? 'none'}|${me?.sub ?? 'unknown'}`, group };
 }
 
 function reset(): void {
-  entries.value = [];
-  nextBefore.value = null;
+  feedState.value = emptyFeed();
   loaded.value = false;
   error.value = null;
 }
@@ -65,10 +77,8 @@ async function readFirstPage(): Promise<void> {
   loading.value = !loaded.value;
   try {
     const page = await api.getGroupActivity(here.group, { limit: PAGE_SIZE });
-    if (key !== here.key) return; // The group or the person changed meanwhile.
-    const first = !loaded.value;
-    entries.value = mergeActivity(entries.value, page.entries);
-    if (first) nextBefore.value = page.next_before;
+    if (isStale(here.key, key)) return; // The group or the person changed meanwhile.
+    feedState.value = applyFirstPage(feedState.value, page);
     loaded.value = true;
     error.value = null;
   } catch (caught) {
@@ -108,9 +118,8 @@ async function showMore(): Promise<void> {
   loadingMore.value = true;
   try {
     const page = await api.getGroupActivity(group, { limit: PAGE_SIZE, before: cursor });
-    if (key !== startedFor) return;
-    entries.value = mergeActivity(entries.value, page.entries);
-    nextBefore.value = page.next_before;
+    if (isStale(startedFor, key)) return;
+    feedState.value = applyOlderPage(feedState.value, page);
   } catch (caught) {
     error.value = classifyApiError(caught).message;
   } finally {
@@ -145,17 +154,18 @@ async function submitCheckIn(
     origin: 'live',
   };
   const startedFor = key;
-  entries.value = mergeActivity(entries.value, [temp]);
+  feedState.value = addOptimistic(feedState.value, temp);
   try {
     const saved = await api.checkIn(group, { kind, note: note || null });
-    if (key === startedFor) {
-      entries.value = mergeActivity(
-        entries.value.filter((entry) => entry.activity_id !== temp.activity_id),
-        [saved],
-      );
+    if (!isStale(startedFor, key)) {
+      feedState.value = settleCheckIn(feedState.value, temp.activity_id, saved);
+    } else {
+      // Saved, but for a feed that is no longer showing (or not yet keyed): read it again now.
+      feedState.value = rollbackCheckIn(feedState.value, temp.activity_id);
+      void refreshActivity();
     }
   } catch (caught) {
-    entries.value = entries.value.filter((entry) => entry.activity_id !== temp.activity_id);
+    feedState.value = rollbackCheckIn(feedState.value, temp.activity_id);
     throw caught;
   }
 }
@@ -225,6 +235,8 @@ export function useFamilyActivity(options: { subscribe?: boolean } = {}) {
     loadingMore,
     error,
     hasGroup,
+    /** A row's key: the same before and after a check-in is saved, so it does not re-animate. */
+    renderKey: (entry: FamilyActivityEntry) => keyOf(entry, feedState.value.aliases),
     refresh: refreshActivity,
     showMore,
     checkIn: submitCheckIn,
