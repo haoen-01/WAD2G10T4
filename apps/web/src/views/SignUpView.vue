@@ -3,6 +3,7 @@ import type { AuthError } from '@supabase/supabase-js';
 import { computed, ref, useId } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 
+import AuthShell from '@/components/ui/AuthShell.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { refreshCurrentUser } from '@/composables/useAuth';
 import { loadMe } from '@/composables/useMe';
@@ -117,12 +118,7 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <div class="signup">
-    <header class="mb-4">
-      <h1>Create your account</h1>
-      <p class="text-body-secondary mt-2 mb-0">It takes about a minute.</p>
-    </header>
-
+  <AuthShell title="Create your account" lead="It takes about a minute.">
     <div v-if="checkInbox" class="sl-panel" role="status">
       <h2 class="h4">Check your email</h2>
       <p>
@@ -251,20 +247,10 @@ async function submit(): Promise<void> {
       Already have an account?
       <RouterLink :to="{ name: 'login' }" data-testid="signin-link">Sign in</RouterLink>
     </p>
-  </div>
+  </AuthShell>
 </template>
 
 <style scoped>
-.signup {
-  max-width: 40rem;
-  margin: 0 auto;
-}
-
-.signup h1 {
-  font-size: clamp(2rem, 5vw, 2.6rem);
-  font-weight: 800;
-}
-
 /* Reset the browser's fieldset frame: Bootstrap's d-grid does the spacing. */
 fieldset {
   min-width: 0;
@@ -284,12 +270,13 @@ fieldset {
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
+  min-height: 3.5rem;
   padding: 1rem;
   border: 2px solid var(--sl-line);
   border-radius: var(--sl-radius-sm);
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--sl-dur-base) ease;
 }
 
 .role-card:hover {
@@ -332,5 +319,25 @@ fieldset {
 
 .role-text {
   color: var(--sl-ink-soft);
+}
+
+/* The offline demo shows the form but cannot send it: keep it legible, just clearly inactive. */
+.form-control:disabled,
+.form-select:disabled {
+  border: 1px solid var(--sl-ink-soft);
+  background-color: var(--sl-mist);
+  color: var(--sl-ink-soft);
+  opacity: 1;
+}
+
+.btn-primary:disabled {
+  border-color: var(--sl-line);
+  background: var(--sl-mist);
+  color: var(--sl-ink-soft);
+  opacity: 1;
+}
+
+.role-input:disabled + .role-card {
+  cursor: not-allowed;
 }
 </style>
