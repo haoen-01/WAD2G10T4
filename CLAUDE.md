@@ -283,3 +283,13 @@ matches the repo head.
 `AGENTS.md` (repo instructions), `CONTRIBUTING.md` (workflow, ownership), `docs/architecture.md`,
 `docs/api.md`, `docs/testing.md`, `docs/supabase.md`, `docs/observability.md`,
 and `docs/demo-runbook.md`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `haoen-01/WAD2G10T4` (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: glossary in root `CONTEXT.md`, decisions in `docs/adr/`. See `docs/agents/domain.md`.
