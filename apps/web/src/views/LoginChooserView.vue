@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 
+import AuthShell from '@/components/ui/AuthShell.vue';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import type { ViewMode } from '@/lib/view-mode';
@@ -29,75 +30,34 @@ const CHOICES: { audience: ViewMode; title: string; text: string; icon: IconName
 </script>
 
 <template>
-  <div class="chooser">
-    <header class="mb-4">
-      <h1>Welcome to Care+.</h1>
-      <p class="text-body-secondary mt-2 mb-0">Who is signing in?</p>
-    </header>
-
-    <div class="row g-4">
+  <AuthShell title="Welcome to Care+." lead="Who is signing in?" width="wide">
+    <div class="row g-3 g-md-4">
       <div v-for="choice in CHOICES" :key="choice.audience" class="col-md-6">
         <RouterLink
-          class="choice sl-panel h-100"
+          class="auth-choice sl-panel h-100"
           :to="{ name: 'login-as', params: { audience: choice.audience }, query }"
           :data-testid="`choose-${choice.audience}`"
         >
           <span class="choice-icon" aria-hidden="true"><Icon :name="choice.icon" /></span>
-          <span class="d-block h3 mb-2">{{ choice.title }}</span>
-          <span class="d-block text-body-secondary">{{ choice.text }}</span>
+          <span>
+            <span class="choice-title">{{ choice.title }}</span>
+            <span class="choice-text">{{ choice.text }}</span>
+          </span>
         </RouterLink>
       </div>
     </div>
 
-    <div class="new-here sl-panel mt-4 d-flex flex-wrap align-items-center gap-3">
-      <span class="me-auto fs-5">New to Care+? Make an account first.</span>
+    <div class="new-here sl-panel mt-3 mt-sm-4 d-flex flex-wrap align-items-center gap-3">
+      <span class="new-here-text me-auto fs-5">New to Care+? Make an account first.</span>
       <RouterLink class="btn btn-primary btn-lg" :to="{ name: 'signup' }" data-testid="signup-link">
         Create an account
       </RouterLink>
     </div>
-  </div>
+  </AuthShell>
 </template>
 
 <style scoped>
-.chooser {
-  max-width: 50rem;
-  margin: 0 auto;
-}
-
-.chooser h1 {
-  font-size: clamp(2rem, 5vw, 2.8rem);
-  font-weight: 800;
-}
-
-.choice {
-  display: block;
-  color: var(--sl-ink);
-  text-decoration: none;
-  transition:
-    border-color 0.15s ease,
-    transform 0.15s ease;
-}
-
-.choice:hover,
-.choice:focus-visible {
-  border-color: var(--sl-jade);
-  transform: translateY(-2px);
-}
-
-.choice-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.5rem;
-  height: 3.5rem;
-  margin-bottom: 1rem;
-  border-radius: 50%;
-  background: var(--sl-jade-soft);
-  color: var(--sl-jade-deep);
-}
-
-.choice-icon .sl-icon {
-  width: 1.75rem;
-  height: 1.75rem;
+.new-here-text {
+  text-wrap: balance;
 }
 </style>
