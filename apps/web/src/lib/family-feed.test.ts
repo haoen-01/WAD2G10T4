@@ -87,6 +87,13 @@ describe('feedSentence', () => {
     assert.equal(feedSentence(odd), 'Sarah updated the group');
   });
 
+  it('words a declined request without a name', () => {
+    assert.equal(
+      feedSentence(entry({ kind: 'member_declined', subject_name: null })),
+      'Sarah declined a request to join',
+    );
+  });
+
   it('copes with missing names and titles', () => {
     assert.equal(
       feedSentence(entry({ kind: 'helper_joined', actor_name: '', on_date: null })),
