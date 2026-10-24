@@ -49,11 +49,27 @@ fixture adapters, `LLM_ENABLED=false`). Each file covers one area:
   calendar filters and keyboard use, undo, the top bar, and phone layouts.
 - `public-apis.spec.ts` — the forecast and public holidays, and that Home and the calendar still work
   when either cannot be reached.
+- `home-feed.spec.ts` — the seeded family feed with "Sample" tags, a check-in that shows at once and
+  survives a reload, another member seeing it under the right name, a refused check-in rolled back,
+  refresh every 30 s and on focus (`page.clock`), no feed request from the senior screen, and the
+  percentage under reduced motion.
+- `calendar-sheet.spec.ts` — at phone width: the week strip, the bottom sheet as a real dialog (focus
+  trap, Escape, close button, backdrop, drag to close, focus return, `inert`, scroll lock), family
+  notes added and deleted by their author only, a full day (409), keyboard Undo while the sheet is
+  open, and reduced motion.
+- `family-page.spec.ts` — the avatar cluster, the invite PIN readable at once (also under reduced
+  motion) and the location placeholder.
+- `senior-polish.spec.ts` — the senior's main actions are at least 56px tall and nothing overflows at
+  150% zoom.
+- `sign-in-look.spec.ts` — no horizontal overflow on the sign-in and onboarding screens at 375px,
+  and large "who is signing in" choices.
 
-Web unit tests (`node:test` over `apps/web/src/lib/*.test.ts`) cover the pure logic behind the
-screens: activity, calendar, coverage, family, holidays, ICS export, planner, tasks and daily tasks,
-today, view mode, wearable, weather, labels, date formatting, API errors, current user and the route
-guard.
+Web unit tests (`node:test` over `apps/web/src/lib/*.test.ts`, `pnpm --filter ./apps/web test`)
+cover the pure logic behind the screens: activity, calendar, coverage, family (including the
+temporary-id helpers for availability saves), the family feed's sentences and state, appointment
+notes, the week strip, motion tokens, PIN countdowns, holidays, ICS export, planner, tasks and daily
+tasks, today, view mode, wearable, weather, labels, date formatting, API errors, current user and
+the route guard.
 
 ## The recorded LLM transport
 
