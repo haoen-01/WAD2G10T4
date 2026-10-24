@@ -155,6 +155,31 @@ export function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Whether an availability id is the temporary one given before the API has saved the entry. */
+export const isSavingId = (id: string): boolean => id.startsWith('saving-');
+
+/**
+ * Gives a saved entry its real id in place of the temporary one it showed under. Returns the same
+ * list when nothing carries `from`, so a read-back that already replaced it changes nothing.
+ */
+export function swapEntryId(
+  availability: readonly AvailabilityEntry[],
+  from: string,
+  to: string,
+): AvailabilityEntry[] {
+  return availability.map((entry) => (entry.id === from ? { ...entry, id: to } : entry));
+}
+
+/**
+ * The id to send when removing an entry at the moment the removal runs. A saved id is used as is.
+ * A temporary id becomes the real one once its add has been saved (`saved`), and is `null` when it
+ * has not (the add failed, so there is nothing stored to remove).
+ */
+export function idToRemove(id: string, saved: ReadonlyMap<string, string>): string | null {
+  if (!isSavingId(id)) return id;
+  return saved.get(id) ?? null;
+}
+
 export function compareAppointments(a: Appointment, b: Appointment): number {
   return (
     a.date.localeCompare(b.date) || a.start.localeCompare(b.start) || a.title.localeCompare(b.title)
