@@ -1,19 +1,20 @@
 """Tests for the recorded transport (M25) and the LLM cost counters it makes measurable (M40).
 
 `RecordedClient` is what turns "the agent works" from a claim into something CI can check: the
-loop, the guardrail and every degradation path run offline against committed fixtures. These
-tests pin the three properties that make that trustworthy -- the key identifies the request,
-replay is deterministic, and a miss degrades loudly rather than quietly producing the
-deterministic answer as though a model had chosen it.
+loop, the guardrail and every degradation path run offline against a recording file. These
+tests pin what makes that trustworthy -- the key identifies the request, a miss degrades loudly
+rather than quietly producing the deterministic answer as though a model had chosen it, and a
+misconfigured recording reads differently from a missing answer. The recordings they read are
+tiny synthetic files written into `tmp_path`; no recording is committed.
 
-Record mode is never exercised here. Recordings are produced by a human running
-`python -m silverloop.evaluation.ranking_llm.synthesise`; the only record-mode behaviour under
-test is its refusal to run.
+Record mode is never exercised here; the only record-mode behaviour under test is its refusal to
+run.
 """
 
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -33,7 +34,7 @@ from silverloop.agent.guardrails import (
 )
 from silverloop.agent.intent_planner import IntentTelemetry, plan_intent
 from silverloop.agent.models import AgentProposal
-from silverloop.agent.planner import _build_client, plan_activity_ranking
+from silverloop.agent.planner import _build_client
 from silverloop.agent.recorded_client import (
     RecordedClient,
     RecordedResponse,
@@ -46,19 +47,51 @@ from silverloop.agent.recorded_client import (
 )
 from silverloop.agent.tools import CandidateOption
 from silverloop.config import Settings
-from silverloop.evaluation.ranking_llm.harness import (
-    ACTIVITY_RECORDINGS,
-    ADVERSARIAL_RECORDINGS,
-    INTENT_CASES,
-    INTENT_RECORDINGS,
-    adversarial_context,
-    recorded_settings,
-)
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.intent import parse_intent
-from silverloop.models import IntentParser, SocialPreference
+from silverloop.models import SocialPreference
 from silverloop.runtime import RuntimeConfigurationError, validate_runtime
 from silverloop.sql_repository import SqlAlchemyRepository
+
+_MODEL = "synthetic-scripted-stand-in-v1"
+_TODAY = date(2026, 9, 7)
+
+
+def _write_recording(directory: Path) -> Path:
+    """A one-entry synthetic recording whose key no real request produces, so every lookup
+    misses -- which is what each test reading it is about."""
+    Recording(
+        loop="test",
+        banner="synthetic test fixture -- NOT A MODEL",
+        generator="test",
+        entries=[
+            RecordedResponse(
+                key="0" * 64,
+                model=_MODEL,
+                content=[],
+                stop_reason="end_turn",
+                usage={},
+                latency_ms=0,
+                note="answers nothing",
+            )
+        ],
+    ).write(directory / "fixture.json")
+    return directory
+
+
+def _recorded_settings(recording_path: Path) -> Settings:
+    return Settings(
+        _env_file=None,
+        database_url="sqlite+pysqlite:///:memory:",
+        silverloop_runtime_profile="offline",
+        adapter_mode="fixture",
+        external_context_enabled=False,
+        llm_enabled=True,
+        llm_provider="recorded",
+        llm_recording_path=str(recording_path),
+        llm_model=_MODEL,
+    )
+
 
 # ── Request keying ─────────────────────────────────────────────────────────────────────────────
 
@@ -112,76 +145,11 @@ def test_the_key_reads_response_objects_as_well_as_data() -> None:
     )
 
 
-# ── Replay, and what a miss does ───────────────────────────────────────────────────────────────
+# ── What a miss does ───────────────────────────────────────────────────────────────────────────
 
 
-def _replay_adversarial() -> Any:
-    context = adversarial_context()
-    settings = recorded_settings(ADVERSARIAL_RECORDINGS)
-    client = RecordedClient(ADVERSARIAL_RECORDINGS, mode="replay")
-    return plan_activity_ranking(
-        context,
-        settings=settings,
-        fallback_order=list(context.permitted_keys),
-        client_factory=lambda: (client, None),
-    )
-
-
-def test_replay_is_deterministic() -> None:
-    """The same recording twice must produce the same run, modulo the ids and timestamps the
-    run mints fresh every time."""
-    first = _replay_adversarial()
-    second = _replay_adversarial()
-
-    assert first.mode == second.mode
-    assert first.selected_order == second.selected_order
-    assert first.iterations == second.iterations
-    assert first.usage.model_dump() == second.usage.model_dump()
-    assert first.guardrail_rejections == second.guardrail_rejections
-    assert [call.model_dump() for call in first.tool_calls] == [
-        call.model_dump() for call in second.tool_calls
-    ]
-    assert first.evidence_id != second.evidence_id  # minted per run, deliberately
-
-
-def test_the_adversarial_recording_exercises_rejection_then_revision() -> None:
-    """The fixture exists to prove the guardrail binds on a replayed run, not only on a hand
-    fake: the stand-in proposes a key that was never permitted, is rejected, and revises."""
-    run = _replay_adversarial()
-    assert run.mode == "agent"
-    assert run.rejected_proposal_count == 1
-    assert run.guardrail_rejections
-    assert set(count_violations_by_rule(run.guardrail_rejections)) == {"key_not_permitted"}
-    assert set(run.selected_order) <= set(adversarial_context().permitted_keys)
-
-
-def test_a_miss_degrades_to_fallback_error_named_recordingmiss() -> None:
-    """A request the recording cannot answer must take the provider-outage path, with the
-    exception class as the reason -- never a 500, and never a silently deterministic answer
-    presented as the model's."""
-    context = adversarial_context()
-    unexpected = context.options[0].__class__(
-        **{**context.options[0].__dict__, "title": "A title that was never recorded"}
-    )
-    moved = context.__class__(
-        understood_lines=context.understood_lines,
-        options=[unexpected, *context.options[1:]],
-    )
-    client = RecordedClient(ADVERSARIAL_RECORDINGS, mode="replay")
-    run = plan_activity_ranking(
-        moved,
-        settings=recorded_settings(ADVERSARIAL_RECORDINGS),
-        fallback_order=list(moved.permitted_keys),
-        client_factory=lambda: (client, None),
-    )
-    assert run.mode == "fallback_error"
-    assert run.fallback_reason == "RecordingMiss"
-    assert run.selected_order == list(moved.permitted_keys)
-    assert client.misses
-
-
-def test_recording_miss_carries_the_key_and_never_the_response() -> None:
-    client = RecordedClient(ADVERSARIAL_RECORDINGS, mode="replay")
+def test_recording_miss_carries_the_key_and_never_the_response(tmp_path: Path) -> None:
+    client = RecordedClient(_write_recording(tmp_path), mode="replay")
     with pytest.raises(RecordingMiss) as caught:
         client.messages.create(**_request())
     assert caught.value.key == request_key(_request())
@@ -252,20 +220,6 @@ def test_a_future_schema_version_is_refused(tmp_path: Path) -> None:
         load_recordings(path)
 
 
-def test_every_committed_recording_declares_itself_synthetic() -> None:
-    """The honesty invariant: a fixture may never be mistaken for a model's output."""
-    for directory in (ACTIVITY_RECORDINGS, INTENT_RECORDINGS, ADVERSARIAL_RECORDINGS):
-        files = sorted(directory.glob("*.json"))
-        assert files, f"no recordings committed under {directory}"
-        for file in files:
-            recording = Recording.load(file)
-            assert recording.synthetic is True
-            assert "NOT A MODEL" in recording.banner
-            assert recording.entries
-            for entry in recording.entries:
-                assert entry.model == "synthetic-scripted-stand-in-v1"
-
-
 # ── The client factory branch ──────────────────────────────────────────────────────────────────
 
 
@@ -274,15 +228,17 @@ def _settings(**overrides: Any) -> Settings:
         "database_url": "sqlite+pysqlite:///:memory:",
         "llm_enabled": True,
         "llm_provider": "recorded",
-        "llm_recording_path": str(ADVERSARIAL_RECORDINGS),
-        "llm_model": "synthetic-scripted-stand-in-v1",
+        "llm_recording_path": "recordings",
+        "llm_model": _MODEL,
     }
     base.update(overrides)
     return Settings(**base)
 
 
-def test_build_client_returns_the_recorded_client_without_touching_the_sdk() -> None:
-    client, unavailable = _build_client(_settings(), 20.0)
+def test_build_client_returns_the_recorded_client_without_touching_the_sdk(tmp_path: Path) -> None:
+    client, unavailable = _build_client(
+        _settings(llm_recording_path=str(_write_recording(tmp_path))), 20.0
+    )
     assert unavailable is None
     assert isinstance(client, RecordedClient)
     assert client.recorded_count > 0
@@ -308,19 +264,6 @@ def test_build_client_reports_an_empty_recording_as_unavailable(tmp_path: Path) 
     assert "no recorded responses" in (unavailable or "")
 
 
-def test_an_unavailable_recording_degrades_to_fallback_disabled(tmp_path: Path) -> None:
-    """A configuration problem and a missing answer are different failures and must read
-    differently in the audit."""
-    context = adversarial_context()
-    run = plan_activity_ranking(
-        context,
-        settings=_settings(llm_recording_path=str(tmp_path)),
-        fallback_order=list(context.permitted_keys),
-    )
-    assert run.mode == "fallback_disabled"
-    assert run.selected_order == list(context.permitted_keys)
-
-
 # ── Runtime configuration ──────────────────────────────────────────────────────────────────────
 
 
@@ -331,7 +274,8 @@ def _offline(**overrides: Any) -> Settings:
         "adapter_mode": "fixture",
         "llm_enabled": True,
         "llm_provider": "recorded",
-        "llm_recording_path": str(ADVERSARIAL_RECORDINGS),
+        # The runtime check reads the setting, not the file; `_build_client` checks the file.
+        "llm_recording_path": "recordings",
     }
     base.update(overrides)
     return Settings(**base)
@@ -369,52 +313,10 @@ def test_the_iteration_ceiling_still_binds_for_the_recorded_provider() -> None:
         validate_runtime(_offline(llm_max_iterations=99))
 
 
-# ── The intent parse, replayed ─────────────────────────────────────────────────────────────────
+# ── Intent telemetry ───────────────────────────────────────────────────────────────────────────
 
 
-def test_every_intent_case_replays_to_a_typed_intent() -> None:
-    settings = recorded_settings(INTENT_RECORDINGS)
-    client = RecordedClient(INTENT_RECORDINGS, mode="replay")
-    for case in INTENT_CASES:
-        telemetry = IntentTelemetry()
-        intent, mode = plan_intent(
-            case.text,
-            today=case.today,
-            settings=settings,
-            fallback=parse_intent(case.text, today=case.today),
-            client_factory=lambda: (client, None),
-            telemetry=telemetry,
-        )
-        assert mode == "agent", case.name
-        assert intent.parsed_by is IntentParser.LLM
-        assert intent.raw_text == case.text
-        assert telemetry.attempted
-        assert telemetry.model == "synthetic-scripted-stand-in-v1"
-        # `latency_ms` is the wall clock of the call this process actually made, which on a
-        # replay is effectively zero and honestly so -- nothing waited on anything. The
-        # recording's own latency is reported by the benchmark arm from `client.replayed`, not
-        # smuggled into the audit as though this run had taken that long.
-        assert telemetry.latency_ms >= 0
-        assert telemetry.total_tokens > 0
-
-
-def test_the_intent_recording_reads_a_language_the_keyword_parser_misses() -> None:
-    """One concrete reading, so a fixture regenerated with a different script cannot pass this
-    file while silently changing what the parse means."""
-    case = next(case for case in INTENT_CASES if case.name == "language_constrained")
-    client = RecordedClient(INTENT_RECORDINGS, mode="replay")
-    intent, mode = plan_intent(
-        case.text,
-        today=case.today,
-        settings=recorded_settings(INTENT_RECORDINGS),
-        fallback=parse_intent(case.text, today=case.today),
-        client_factory=lambda: (client, None),
-    )
-    assert mode == "agent"
-    assert intent.language == "Mandarin"
-
-
-def test_intent_telemetry_records_a_failed_call_too() -> None:
+def test_intent_telemetry_records_a_failed_call_too(tmp_path: Path) -> None:
     """A failure that leaves no trace in the cost record is the one nobody fixes."""
 
     class Exploding:
@@ -428,9 +330,9 @@ def test_intent_telemetry_records_a_failed_call_too() -> None:
     telemetry = IntentTelemetry()
     _, mode = plan_intent(
         "something gentle",
-        today=INTENT_CASES[0].today,
-        settings=recorded_settings(INTENT_RECORDINGS),
-        fallback=parse_intent("something gentle", today=INTENT_CASES[0].today),
+        today=_TODAY,
+        settings=_recorded_settings(tmp_path),
+        fallback=parse_intent("something gentle", today=_TODAY),
         client_factory=lambda: (Exploding(), None),
         telemetry=telemetry,
     )
@@ -441,10 +343,10 @@ def test_intent_telemetry_records_a_failed_call_too() -> None:
 
 def test_intent_telemetry_is_absent_when_no_call_was_made() -> None:
     telemetry = IntentTelemetry()
-    fallback = parse_intent("anything", today=INTENT_CASES[0].today)
+    fallback = parse_intent("anything", today=_TODAY)
     _, mode = plan_intent(
         "anything",
-        today=INTENT_CASES[0].today,
+        today=_TODAY,
         settings=Settings(database_url="sqlite+pysqlite:///:memory:", llm_enabled=False),
         fallback=fallback,
         telemetry=telemetry,
@@ -629,10 +531,10 @@ def test_the_cost_counters_are_zero_and_honest_with_the_planner_off() -> None:
         repository.close()
 
 
-def test_a_recorded_search_moves_the_cost_counters_off_zero() -> None:
+def test_a_recorded_search_moves_the_cost_counters_off_zero(tmp_path: Path) -> None:
     """The counters M25 exists for: with a recorded transport the search path reaches a
     "model" twice (intent, then ranking), and both calls are counted with their latency even
-    though this particular request is not in the fixture and both degrade."""
+    though neither request is in the recording and both degrade."""
     repository = _repository(
         Settings(
             database_url="sqlite+pysqlite:///:memory:",
@@ -640,8 +542,8 @@ def test_a_recorded_search_moves_the_cost_counters_off_zero() -> None:
             adapter_mode="fixture",
             llm_enabled=True,
             llm_provider="recorded",
-            llm_recording_path=str(ACTIVITY_RECORDINGS),
-            llm_model="synthetic-scripted-stand-in-v1",
+            llm_recording_path=str(_write_recording(tmp_path)),
+            llm_model=_MODEL,
         )
     )
     try:
@@ -659,7 +561,7 @@ def test_a_recorded_search_moves_the_cost_counters_off_zero() -> None:
         repository.close()
 
 
-def test_the_search_audit_records_what_the_intent_parse_cost() -> None:
+def test_the_search_audit_records_what_the_intent_parse_cost(tmp_path: Path) -> None:
     """The one LLM entry point that recorded nothing measurable now records latency and usage --
     on the evaluator's copy of the event only, never the senior's."""
     repository = _repository(
@@ -669,8 +571,8 @@ def test_the_search_audit_records_what_the_intent_parse_cost() -> None:
             adapter_mode="fixture",
             llm_enabled=True,
             llm_provider="recorded",
-            llm_recording_path=str(ACTIVITY_RECORDINGS),
-            llm_model="synthetic-scripted-stand-in-v1",
+            llm_recording_path=str(_write_recording(tmp_path)),
+            llm_model=_MODEL,
         )
     )
     try:

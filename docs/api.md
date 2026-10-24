@@ -9,6 +9,18 @@ artifacts and fails when either differs from the committed files. CI runs that c
 type checking and tests. `libs/api-client/src/index.ts` is only a small convenience facade around
 the generated SDK; it contains no handwritten copies of API model types.
 
+## What the web app uses
+
+The web app calls only the routes in `apps/web/src/services/careApi.ts`, plus `/v1/auth/me` at
+sign-in: person state and metrics, interventions and their outcomes, and every route under
+[Accounts, family groups and the calendar](#accounts-family-groups-and-the-calendar). The e2e suite
+also calls `POST /v1/demo/reset` and `POST /v1/simulation/advance`.
+
+Everything else below serves features with no current screen: coordinator review, the evaluator
+ranker inspector, the follow-through loop, the user-initiated activity loop and the review setting.
+Those sections say so in their headings. They stay documented because the routes still exist, and
+several still run inside every simulated day.
+
 ## Auth, in brief
 
 Every route below runs `AUTH_ENABLED=true` behind a Supabase-issued bearer JWT
@@ -112,10 +124,10 @@ yet, and an unknown `person_id` is a 404.
 `coordinator_overrides`, `device_suspected_days` and `world_model_quality`, each exactly the sum of
 that field of `GET /v1/metrics?person_id=...` over the people `GET /v1/coordinator/people` lists
 (`people_included` says how many). `people` is the stored people count `/v1/metrics` reports. It
-replaces one `/v1/metrics` request per person on Care Team with one grouped read.
+replaces one `/v1/metrics` request per person with one grouped read.
 
 `GET /v1/coordinator/people/{person_id}/activity-relative?days=7` returns an
-`ActivityRelativeToUsual` for a coordinator's case page: the person's most recent stored days
+`ActivityRelativeToUsual` for a coordinator's case view: the person's most recent stored days
 (`days` is 1-14, default 7; out of range is a 422), oldest first, each with `reading_usable` and a
 `position` of `lower` or `usual_or_higher`, plus `lower_days`, `usable_days`, `as_of_day` (the
 latest stored day), `consent_active` and `usual_available`. Everything is derived on read with the
@@ -209,7 +221,40 @@ names any public ORM table whose PostgreSQL row-level security is off — the po
 re-establishes on every start (`migrations.apply_rls_posture`, see `docs/supabase.md`) — and is
 always empty off PostgreSQL, where there is no such flag and no Data API to be exposed to.
 
-## The follow-through loop
+## Accounts, family groups and the calendar
+
+These are the routes the Home, Senior, Calendar and Family screens use. They are registered in
+`family_routes.py`. **signed in** is any valid token; **senior** and **family** are the account kind
+chosen at sign-up (`/v1/me/onboard`). **reader** means the senior themselves, or an active member of
+the senior's care group. **member** means an active member of that group.
+
+| Method | Route                                                        | Auth      | Purpose                                                        |
+| ------ | ------------------------------------------------------------ | --------- | -------------------------------------------------------------- |
+| GET    | `/v1/me`                                                     | signed in | Who is signed in, the seniors they care for, whether onboarded |
+| POST   | `/v1/me/onboard`                                             | signed in | Choose `senior` or `family`, once                              |
+| POST   | `/v1/me/link-pin`                                            | senior    | Show a single-use senior-link PIN (10 minutes)                 |
+| POST   | `/v1/groups`                                                 | family    | Create the senior's care group with their link PIN             |
+| POST   | `/v1/groups/join`                                            | family    | Ask to join with a join PIN; waits as `pending`                |
+| GET    | `/v1/groups/{group_id}`                                      | member    | The group and its members, including pending ones              |
+| POST   | `/v1/groups/{group_id}/join-pin`                             | member    | A new 7-day join PIN, replacing the old one                    |
+| POST   | `/v1/groups/{group_id}/members/{member_id}/approve`          | member    | Let a pending member in                                        |
+| POST   | `/v1/groups/{group_id}/members/{member_id}/decline`          | member    | Turn a pending request down                                    |
+| GET    | `/v1/people/{person_id}/calendar`                            | reader    | Appointments, family availability and helpers for a date range |
+| POST   | `/v1/groups/{group_id}/appointments`                         | member    | Add an appointment, once or repeating                          |
+| PUT    | `/v1/groups/{group_id}/appointments/{appointment_id}`        | member    | Change an appointment (every day of it, if it repeats)         |
+| POST   | `/v1/groups/{group_id}/appointments/{appointment_id}/delete` | member    | Remove an appointment with its answers and helpers             |
+| POST   | `/v1/groups/{group_id}/availability`                         | member    | Share a time you are free or busy                              |
+| POST   | `/v1/groups/{group_id}/availability/{entry_id}/delete`       | member    | Take back one of your own shared times                         |
+| POST   | `/v1/groups/{group_id}/answers`                              | member    | Available or not for one day of an appointment                 |
+| POST   | `/v1/groups/{group_id}/helpers`                              | member    | Help with one day of an appointment                            |
+| POST   | `/v1/groups/{group_id}/helpers/step-back`                    | member    | Stop helping with one day; the availability answer is kept     |
+| GET    | `/v1/people/{person_id}/wearable`                            | reader    | Simulated watch status: connected, last sync, battery          |
+
+A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN entry. PINs are stored
+as SHA-256 hashes. With `AUTH_ENABLED=false`, API startup and `POST /v1/demo/reset` (for Mdm Lim)
+put Mdm Lim's demo family and schedule back to their starting state, relative to today.
+
+## The follow-through loop (no screen)
 
 Outreach used to end at sending a sentence: a senior tapped "Yes, tell me more", was told nothing
 more, and the tap was recorded as a success. These routes cover the three beats that were missing.
@@ -237,8 +282,8 @@ product exists to avoid.
 **`/follow-up` always returns 200.** `available` reports whether there is anything to say yet, so
 "too early" is a normal answer rather than an error, and every response -- including unavailable
 ones -- carries the `caveat` stating that the observation describes what happened and not why. One
-person over a few days cannot establish that a suggestion caused anything; causal comparison lives
-in the evaluation harness, across many people.
+person over a few days cannot establish that a suggestion caused anything; that would need a
+comparison across many people.
 
 **The two history routes are deliberately separate.** The senior's is scoped by identity, the
 coordinator's by role. Collapsing them into one route with a widened scope check would mean a single
@@ -281,7 +326,7 @@ rule `.../week/{plan_id}/follow-through` follows below -- except `POST
 /v1/people/{person_id}/consent`, whose `reason` is required rather than optional, so its audit
 event records `reason_length` instead.
 
-## The user-initiated loop
+## The user-initiated loop (no screen)
 
 The proactive loop begins with a policy trigger: the wearable changed, the ladder decided. These
 routes are the second entry point, where the senior starts the loop themselves. **"Find me
@@ -294,7 +339,7 @@ question when they contacted us.
 | POST     | `/v1/activities/search`                            | senior                  | Text or chips -> typed intent -> filtered, ranked options       |
 | GET      | `/v1/activities`                                   | any authenticated       | The catalogue                                                   |
 | GET      | `/v1/activities/{id}`                              | any authenticated       | One listing                                                     |
-| GET      | `/v1/people/{id}/activity-preferences`             | senior, own person only | What Care+ believes about the kinds of activity they like  |
+| GET      | `/v1/people/{id}/activity-preferences`             | senior, own person only | What Care+ believes about the kinds of activity they like       |
 | POST     | `/v1/interventions/{id}/enjoyment`                 | senior                  | Whether it was any good, after "did you get a chance?"          |
 | GET      | `/v1/people/{id}/proposed-memories`                | senior, own person only | Beliefs held back until the person agrees to them               |
 | POST     | `/v1/people/{id}/proposed-memories/{proposal_id}`  | senior, own person only | Remember / just today / no                                      |
@@ -309,7 +354,7 @@ question when they contacted us.
 | POST     | `/v1/people/{id}/week/{plan_id}/follow-through`    | senior, own person only | Went / didn't go / cancelled, once the day has passed           |
 | POST     | `/v1/people/{id}/week/{plan_id}/enjoyment`         | senior, own person only | How it was, after "went"                                        |
 | PUT      | `/v1/people/{id}/activity-preferences/{dim}/{val}` | senior, own person only | Prefer / avoid (optionally until a day) / forget                |
-| GET      | `/v1/people/{id}/world-model`                      | senior, own person only | Every fact Care+ holds about them, with its provenance     |
+| GET      | `/v1/people/{id}/world-model`                      | senior, own person only | Every fact Care+ holds about them, with its provenance          |
 
 Four properties are load-bearing.
 
@@ -464,8 +509,8 @@ remembered about the kinds of activity they like. `prefer` and `avoid` write a `
 row (strength +1.0 / -1.0, `confirmed`), optionally `until` a day (expiry is decided on the
 person's simulated calendar, never the wall clock) and optionally with their `stated_text`.
 `forget` **retracts** every row on that `(dimension, value)` -- theirs to forget. It stamps
-`superseded_by` rather than deleting: readers skip a superseded row, the Privacy screen shows
-nothing, the response still carries `preference: null` and `removed_rows`, and the next
+`superseded_by` rather than deleting: readers skip a superseded row, so nothing is shown, the
+response still carries `preference: null` and `removed_rows`, and the next
 observation on that key starts a fresh belief from zero. Deleting looked identical to the person
 and was worse in two ways -- it rewrote the audit trail, and under evidence counts it left nothing
 to stop the very next tap resurrecting a belief they had just erased. (ADR 0006.)
@@ -661,11 +706,10 @@ not empty). Reason lines are comma-phrased; the catalogue filler is the bare cat
 you" list. Nothing eligible is dropped: `reasons_suppressed` in the audit row equals
 `len(more_reasons)` (2026-09-15, round 2; it used to count lines left off the card).
 
-## The Activity Ranker Inspector (evaluator-only)
+## The Activity Ranker Inspector (evaluator-only, no screen)
 
-`POST /v1/evaluator/ranker/inspect` and `GET /v1/evaluator/ranker/presets` existed for the Demo
-tools "How Care+ Chose" page. The web app no longer has that page; the endpoints remain for
-now. Both require `demo_operator` (a `senior` or `coordinator` token
+`POST /v1/evaluator/ranker/inspect` and `GET /v1/evaluator/ranker/presets` trace one activity
+ranking. No current screen calls them. Both require `demo_operator` (a `senior` or `coordinator` token
 is 403; with auth off they are open like every demo route). Checked in this order: an unknown
 `person_id` is 404 (even when the body also names a preset), a person with no active run is 409,
 and a body outside the allow-list is 422 -- every request model is `extra="forbid"`, and an
@@ -756,11 +800,12 @@ synthetic demo data and never saved. A belief the preset alone produced is `scri
 live belief the preset added evidence to keeps its live provenance with `scripted_contribution:
 true`.
 
-## The review-threshold calibrator (coordinator)
+## The review-threshold calibrator (coordinator, no screen)
 
 A coordinator's structured false-alarm judgement can lead to a per-senior **review setting** (how far
 below baseline, for how many low days, before a human is asked). The agent or fixed rule only
-proposes; a coordinator approves every change. Design: `docs/review-threshold-spec.md`, ADR 0008.
+proposes; a coordinator approves every change. No current screen shows it, but the live setting
+still feeds `policy.decide` every simulated day. Design: `docs/review-threshold-spec.md`, ADR 0008.
 
 All routes below require `coordinator` (`senior` and `demo_operator` are 403; with auth off they are
 open like every demo route). Unknown person, proposal or decision is 404; a state conflict (already
@@ -783,8 +828,8 @@ and the new `override_reason` `not_a_concern`. The review commits first; any cal
 or write-up runs afterwards with no database session open, and a failure there never fails the
 review. `PersonState.review_threshold_notice` carries the fixed senior notice for seven simulated
 days after a loosening takes effect or a setting goes back. `POST /v1/demo/reset?person_id=` resets
-one persona. `GET /v1/evaluator/people/{person_id}/senior-home` (`demo_operator`) is the read-only
-Demo Tools "What a Senior Sees" preview; it writes nothing.
+one persona. `GET /v1/evaluator/people/{person_id}/senior-home` (`demo_operator`) is a read-only
+preview of what a senior would see; it writes nothing.
 
 ### What each review teaches (calibration trust)
 

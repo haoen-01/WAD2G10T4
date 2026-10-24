@@ -147,7 +147,7 @@ Every rule is deterministic and pinned by a test.
 | Rule                 | Rejects                                                                                                                              | Why                                                                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Allow-list           | Any `candidate_key` not in the permitted set                                                                                         | Stops the planner inventing an action, escalating to another action class, or reaching a programme the policy filtered out as stale |
-| No clinical language | `diagnos*`, `symptom`, `medication`, `doctor`, `hospital`, `emergency`, `fall detect*`, `heart rate`, `risk score`, `deteriorat*`, … | Care+ is wellness outreach and never claims to be a medical or emergency system                                                |
+| No clinical language | `diagnos*`, `symptom`, `medication`, `doctor`, `hospital`, `emergency`, `fall detect*`, `heart rate`, `risk score`, `deteriorat*`, … | Care+ is wellness outreach and never claims to be a medical or emergency system                                                     |
 | No pressure          | `you must`, `urgent`, `immediately`, `right now`, `mandatory`, …                                                                     | The promise is the _least intrusive_ permitted action                                                                               |
 | No raw numbers       | Any run of 3+ digits                                                                                                                 | Senior-facing copy never quotes step counts, scores, or figures from the decision                                                   |
 | Visible opt-out      | Messages that are neither a question nor carry an explicit optionality marker                                                        | Every outreach must leave a way to say no                                                                                           |
@@ -343,7 +343,7 @@ the developer's local `.env` and fails identically without these changes).
 - No measurement of proposal quality. There is no ground-truth set scoring whether the planner's
   choice beats the ranker's, and no numbers exist yet for guardrail interception rate, tokens per
   run, or latency under a real key. The instrumentation to collect all of them is in place; the
-  measurement is not done. Wire it into the existing `pnpm evaluate` harness and report it.
+  measurement is not done.
 - No prompt-injection surface has been red-teamed. The current inputs are synthetic fixtures and
   team-authored personas, so nothing untrusted reaches the prompt today — but a real wearable or
   programme feed would change that, and the guardrail validates the _output_, not the input.

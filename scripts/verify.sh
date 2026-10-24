@@ -10,7 +10,6 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm test:scenarios
-pnpm evaluate:check
 pnpm build
 
 echo "All Care+ verification gates passed."

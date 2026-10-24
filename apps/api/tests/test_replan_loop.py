@@ -1,6 +1,6 @@
 """Answering a replan offer: the loop R7 asks for, end to end.
 
-The acceptance criteria, verbatim from `docs/audits/personalisation-v2/review-eval-sec.md` R7:
+The acceptance criteria, verbatim from the personalisation-v2 review (finding R7):
 after `replace` the week has one entry for that day, the old row carries `replaced_reason="full"`,
 `awaiting_report` is false for it, `plans_due` counts 1, and the audit has `replan_offered` +
 `replanned`. Plus the sentence behind all of it: the senior is never asked "did you get a chance

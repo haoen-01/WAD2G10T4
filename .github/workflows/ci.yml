@@ -55,7 +55,6 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
       - run: pnpm test:scenarios
-      - run: pnpm evaluate:check
       - run: pnpm build
   postgres-integration:
     runs-on: ubuntu-latest

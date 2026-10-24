@@ -237,8 +237,8 @@ ActivityPlannerMode = Literal[
     "fallback_no_proposal",
 ]
 
-# How the model was reached: a live provider call, or a replay of a committed recording (the
-# measurement transport, see `silverloop.evaluation.ranking_llm`). Recorded on the run so an
+# How the model was reached: a live provider call, or a replay of a recording file (the
+# measurement transport, see `silverloop.agent.recorded_client`). Recorded on the run so an
 # evaluator never has to infer from the environment whether an order came from a real model.
 ActivityPlannerTransport = Literal["live", "recorded"]
 
@@ -714,8 +714,8 @@ def _build_client(settings: Settings, timeout: float) -> tuple[Any, str | None]:
     constructor and the model id differ.
 
     `recorded` is the third, and is handled before the SDK import on purpose: it replays a
-    committed recording, so it needs neither the package nor a credential. It is a measurement
-    surface (see `silverloop.evaluation.ranking_llm`), never a deployment one.
+    recording file, so it needs neither the package nor a credential. It is a measurement
+    surface, never a deployment one.
     """
     if settings.llm_provider == "recorded":
         return _build_recorded_client(settings)

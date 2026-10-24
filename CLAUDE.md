@@ -143,23 +143,22 @@ picks the _least intrusive permitted_ action, records the outcome, and adapts fu
 It is **not** a medical or emergency system. See `AGENTS.md` for the full product boundary; the short
 version is below under [Invariants](#invariants).
 
-The repo name on disk is `ismoggers`; the project everywhere else is `silverloop`.
+The product is Care+; the code, packages and API contract are still named `silverloop`.
 
 ## Layout
 
 ```
 apps/api          FastAPI + SQLAlchemy 2 + Alembic (Python 3.13, uv). Owns all domain state.
-apps/web          Vue 3 + Vite SPA styled with Bootstrap 5. Overview / senior / calendar / family.
-                  Calendar + family (family group, appointments, availability, assignments) hold sample
-                  data in the browser only: the API has no such concept yet. See UPDATES.md.
+apps/web          Vue 3 + Vite SPA styled with Bootstrap 5. Home / senior / calendar / family.
+                  Calendar and family data (care group, appointments, availability, helpers) are
+                  stored by the API. Only Tasks are browser-only (localStorage); see docs/tasks.md.
 apps/e2e          Playwright browser + API tests.
 libs/api-client   TypeScript SDK GENERATED from the OpenAPI snapshot. Do not hand-edit.
 tools/            synthetic-data generator.
 infra/supabase    Hand-applied SQL migrations mirroring the Alembic schema + RLS deny policies.
 scenarios/        YAML safety scenarios (input events -> expected decisions/cases).
 openapi/          Committed OpenAPI snapshot (`silverloop.json`), the cross-language contract.
-docs/             architecture, api, testing, supabase, observability, demo-runbook, setup, …
-physical-ai/orca  Detachable spike, README only.
+docs/             architecture, api, testing, supabase, observability, demo-script, setup, adr/, …
 ```
 
 Tooling: pnpm 11 workspace + thin Nx 23 for task orchestration; `uv` for Python. Node 24, Python 3.13.
@@ -224,36 +223,40 @@ integrations are future, authorised adapters only.
 - `main.py` — FastAPI app factory, routes, lifespan (runtime check → `alembic upgrade head` → seed).
 - `models.py` — Pydantic contract. **Editing this changes the public contract.**
 - `db_models.py` / `sql_repository.py` — SQLAlchemy schema and the single large repository
-  implementation (~1.3k lines) behind the `SilverLoopRepository` Protocol in `repository.py`.
+  implementation (~14k lines) behind the `SilverLoopRepository` Protocol in `repository.py`.
+  `advance` is the daily step: context → metric → decision → outreach planner → intervention or
+  review case → audit.
 - `policy.py` — the deterministic decision ladder. `Decision` is one of `suppress`, `no_action`,
   `gentle_nudge`, `programme_suggestion`, `coordinator_review`; gates are checked in order
   (consent → data quality → confidence → rain context → severity/persistence → contact cap).
 - `analytics.py` (median/MAD baseline), `quality.py` (8h minimum wear-time gate), `learning.py`.
-- `triage.py` — the caregiver care-priority board (`GET /v1/coordinator/priorities`). Rules-only and
-  read-only; its contact windows are capped by the day's recorded policy decision. See
-  `docs/care-priorities.md`.
-- `review_threshold.py` / `review_threshold_replay.py` — the per-senior review setting (when a human is
-  asked), its fixed bounds, absolute floor, stateless shadow check, guardrail and fixed-rule proposer.
-  Pure; `policy.decide` takes the live setting as an input and a coordinator approves every change.
-  See ADR 0008 and `docs/review-threshold-spec.md`.
-- `review_lessons.py` — what each review teaches (`classify_review`), the review-setting receipt
-  (`build_receipt`) and the per-person context-gap tally. Pure, computed on read; `policy`,
-  `review_threshold` and `agent/` must never import it (tested). See ADR 0009, `CONTEXT.md`.
-- `case_delta.py` — the server-produced "since your last review" delta on `ReviewCase`. Pure, over
-  append-only rows; never anything the senior said, a note or a step figure.
+- `family_groups.py` / `family_calendar.py` / `family_routes.py` — care groups and PINs, the shared
+  calendar (appointments, availability, helpers), and their `/v1/me`, `/v1/groups/…` routes.
+- `wearable_status.py` — the simulated watch status shown on Home (`GET /v1/people/{id}/wearable`,
+  registered in `family_routes.py`).
+- `agent/` — the outreach planner (Anthropic or Bedrock, off by default) and its deterministic
+  guardrail. It runs inside `advance` and may only reorder suggestions the policy already permitted;
+  with `LLM_ENABLED=false` the deterministic ranker decides. See `agenticlayer.md`.
 - `stored_state.py` / `error_responses.py` — stored simulation snapshots from an older contract raise
   `StoredStateIncompatible`; app-level handlers return classified 500 bodies
   `{code, message, detail}` (`stored_state_incompatible`, `internal_error`) with no raw framework text.
-- `evaluation/calibration/` — synthetic review-setting calibration with simulated coordinator profiles
-  on in-memory SQLite (`pnpm evaluate` / `evaluate:check`, output `docs/evaluation/review-calibration.*`).
-  Not imported by `silverloop.evaluation`.
 - `runtime.py` — refuses to start with SQLite under the `shared` profile, or with the committed
   placeholder DATABASE_URL. This guard is deliberate; don't relax it to make a run succeed.
-- `adapters/` — `synthetic` (default) and `csv_sample`; provider-neutral and detachable.
+- `adapters/` — `synthetic` (default), `csv_sample` and `apple_export`; provider-neutral and detachable.
 - `scenarios.py`, `seed.py`, `smoke.py`, `supabase_smoke.py` — CLI entrypoints (`python -m silverloop.X`).
 
-Simulation accepts only `activity_declines`, `rain_explains_decline`, `recovery`, `low_wear`,
-`consent_revoked`. Browser calls pass an `event_id` and are idempotent per run.
+Simulation (`POST /v1/simulation/advance`) accepts only `activity_declines`,
+`rain_explains_decline`, `rain_clears_activity_low`, `recovery`, `low_wear`, `consent_revoked`,
+`public_holiday`, `programme_becomes_full` and `weather_turns`. Calls pass an `event_id` and are
+idempotent per run.
+
+**API surface with no screen.** About two thirds of the routes serve features no current screen uses:
+coordinator tools (review queue, review cases, review setting, care priorities: `triage.py`,
+`review_threshold*.py`, `review_lessons.py`, `case_delta.py`), the evaluator ranker inspector,
+activity search, week plans, preferences, goals and replanning. Several of them still run inside
+`advance` (the review setting feeds `policy.decide`; replan offers and review cases are written
+there), so they cannot be deleted by removing files alone. The web app's routes are the ones in
+`apps/web/src/services/careApi.ts`, plus `/v1/auth/me`.
 
 ## Runtime profiles
 
@@ -282,7 +285,7 @@ matches the repo head.
 
 `AGENTS.md` (repo instructions), `CONTRIBUTING.md` (workflow, ownership), `docs/architecture.md`,
 `docs/api.md`, `docs/testing.md`, `docs/supabase.md`, `docs/observability.md`,
-and `docs/demo-runbook.md`.
+and `docs/demo-script.md`.
 
 ## Agent skills
 

@@ -3,8 +3,7 @@
  *
  * Pure and dependency-free on purpose: it reads the `status` and `code` that `ApiHttpError`
  * (`@silverloop/api-client`) attaches, by shape rather than `instanceof`, so it runs under
- * `node --test` without loading the generated SDK. `lib/api-error.ts` maps the result onto the
- * `ViewError` the views render.
+ * `node --test` without loading the generated SDK. `useAction` and `useFamily` show its `message`.
  *
  * The rule the copy follows: the message is always written for the person looking at the screen.
  * Anything the server or the browser said verbatim -- a pydantic validation dump, a stack of JSON,

@@ -1,14 +1,13 @@
-"""A provider client that replays committed recordings instead of calling a model.
+"""A provider client that replays recordings instead of calling a model.
 
 Why this exists
 ---------------
 Every agent behaviour in this repository is offline-unmeasurable today: CI runs with
-`LLM_ENABLED=false`, so every planner counter is structurally zero and the benchmark measures
-the deterministic ranker only. A hand-written fake per test proves one scripted path; it cannot
-produce a benchmark arm, a latency number or a token count.
+`LLM_ENABLED=false`, so every planner counter is structurally zero. A hand-written fake per
+test proves one scripted path; it cannot produce a latency number or a token count.
 
 `RecordedClient` is the missing transport. It exposes exactly the surface both planner loops and
-the intent parser use -- `client.messages.create(**kwargs)` -- and answers from a committed JSON
+the intent parser use -- `client.messages.create(**kwargs)` -- and answers from a JSON
 recording keyed by the request itself. Nothing downstream knows the difference: the planner's
 allow-list, guardrail, iteration cap and every degradation path are unchanged, which is the whole
 point (a recorded arm that bypassed the loop would measure nothing).
@@ -36,9 +35,8 @@ the reconstituted object makes record and replay produce byte-identical keys by 
 Honesty
 -------
 This module records what it is given. It makes no claim about *what* produced the recording --
-see the `synthetic` flag and `banner` on every recording file, and
-`silverloop.evaluation.ranking_llm` for the recordings this repository actually ships, which were
-produced by a deterministic scripted stand-in and not by a model.
+see the `synthetic` flag and `banner` on every recording file. This repository ships no
+recordings; `tests/test_recorded_client.py` writes its own small synthetic ones.
 """
 
 from __future__ import annotations
@@ -317,8 +315,7 @@ def load_recordings(path: Path) -> tuple[dict[str, RecordedResponse], list[Path]
     """Load one recording file, or every `*.json` in a directory, into a key -> response map.
 
     A missing path is not an error here: it returns an empty map, and the caller decides what to
-    say about it. That is what lets the benchmark arm print an explicit "not recorded" row
-    instead of a silent zero.
+    say about it, so a missing recording is reported explicitly rather than as a silent zero.
     """
     files: list[Path] = []
     if path.is_dir():

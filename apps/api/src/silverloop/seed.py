@@ -11,8 +11,7 @@ def main() -> None:
 
     `SqlAlchemyRepository.ensure_active_run()` -- called from the API lifespan -- deliberately
     keeps seeding only `DEMO_PERSON_ID`, so offline-demo and Playwright startup behaviour is
-    unaffected. Run `pnpm seed` explicitly to get all six personas for the pitch/demo flow (see
-    docs/demo-runbook.md).
+    unaffected. Run `pnpm seed` explicitly to get all six personas for the pitch/demo flow.
     """
     settings = get_settings()
     upgrade_database(settings.database_url)

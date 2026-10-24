@@ -1,6 +1,6 @@
 """The guided scenario "A false alarm teaches Care+", pinned offline on `mdm-wong`.
 
-The Simulator's guided scenario (docs/demo-scenario-playback-spec.md) is only honest if what it
+The Simulator's guided scenario is only honest if what it
 narrates is what the offline demo actually does: SQLite, fixture adapters, `LLM_ENABLED=false`, so
 the fixed rule proposes. Mdm Wong's rolling baseline moves with every day the arc adds, so the
 per-day decisions and gates are pinned here rather than assumed; if the fixture or the policy

@@ -74,7 +74,7 @@ function remove(entry: AvailabilityEntry) {
       </RouterLink>
     </header>
 
-    <!-- Sections have ids so A's SectionNav can jump to them:
+    <!-- Sections have ids so links can jump to them:
          Group (#family-group) · Free times (#availability) · Sharing (#sharing). -->
 
     <p v-if="family.error.value" class="alert alert-danger" role="alert">

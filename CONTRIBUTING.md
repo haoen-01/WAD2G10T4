@@ -18,12 +18,14 @@ pnpm test
 pnpm demo:smoke
 ```
 
+Or run `pnpm verify`, which is what CI runs.
+
 ## Ownership
 
-- ML, analytics and evaluation: Member 1.
+- ML and analytics: Member 1.
 - API, persistence and agent workflow: Member 2.
 - Web experience and demo: Member 3.
-- Adapters, safety red-team and physical-AI spike: Member 4.
+- Adapters and safety red-team: Member 4.
 
 The owner makes the final implementation decision after hearing the designated reviewer.
 

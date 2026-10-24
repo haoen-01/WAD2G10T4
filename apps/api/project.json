@@ -40,36 +40,6 @@
         "command": "uv run python -m silverloop.scenarios ../../scenarios"
       }
     },
-    "evaluate": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/docs/evaluation"],
-      "options": {
-        "cwd": "apps/api",
-        "command": "uv run python -m silverloop.evaluation ../../scenarios --out ../../docs/evaluation"
-      }
-    },
-    "evaluate-check": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/api",
-        "command": "uv run python -m silverloop.evaluation ../../scenarios --out ../../docs/evaluation --check"
-      }
-    },
-    "evaluate-ranking": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/docs/evaluation"],
-      "options": {
-        "cwd": "apps/api",
-        "command": "uv run python -m silverloop.evaluation.ranking --out ../../docs/evaluation"
-      }
-    },
-    "evaluate-ranking-check": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/api",
-        "command": "uv run python -m silverloop.evaluation.ranking --out ../../docs/evaluation --check"
-      }
-    },
     "runtime-check": {
       "executor": "nx:run-commands",
       "options": {
@@ -145,36 +115,6 @@
       "options": {
         "cwd": "apps/api",
         "command": "uv run python -m silverloop.supabase_smoke"
-      }
-    },
-    "evaluate-ranking-llm": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/docs/evaluation"],
-      "options": {
-        "cwd": "apps/api",
-        "command": "uv run python -m silverloop.evaluation.ranking_llm --out ../../docs/evaluation"
-      }
-    },
-    "evaluate-ranking-llm-check": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/api",
-        "command": "uv run python -m silverloop.evaluation.ranking_llm --out ../../docs/evaluation --check"
-      }
-    },
-    "evaluate-calibration": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/docs/evaluation"],
-      "options": {
-        "cwd": "apps/api",
-        "command": "uv run python -m silverloop.evaluation.calibration --out ../../docs/evaluation"
-      }
-    },
-    "evaluate-calibration-check": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/api",
-        "command": "uv run python -m silverloop.evaluation.calibration --out ../../docs/evaluation --check"
       }
     }
   },

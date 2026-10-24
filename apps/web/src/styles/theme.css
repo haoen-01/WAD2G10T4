@@ -231,7 +231,7 @@ body,
     border-color 0.2s ease;
 }
 
-/* Jumping to a section (`SectionNav`, `#links`) stops below the pinned menu, not under it.
+/* Jumping to a section (`#links`) stops below the pinned menu, not under it.
    `--sl-pinned-height` is kept up to date by `AppLayout.vue`. */
 html {
   scroll-padding-top: calc(var(--sl-pinned-height, 0px) + 0.75rem);

@@ -3,7 +3,7 @@
 ## Boundary
 
 ```text
-Vue SPA -> generated OpenAPI client -> FastAPI -> repository interface
+Vue SPA -> Axios (careApi.ts) -> FastAPI -> repository interface
                                            |            |
                                            |            +-> PostgreSQL/Supabase (shared default)
                                            |            +-> SQLite (tests/offline fallback)
@@ -35,7 +35,6 @@ evidence.
 - SQLAlchemy 2 + Alembic own the PostgreSQL/SQLite schema. Supabase is the shared runtime, denies
   browser roles and accepts domain writes only through FastAPI. SQLite is explicit test and
   emergency-demo infrastructure.
-- LangGraph may express the explicit state machine, but deterministic fallback must remain.
 - Internal tools are typed Python functions; MCP is not required for in-process calls.
 - LLM use is optional and bounded. Policies never depend on it.
 
@@ -90,57 +89,70 @@ nothing new is inferred: the answer is recorded, the stated preference is honour
 `not_for_me`. `activity_recovered` is the one outcome tied to the product's actual goal and is
 scored as such; it is not attributable to the offer and is never reported as if it were.
 
-For the detailed rationale, schemas and kill conditions, see the technical execution playbook.
-
 ## Module map
 
-`apps/api/src/silverloop/` is ~11,600 lines. This is what each file owns; `docs/api.md` covers the
-HTTP surface these files back.
+`apps/api/src/silverloop/` is about 45,000 lines, a third of it `sql_repository.py`. This is what
+each file owns; `docs/api.md` covers the HTTP surface these files back.
+
+**What the screens use.** The web app calls about 25 of the API's 80 routes: person state and
+metrics, interventions and their outcomes, `/v1/me`, care groups, the family calendar and the watch
+status (all listed in `apps/web/src/services/careApi.ts`). The e2e suite also calls
+`/v1/demo/reset` and `/v1/simulation/advance`. The rest serve features with no current screen:
+coordinator review (queue, cases, review setting, care priorities), the evaluator ranker inspector,
+activity search, week plans, goals, preferences, the world model and replanning. Several of those
+still run inside `advance` every simulated day (the review setting feeds `policy.decide`; review
+cases and replan offers are written there), so they are kept and tested.
 
 Top-level modules:
 
-- `main.py` (~1,070 lines) -- `create_app()` (the FastAPI app factory), CORS and structured
+- `main.py` -- `create_app()` (the FastAPI app factory), CORS and structured
   request-logging middleware, every HTTP route, and both the route-local and app-level fallback
   mapping from repository exceptions (`KeyError`/`ValueError`/`RuntimeError`/`IntegrityError`) to
   HTTP status codes. See [Request lifecycle](#request-lifecycle).
-- `models.py` (~1,085 lines) -- the Pydantic contract: every request/response shape and enum
+- `models.py` -- the Pydantic contract: every request/response shape and enum
   (`Decision`, `OutcomeKind`, `FollowThrough`, `TraceStatus`, ...). This is the public API surface;
   editing it changes `openapi/silverloop.json` and the generated TypeScript SDK.
-- `repository.py` (239 lines) -- the `SilverLoopRepository` `Protocol`: the persistence boundary
+- `repository.py` -- the `SilverLoopRepository` `Protocol`: the persistence boundary
   `main.py` depends on. Nothing in `main.py` imports SQLAlchemy or `sql_repository.py` directly.
-- `sql_repository.py` (~4,380 lines) -- the single implementation of that Protocol: SQLAlchemy 2
+- `sql_repository.py` -- the single implementation of that Protocol: SQLAlchemy 2
   session management, every domain read/write, the decision-trace builder, learner wiring, and the
   call sites into the outreach/activity planning agent. By far the largest module in the API.
-- `db_models.py` (520 lines) -- the SQLAlchemy 2 declarative schema. See [Data model](#data-model).
-- `policy.py` (137 lines) -- the deterministic decision ladder (`decide`); the one place safety
+- `family_groups.py` / `family_calendar.py` / `family_routes.py` -- care groups (sign-up as senior
+  or family, the senior-link and join PINs, approval), the shared calendar (appointments, family
+  availability, who is helping), and the `/v1/me` and `/v1/groups/...` routes for both. They own
+  their own tables and share the repository's database sessions.
+- `wearable_status.py` -- the simulated watch status on Home (connected, last sync, battery). No
+  real device is connected.
+- `db_models.py` -- the SQLAlchemy 2 declarative schema. See [Data model](#data-model).
+- `policy.py` -- the deterministic decision ladder (`decide`); the one place safety
   gates live. See [The decision path in detail](#the-decision-path-in-detail).
-- `quality.py` (59 lines) -- the 8-hour minimum wear-time gate (`assess_data_quality`); decides
+- `quality.py` -- the 8-hour minimum wear-time gate (`assess_data_quality`); decides
   whether one day's reading is safe to interpret at all.
-- `analytics.py` (182 lines) -- the median/MAD rolling baseline, the anchored reference, the
+- `analytics.py` -- the median/MAD rolling baseline, the anchored reference, the
   baseline-drift floor, sustained-low-day persistence counting, and confidence scoring
   (`analyse_signal`).
-- `learning.py` (163 lines) -- the transparent, weighted Beta-Bernoulli preference learner over
+- `learning.py` -- the transparent, weighted Beta-Bernoulli preference learner over
   per-candidate outcomes: an ENGAGEMENT posterior and an EXPERIENCE posterior, combined into one
   ranking signal (ADR 0005). Ranks only; never gates.
-- `preferences.py` (~490 lines) -- the dimensional preference learner: a decline reason moves the
+- `preferences.py` -- the dimensional preference learner: a decline reason moves the
   score of a _kind_ of activity (distance, intensity, timing, social shape, environment), not just
   the one listing declined, and never touches the per-candidate learner's state.
-- `context.py` (251 lines) -- optional live weather and public-holiday context (data.gov.sg
+- `context.py` -- optional live weather and public-holiday context (data.gov.sg
   rainfall/forecast, `date.nager.at` public holidays). Any failure degrades to a
   confidence-0 "unavailable" evidence item rather than raising; force-disabled under the `offline`
   profile.
-- `context_question.py` (157 lines) -- decides whether the one context question Care+ ever
+- `context_question.py` -- decides whether the one context question Care+ ever
   asks unprompted is worth asking, given the `PersonState` the policy ladder already produced.
   Never re-runs or imports the ladder.
-- `ontology.py` (307 lines) -- the one place that knows what "walk" means: `ActivityType`,
+- `ontology.py` -- the one place that knows what "walk" means: `ActivityType`,
   `ActivityFamily`, `Format` and a single alias table (English, Singlish, Chinese) shared by the
   keyword parser, catalogue normalisation and the tests that stop the two drifting apart. The LLM
   tool enum is generated from it at import; `normalise` checks a hand-authored catalogue label
   against a listing's own words and never writes one.
-- `intent.py` (698 lines) -- the deterministic, no-model text -> `ActivityIntent` parser; the
+- `intent.py` -- the deterministic, no-model text -> `ActivityIntent` parser; the
   offline/always-available path for the user-initiated activity search. A negated phrase produces
   an `excluded_*` entry and never a positive value on any axis, nor its complement.
-- `activity_search.py` (~1070 lines) -- the user-initiated loop's deterministic core:
+- `activity_search.py` -- the user-initiated loop's deterministic core:
   `filter_candidates`, `reasons_for`, `rank_candidates`. Pure functions, no DB or network access;
   their output is the allow-list the activity-ranking guardrail enforces.
 
@@ -155,32 +167,32 @@ Top-level modules:
   alternative through the same filter/rank pair; `sentence_for` owns the wording for each reason
   code and `notice_for_offer` renders an offer the server already recorded. Never mutates a plan
   itself. See [Replanning](#replanning).
-- `follow_up.py` (117 lines) -- `observe_effect`: describes, but never claims to cause, what a
+- `follow_up.py` -- `observe_effect`: describes, but never claims to cause, what a
   person's activity did in the days after one piece of outreach.
-- `outreach_content.py` (139 lines) -- the fixed, reviewed "tell me more" copy behind an
+- `outreach_content.py` -- the fixed, reviewed "tell me more" copy behind an
   intervention. Never model-generated; this is the one screen that asks someone to move their body.
-- `fixtures.py` (~926 lines) -- synthetic persona histories, the activity catalogue fixture, and
+- `fixtures.py` -- synthetic persona histories, the activity catalogue fixture, and
   demo-reset content. The single source of the deterministic Mdm-Lim-and-friends dataset.
-- `runtime.py` (108 lines) -- `validate_runtime`: refuses to start on a misconfigured profile. See
+- `runtime.py` -- `validate_runtime`: refuses to start on a misconfigured profile. See
   [Runtime profiles](#runtime-profiles).
-- `config.py` (118 lines) -- `Settings` (pydantic-settings): every environment-driven flag,
+- `config.py` -- `Settings` (pydantic-settings): every environment-driven flag,
   including the runtime profile and the LLM/agent knobs.
-- `auth.py` (259 lines) -- Supabase JWT verification (JWKS fetch/cache, ES256/RS256/HS256) and the
+- `auth.py` -- Supabase JWT verification (JWKS fetch/cache, ES256/RS256/HS256) and the
   `Senior`/`Coordinator`/`DemoOperator`/`AnyUser` FastAPI dependencies `main.py` routes depend on.
-- `local_time.py` (59 lines) -- the one place "morning"/"afternoon" is computed from a person's
+- `local_time.py` -- the one place "morning"/"afternoon" is computed from a person's
   local wall clock rather than UTC (everything is stored in UTC).
-- `logging_config.py` (31 lines) -- the structured JSON log formatter `main.py`'s request-logging
+- `logging_config.py` -- the structured JSON log formatter `main.py`'s request-logging
   middleware uses.
-- `migrations.py` (15 lines) / `schema_revision.py` (14 lines) -- run `alembic upgrade head`
+- `migrations.py` / `schema_revision.py` -- run `alembic upgrade head`
   programmatically at API startup, and read the Alembic head revision for `/ready`.
-- `openapi.py` (15 lines) -- `python -m silverloop.openapi`, writes `app.openapi()` to
+- `openapi.py` -- `python -m silverloop.openapi`, writes `app.openapi()` to
   `openapi/silverloop.json`; wired to `pnpm client:generate`.
-- `scenarios.py` (55 lines) -- `run_scenario`: replays one YAML scenario file's events through a
+- `scenarios.py` -- `run_scenario`: replays one YAML scenario file's events through a
   repository for `pnpm test:scenarios`.
-- `seed.py` (31 lines) / `smoke.py` (22 lines) / `supabase_smoke.py` (62 lines) --
+- `seed.py` / `smoke.py` / `supabase_smoke.py` --
   seed every curated persona; a black-box HTTP smoke test; the Supabase-specific equivalent run
   before a shared-profile deploy.
-- `setup_demo_accounts.py` (191 lines) -- admin CLI provisioning demo Supabase accounts and
+- `setup_demo_accounts.py` -- admin CLI provisioning demo Supabase accounts and
   linking them to `person_id`s; refuses to run under `APP_ENV=production` without
   `--allow-production`.
 
@@ -200,14 +212,11 @@ Subpackages:
   model can call; `constants.py` fixes model ids, the iteration ceiling and message-length limits;
   `models.py` defines the typed audit records (`AgentRun`, `AgentToolCall`, `PlannerMode`). See
   [The activity-planning subsystem](#the-activity-planning-subsystem).
-- `evaluation/` -- a separate, offline harness (`python -m silverloop.evaluation`, `pnpm evaluate`)
-  that replays scenarios against `policy.decide`, a parameterised ablation copy of the ladder, and
-  two naive baselines, to report which gates are actually load-bearing. It is never imported by the
-  running API; `test_evaluation.py` asserts its ladder transcription stays identical to `policy.py`.
 
 ## Request lifecycle
 
-The Vue app calls the generated OpenAPI client (`libs/api-client`), which calls a route in `main.py`.
+The Vue app calls a route in `main.py` (or `family_routes.py`) with Axios, through
+`apps/web/src/services/careApi.ts`, typed with the generated client's types (`libs/api-client`).
 The route depends on one of four FastAPI dependencies from `auth.py` (`Senior`, `Coordinator`,
 `DemoOperator`, `AnyUser`), which verifies the bearer JWT and injects a typed `CurrentUser` -- or,
 with `AUTH_ENABLED=false`, substitutes a fixed synthetic identity per role and skips verification
@@ -314,10 +323,8 @@ actually reached that call, a human-readable `title`/`detail`, and an `evidence_
 specific evidence row it describes, so the trace is a real index into the audit trail rather than a
 decorative timeline.
 
-This shape is a contract, not an implementation detail: `apps/e2e/tests/product-loop.spec.ts`
-asserts both the stage count (ten `<li>` entries) and the exact stage titles shown in the
-simulator's "View the technical agent trace" disclosure, so a change to this list fails a browser
-test even if every unit test still passes. The trace is returned on `AdvanceResponse.loop_trace`
+This shape is a contract, not an implementation detail. No screen shows the trace any more, so
+it is asserted against the API response directly. The trace is returned on `AdvanceResponse.loop_trace`
 and persisted verbatim as JSON on the `simulation_events.response_json` column, so
 `GET /v1/simulation/latest` and `GET /v1/simulation/history` can replay a past trace after a
 restart without recomputing it.
@@ -366,14 +373,20 @@ left alone ("write-once"), or updated in place:
   `confirm` row for a run is the reference `calculate_reference` uses).
 - **Goals and the week.** `activity_goals` (updated in place, unique per `(person_id, kind)`);
   `week_plan_entries` (unique per `(person_id, day, activity_id)`, so resubmitting the same choice
-  is a no-op rather than a duplicate).
+  is a no-op rather than a duplicate); `replan_offers` (see [Replanning](#replanning)).
+- **Review setting.** `review_threshold_proposals` and `review_threshold_decisions` (the
+  coordinator's review setting; no current screen).
+- **Accounts and family.** `accounts` (one per signed-up user, `senior` or `family`);
+  `care_groups` and `group_members` (one group per senior; members are `pending` until approved);
+  `family_pins` (hashed senior-link and join PINs, with expiry) and `pin_attempts` (wrong-PIN
+  lockout); `appointments`, `availability_entries` and `helper_assignments` (the shared calendar).
 
 ## Schema ownership
 
-SQLAlchemy 2 (`db_models.py`) and Alembic (`apps/api/alembic/versions/`, 8 revisions as of this
-writing) are the schema of record for both PostgreSQL/Supabase and the SQLite test/offline
+SQLAlchemy 2 (`db_models.py`) and Alembic (`apps/api/alembic/versions/`, 21 revisions) are the
+schema of record for both PostgreSQL/Supabase and the SQLite test/offline
 fallback; `migrations.py` runs `alembic upgrade head` at API startup. `infra/supabase/migrations`
-is a **hand-maintained SQL mirror** of that schema for the Supabase project (currently 9 files:
+is a **hand-maintained SQL mirror** of that schema for the Supabase project (22 files:
 Alembic's own DDL plus the explicit `REVOKE`-based deny policies for the `anon` and `authenticated`
 Data API roles, which do not belong in the Alembic chain because they are Supabase-platform
 concerns, not SQLAlchemy ones). Being hand-written rather than generated, the mirror has
@@ -425,6 +438,8 @@ validated once, at startup, by `runtime.validate_runtime` -- not re-checked per 
 
 ## The activity-planning subsystem
 
+**No current screen uses this subsystem.** It is reachable through the API (and `/docs`) only.
+
 Commit `33ce89f` ("add activity planning backend") added the user-initiated loop described in
 `docs/api.md`: `activity_search.py`, `intent.py`, `preferences.py`, `replanning.py` and
 `context_question.py`, plus the routes, models and repository methods that serve
@@ -473,7 +488,7 @@ opposite. Each row below has exactly one owner:
 | distance       | `travel_utility(distance, tolerance, asked_radius)` | no friction constant, no learned near/far bucket, no parser cut-off; a phrase narrows the tolerance for that request and never widens it |
 | what was asked | `request_fit` (+ the hard filter for hard axes)     | an axis constrained today contributes 0 preference utility                                                                               |
 | what is known  | `preference_utility` over the person's live axes    | an axis the request constrained is excluded; DISTANCE belongs to travel                                                                  |
-| environment    | `preferences.environment_compatibility -> Tri`      | filter, preference reader, rain nudge and the evaluation harness all call it                                                             |
+| environment    | `preferences.environment_compatibility -> Tri`      | filter, preference reader and rain nudge all call it                                                                                     |
 | this listing   | `ActivityEngagement`, series-scoped                 | the cooldown reads the same series, with a per-session override                                                                          |
 | the weather    | `context`, only when the environment was left open  | no standing bonus for being indoors                                                                                                      |
 
@@ -514,13 +529,14 @@ question, which an earlier guard had made unreachable for every demo persona. `G
 .../world-model` is scoped by _identity_ (`check_person_scope`), not by role: with auth enforced,
 only the senior it belongs to can call it, so a coordinator only ever sees `WorldModelQuality`
 counts (`/v1/metrics`). With `auth_enabled=false` -- every build and demo running today -- that
-same identity check passes for whichever caller `require_senior` returns, so the simulator's own
-evaluator view (`PersonalWorldModel` on the overview and decision-simulator pages) calls this
-route directly and renders the full envelope, stated text included. No safety or consent rule
+same identity check passes for whichever caller `require_senior` returns, so any caller can read
+the full envelope, stated text included. No safety or consent rule
 reads role, so this is not a policy gap; it is a reason to treat "coordinators never see the
 facts" as a property of an authenticated deployment, not of this build as shipped.
 
 ## Replanning
+
+**No current screen shows replan offers.** They are still written inside `advance()`.
 
 The one place the product changes a plan a person already made, and the one place it must never do
 so quietly. The loop is: the world changes -> an offer is recorded -> the person is asked -> they

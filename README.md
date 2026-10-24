@@ -41,7 +41,8 @@ through Supabase's own sign-up, not a fixed demo login.
 
 The web app is a Vue 3 + Bootstrap 5 single-page app in `apps/web`. **Home** is a daily overview
 (the senior's activity metrics, a brief look at the calendar, and today's tasks and medicine).
-**Senior** (the suggestion, and a consent switch) follows the loop from there. **Calendar** (Mdm
+**Senior** (the senior's own day: activity, a suggestion to answer, and today's plans) follows the
+loop from there. **Calendar** (Mdm
 Lim's activities and appointments, and which family members are helping) and **Family** (the
 family group, and when each member can help) help a family share the care. Calendar and family
 coordination use the API. Tasks on Home and Senior (one-off, daily or weekly) are kept in the
@@ -88,6 +89,10 @@ The outreach planning agent, its deterministic guardrail and the bounded plan/ac
 described in [`agenticlayer.md`](./agenticlayer.md). It is off by default; the complete demo runs
 with `LLM_ENABLED=false`.
 
+The API also carries features that no current screen uses (coordinator review tools, activity
+search, week plans and preferences). They are reachable from the API docs at `/docs`; see
+[`docs/architecture.md`](./docs/architecture.md).
+
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for team workflow and
 [`docs/architecture.md`](./docs/architecture.md) for system boundaries.
 
@@ -95,8 +100,8 @@ Wearable inputs are detachable and provider-neutral; see
 [`docs/data-adapters.md`](./docs/data-adapters.md) for the synthetic default, consented sample
 normalisation and the explicit Healthy 365 future-only boundary.
 
-For a clean-machine walkthrough use [`docs/setup.md`](./docs/setup.md). For the pitch-day sequence
-and recovery steps use [`docs/demo-runbook.md`](./docs/demo-runbook.md).
+For a clean-machine walkthrough use [`docs/setup.md`](./docs/setup.md). For the three-minute demo
+and what to do if something goes wrong, use [`docs/demo-script.md`](./docs/demo-script.md).
 
 ## Data truth
 

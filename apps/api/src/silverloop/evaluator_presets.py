@@ -11,8 +11,7 @@ goes through (`preferences.apply_decline`, `preferences.apply_enjoyment`,
 is discarded with the response. Every event carries an `origin_id` prefixed `scripted:` and every
 fact it produces is labelled `scripted_history`. Nothing here is a real person's data.
 
-Deliberately outside `silverloop.evaluation`, which may not import the repository. Only
-declines, interests and enjoyment reports are scripted: a stated preference is written by
+Only declines, interests and enjoyment reports are scripted: a stated preference is written by
 `SqlAlchemyRepository._confirm_dimension_preference`, whose row logic is not a pure function.
 """
 

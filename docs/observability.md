@@ -49,15 +49,15 @@ runtime -- Supabase PostgreSQL, SQLite offline fallback or not ready -- and the 
 expected schema revisions). See `docs/api.md`. This is intentionally a small demo surface, not a
 production monitoring platform.
 
-## Coordinator queue hygiene
+## Coordinator queue hygiene (no screen)
 
 `GET /v1/coordinator/queue` accepts an optional `?status=` filter (comma-separated `open`,
 `acknowledged`, `resolved`). Omitting it returns the default view -- open and acknowledged cases
 only -- so a resolved case never interleaves with an active one on screen; pass `?status=resolved`
 (or `?status=open,acknowledged,resolved`) to see closed cases on request. Results are always
 ordered open before acknowledged before resolved, newest first within each status.
-`ReviewCase.priority` is not part of that ordering and is not shown on the queue card: every case
-is opened with the same hard-coded value, so it carries no signal to sort or display.
+`ReviewCase.priority` is not part of that ordering: every case is opened with the same hard-coded
+value, so it carries no signal to sort by.
 
 ## Planner fallback visibility
 
@@ -74,7 +74,7 @@ is built from two of them with the denominator printed beside it.
   (agent-mode runs with at least two permitted candidates -- the only honest denominator for
   agreement, because a planner handed one option can only agree), `planner_agreed_with_ranker` (a
   redundancy measure, not a quality one), fallback modes, guardrail rejections and violations.
-- **The user-initiated funnel:** `activity_searches` -> `activity_results_shown` ->
+- **The user-initiated funnel (no screen):** `activity_searches` -> `activity_results_shown` ->
   `activity_interested` / `activity_not_for_me` (+ `activity_decline_reasons`) ->
   `activities_planned` -> `plans_due` (week entries whose day has passed; the denominator for
   reports) -> `activity_reports` -> `activity_went` -> `activity_enjoyed`.
@@ -134,9 +134,8 @@ Four things they deliberately do **not** do.
 
 `llm_latency_ms_total` is wall-clock time this process spent waiting. Under the recorded transport
 (`LLM_PROVIDER=recorded`) nothing waits, so it is ~0 and truthfully says so; the latency stored in
-a recording is reported by the benchmark arm (`docs/evaluation/ranking-llm.md`), not smuggled into
-the audit as though this run had taken that long. See
-[testing.md](testing.md#the-recorded-llm-arm-llm_recorded) for what that arm can and cannot claim.
+a recording is never smuggled into the audit as though this run had taken that long. See
+[testing.md](testing.md#the-recorded-llm-transport) for how the recorded transport is tested.
 
 Production deployments should export the same structured fields to their approved logging and
 metrics systems, with retention, access control and alert thresholds set by the operator.

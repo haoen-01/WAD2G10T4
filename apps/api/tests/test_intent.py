@@ -695,8 +695,8 @@ def test_a_vague_distance_is_described_as_one() -> None:
 
 # ── The audit probe, as a regression table ─────────────────────────────────────────────────────
 #
-# Every phrasing from `docs/audits/personalisation-v2/audit-C.md` §0, which ran these 35 sentences
-# through the parser and recorded what came back: 22 of them named a kind of activity and not one
+# Every phrasing from the parser audit, which ran these 35 sentences through the parser and
+# recorded what came back: 22 of them named a kind of activity and not one
 # reached the search, two Chinese sentences lost half their words silently, three were read as
 # their own opposite, and two content words were misfiled onto other axes.
 #

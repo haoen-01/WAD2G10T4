@@ -8,7 +8,7 @@ network.
 They do NOT prove the refactor preserved behaviour: `rank_with_trace` and
 `rank_candidates_with_breakdown` now share their pieces, so comparing them is partly
 self-referential. Preservation is proven against the pre-refactor code by
-`test_search_ranking_golden.py` (captured before the refactor) and `pnpm evaluate:check`.
+`test_search_ranking_golden.py` (captured before the refactor).
 """
 
 from __future__ import annotations

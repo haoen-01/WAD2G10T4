@@ -1,6 +1,6 @@
 /**
  * The day's medicine and other simple reminders shown on the Home overview. There is no backend
- * concept for this yet (see UPDATES.md): it is made-up sample data for the same demo person the
+ * concept for this yet: it is made-up sample data for the same demo person the
  * rest of the app is built around, always "today's" list rather than tied to a real date.
  *
  * Pure and free of Vue, so `lib/daily-tasks.test.ts` can run it under Node's type stripping; the

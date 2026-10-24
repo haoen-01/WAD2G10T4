@@ -1,48 +1,68 @@
 # Care+ glossary
 
 Terms used across the product, the API and the docs. Definitions only; design lives in `docs/adr/` and
-the specs under `docs/`.
+`docs/architecture.md`.
 
-**Review setting / review timing.** How far below a senior's own baseline, and for how many low
-valid-wear days, before Care+ asks a coordinator to review. It starts at 40% for 3 days and moves
-only within fixed bounds, one step at a time, with a coordinator's approval. The web UI calls it
-"review timing"; API text, contract names (`ReviewThreshold…`) and backend docs say "review setting".
-They are the same thing. It never changes the baseline.
+## The daily loop
 
-**Absolute floor.** A drop of 60% or more for 3 low days always asks a human, whatever the person's
-review setting is.
+**Baseline.** A senior's own usual activity, worked out from their recent daily metrics (median and
+spread over a 28-day window). Care+ compares each day against this person's baseline, never a
+population average.
 
-**Shadow check.** While a looser review setting is live, Care+ works out from stored history the
-first day the starting setting would have asked. If the personal setting has not asked 3 days later, the
-case opens and the setting goes back to the starting one.
+**Valid-wear day.** A day the wearable was worn for at least 8 hours. Days below that are treated as
+unusable data, not as a quiet day.
 
-**Calibration-eligible judgement.** A review that may count toward a looser review setting: a
-coordinator resolved the case as "Not a concern for this person", did not mark it as reaching them too
-late, the case opened within the last 30 days, and the current setting was already live when it opened.
-Free-text notes never count.
+**Decision.** What Care+ chose to do about a day, from a fixed, deterministic ladder in `policy.py`:
+`suppress`, `no_action`, `gentle_nudge`, `programme_suggestion` or `coordinator_review`. The least
+intrusive permitted action wins. `no_action` is a recorded result, not a skipped step.
 
-**Review lesson.** What one stored review taught Care+, worked out on read. Exactly one of:
+**Gate.** One rule in that ladder, checked in order: consent, data quality, confidence, rain context,
+severity and persistence, then the weekly contact cap. A gate can only hold Care+ back; no learner or
+language model can open one.
 
-- _Counts toward review setting_: resolved as not a concern (toward waiting longer), or marked "should
-  have reached me sooner" (toward asking sooner).
-- _Records a context gap_: overridden because the care team already knew why.
-- _Teaches nothing_: agreement, a hold, doubtful data, recent contact, another reason, an unresolved
-  "not a concern", no structured choice, or a case Care+ closed itself.
+**Suggestion (intervention).** The message a senior sees on the Senior screen when the decision is a
+nudge or a programme suggestion.
 
-**Context gap.** Context the care team knew and Care+ could not see, recorded when a coordinator
-overrides for "known context". It is counted per person for the care team and changes no decision,
-proposal or review setting. Optional categories: _away_ (away from home), _already in touch_ (through
-another service or family; distinct from the care team's own recent contact), _resting or recovering_,
-_other known_.
+**Outcome.** How the senior answered a suggestion: _accepted_ ("show me more", not proof it helped),
+_declined_, _deferred_ ("maybe later") or _no response_. Outcomes adapt which permitted suggestion is
+offered next; they never change what is permitted.
 
-**Review-setting receipt.** For the proposal or setting on screen: which reviews counted, which asked
-sooner, which were excluded and why, and how many of the needed reviews have counted.
+**Contact cap.** The limit on how many suggestions a senior is sent in a week. After a senior accepts
+one, they also get 3 days of quiet.
 
-**Since your last review.** What changed on an open case since a human last reviewed it (or since it
-opened): counts of recorded, usable and below-usual days, rain or holiday starting or ending, outreach
-and its replies, and review-timing changes. Produced by the server as fixed sentences; never anything
-the senior said, a note, or a step figure.
+**Rain context.** Live weather that can explain a quiet day, so Care+ waits instead of nudging.
 
-**Simulated coordinator profile.** A written-down reviewing rule used only in the calibration
-evaluation: _accurate_, _dismissive_ (always "not a concern") or _over-cautious_ (always agrees and
-says it reached them too late). Never a real coordinator.
+**Synthetic data.** Every activity figure in the demo is generated, and labelled as such. No real
+wearable is connected.
+
+## Family
+
+**Care group.** The family members caring for one senior.
+
+**Senior-link PIN.** A 6-digit PIN the senior shows on their own screen. It lasts 10 minutes and works
+once. A family member who enters it creates the senior's care group; showing it is the senior's
+agreement to be linked.
+
+**Join PIN.** A 6-digit PIN any active member can show. It lasts 7 days and can be reused. Someone who
+enters it waits as _pending_ until an active member approves them.
+
+**Appointment.** An entry on the senior's shared calendar, saved by the API.
+
+**Availability.** When a family member can help, saved by the API.
+
+**Helper.** A family member who has taken an appointment. An appointment with nobody taking it
+_needs a helper_.
+
+**Task.** A one-off, daily or weekly reminder on Home and Senior. Tasks are kept in the browser only;
+see `docs/tasks.md`.
+
+## Backend only (no screen)
+
+These exist in the API and its tests but no current screen shows them.
+
+**Review setting.** How far below a senior's own baseline, and for how many low valid-wear days,
+before Care+ asks a coordinator to review. It starts at 40% for 3 days and moves only within fixed
+bounds, with a coordinator's approval. A drop of 60% or more for 3 low days (the _absolute floor_)
+always asks a human, whatever the setting.
+
+**Review case.** What a `coordinator_review` decision opens for a human to look at.

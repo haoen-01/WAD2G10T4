@@ -65,15 +65,14 @@ class Settings(BaseSettings):
     # generally available on both, so the choice is commercial, not functional.
     #
     # `recorded` is neither: it is `silverloop.agent.recorded_client.RecordedClient`, answering
-    # from a committed recording keyed by the request. It makes no network call, needs no key and
-    # no SDK, and exists so agent behaviour can be measured offline -- see
-    # `silverloop.evaluation.ranking_llm`. It is a measurement surface, never a deployment one:
-    # a request with no recorded answer degrades to the deterministic ranker exactly like a
-    # provider outage.
+    # from a recording file keyed by the request. It makes no network call, needs no key and no
+    # SDK, and exists so agent behaviour can be measured offline. It is a measurement surface,
+    # never a deployment one: a request with no recorded answer degrades to the deterministic
+    # ranker exactly like a provider outage.
     llm_provider: Literal["anthropic", "bedrock", "recorded"] = "anthropic"
     llm_api_key: str = ""
     # `recorded` only. A recording file, or a directory of them. Relative paths resolve against
-    # the process working directory; the benchmark passes an absolute path.
+    # the process working directory.
     llm_recording_path: str = ""
     # Bedrock only. Blank defers to the SDK's own resolution (AWS_REGION, or the active profile).
     llm_aws_region: str = ""

@@ -51,7 +51,7 @@ async function leaveDemo() {
  * phone the menu is a second row of the top bar: the brand row scrolls away and the menu row stays
  * pinned at the top. The bar is pinned with a negative `top` equal to the height above the menu
  * (`--sl-tuck`), measured here because it changes with zoom and wrapping. `--sl-pinned-height`
- * (what stays on screen) lets jump links (`SectionNav`) stop below the bar, not under it.
+ * (what stays on screen) lets in-page jump links stop below the bar, not under it.
  */
 const header = ref<HTMLElement | null>(null);
 const nav = ref<HTMLElement | null>(null);

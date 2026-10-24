@@ -1,8 +1,8 @@
 """F5: multi-persona seeding.
 
-Covers acceptance criteria that do not fit naturally inside `test_evaluation.py` or
-`test_multi_person.py`: the persona registry's shape, the `mdm-lim` compatibility guarantee, and
-the product's central "personal, not population-average" claim.
+Covers acceptance criteria that do not fit naturally inside `test_multi_person.py`: the persona
+registry's shape, the `mdm-lim` compatibility guarantee, and the product's central "personal, not
+population-average" claim.
 """
 
 from __future__ import annotations

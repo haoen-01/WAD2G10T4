@@ -123,7 +123,7 @@ TYPE_FAMILIES: Final[dict[ActivityType, frozenset[ActivityFamily]]] = {
 
 
 # English, Singlish and Chinese phrases for each type. Every entry is a phrase that appears in the
-# parser probe (docs/audits/personalisation-v2/audit-C.md §0) or in a fixture listing -- this is a
+# parser probe (the regression table in `tests/test_intent.py`) or in a fixture listing -- this is a
 # working vocabulary, not an attempt at a lexicon, and a word that is not here stays unknown.
 #
 # Authored grouped by type for readability; `ALIASES` below re-sorts the whole table longest

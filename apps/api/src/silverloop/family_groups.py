@@ -1,6 +1,6 @@
 """Family groups: family members caring for one senior, joined with 6-digit PINs.
 
-The flow (see UPDATES.md, 2026-10-14):
+The flow:
 
 1. Someone signs up and chooses `senior` or `family` (`onboard`). A senior gets their own person
    record with synthetic activity data, labelled synthetic, since no real device is connected.

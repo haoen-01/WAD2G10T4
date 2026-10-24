@@ -13,6 +13,3 @@ openapi/silverloop.json
 
 # Nested git worktree for a concurrent, isolated agent session; not part of this checkout
 .claude/worktrees
-
-# Generated evaluation artifacts; committed and staleness-checked via `pnpm evaluate:check`
-docs/evaluation/
