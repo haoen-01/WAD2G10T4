@@ -11,10 +11,12 @@ import {
   checkWindow,
   fromCalendar,
   helperIds,
+  idToRemove,
   newId,
   respondTo,
   statusFor,
   stepBackFrom,
+  swapEntryId,
   volunteerFor,
 } from '@/lib/family';
 import type { Appointment, AvailabilityStatus, FamilyState, MemberStatus } from '@/lib/family';
@@ -138,6 +140,35 @@ function save(work: (group: string) => Promise<unknown>): Promise<void> {
   return saving;
 }
 
+/**
+ * An availability window shows at once under a temporary id and gets its real one when the API
+ * has saved it. Removing it before then (a double tap) must remove the saved entry, so the save
+ * queue (which runs one change at a time) looks the real id up when the removal runs.
+ */
+const savedIds = new Map<string, string>();
+
+function saveWindow(
+  tempId: string,
+  window: { date: string; start: string; end: string; status: AvailabilityStatus },
+): Promise<void> {
+  return save(async (group) => {
+    const saved = await api.addAvailability(group, window);
+    savedIds.set(tempId, saved.entry_id);
+    state.availability = swapEntryId(state.availability, tempId, saved.entry_id);
+  });
+}
+
+function saveRemoval(id: string): Promise<void> {
+  return save(async (group) => {
+    try {
+      const realId = idToRemove(id, savedIds);
+      if (realId) await api.removeAvailability(group, realId);
+    } finally {
+      savedIds.delete(id);
+    }
+  });
+}
+
 const currentMember = computed(
   () => state.members.find((member) => member.id === state.currentMemberId) ?? null,
 );
@@ -172,14 +203,15 @@ function addAvailability(chosen: {
   if (!member) return 'Only family members in the group can share when they are free.';
   const problem = checkWindow(chosen);
   if (problem) return problem;
-  state.availability.push({ id: newId('saving'), memberId: member.id, ...chosen });
-  void save((group) => api.addAvailability(group, chosen));
+  const tempId = newId('saving');
+  state.availability.push({ id: tempId, memberId: member.id, ...chosen });
+  void saveWindow(tempId, chosen);
   return null;
 }
 
 function removeAvailability(id: string): void {
   state.availability = state.availability.filter((entry) => entry.id !== id);
-  void save((group) => api.removeAvailability(group, id));
+  void saveRemoval(id);
 }
 
 function apply(next: {
@@ -269,12 +301,13 @@ function paintDay(day: string, painted: SlotStatus[]): boolean {
   if (!member) return false;
   const { remove, add } = paintChanges(state.availability, member.id, day, painted);
   if (!remove.length && !add.length) return false;
+  const added = add.map((window) => ({ tempId: newId('saving'), window }));
   state.availability = [
     ...state.availability.filter((entry) => !remove.includes(entry.id)),
-    ...add.map((window) => ({ id: newId('saving'), memberId: member.id, ...window })),
+    ...added.map(({ tempId, window }) => ({ id: tempId, memberId: member.id, ...window })),
   ];
-  for (const id of remove) void save((group) => api.removeAvailability(group, id));
-  for (const window of add) void save((group) => api.addAvailability(group, window));
+  for (const id of remove) void saveRemoval(id);
+  for (const { tempId, window } of added) void saveWindow(tempId, window);
   return true;
 }
 
