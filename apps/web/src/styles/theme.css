@@ -120,7 +120,7 @@
   /*
    * App shell. The phone tab bar is --sl-tabbar-core tall plus the device's bottom safe area, so it
    * grows with zoom and clears a home indicator; toasts sit above --sl-tabbar-height. Stacking:
-   * header 1020, nav 1030 (the calendar's details sheet is 1040 and up), toasts 1080.
+   * header 1020, nav 1030, the BottomSheet's backdrop 1045 and panel 1046, toasts 1080.
    */
   --sl-tabbar-core: 3.5rem;
   --sl-tabbar-height: calc(var(--sl-tabbar-core) + env(safe-area-inset-bottom, 0px));
@@ -297,6 +297,13 @@ h4,
   font-weight: 700;
   letter-spacing: -0.015em;
   line-height: 1.2;
+}
+
+/* Section heading outside a card (Home, Calendar, Family): one size and weight on every screen. */
+.sl-section-title {
+  margin-bottom: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 700;
 }
 
 .display-num {

@@ -187,7 +187,7 @@ const weekTasks = computed(() =>
       <div class="col-12">
         <section id="home-week" aria-labelledby="week-heading">
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-            <h2 id="week-heading" class="h4 d-flex align-items-center gap-2 mb-0">
+            <h2 id="week-heading" class="sl-section-title d-flex align-items-center gap-2 mb-0">
               <Icon name="calendar" />The week ahead
             </h2>
             <RouterLink class="btn btn-outline-primary" to="/calendar">

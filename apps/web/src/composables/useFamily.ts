@@ -132,6 +132,8 @@ function save(work: (group: string) => Promise<unknown>): Promise<void> {
     .finally(() => {
       inFlight -= 1;
       if (inFlight === 0) {
+        // Queue drained: temp ids are gone after the refresh, so the map need not grow all session.
+        savedIds.clear();
         void refresh();
         // The senior screen shares this queue, and the family routes refuse a senior.
         if (groupId.value && useViewMode().mode.value !== 'senior') notify('saved');
