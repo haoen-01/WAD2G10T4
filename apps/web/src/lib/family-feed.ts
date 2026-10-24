@@ -65,7 +65,12 @@ export function feedLine(entry: FamilyActivityEntry, options: FeedOptions = {}):
     case 'member_approved':
       return line(`let ${entry.subject_name || 'a new member'} into the group`, 'users');
     case 'member_declined':
-      return line(`declined ${entry.subject_name || 'a'}’s request to join`, 'users');
+      return line(
+        entry.subject_name
+          ? `declined ${entry.subject_name}’s request to join`
+          : 'declined a request to join',
+        'users',
+      );
     case 'appointment_added':
       return line(
         entry.on_date

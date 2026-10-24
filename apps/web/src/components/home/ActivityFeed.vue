@@ -57,7 +57,7 @@ type Row = (typeof lines.value)[number];
     </p>
 
     <template v-else>
-      <StaggerList :items="lines" :item-key="(row: Row) => row.entry.activity_id" class="feed">
+      <StaggerList :items="lines" :item-key="(row: Row) => feed.renderKey(row.entry)" class="feed">
         <template #item="{ item }">
           <div class="feed-row">
             <MemberAvatar
@@ -153,7 +153,13 @@ li:first-child > .feed-row {
   color: var(--sl-jade);
 }
 
+/* A 44px tap target without a taller row: the padding is cancelled by the negative margin. */
 .feed-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin-block: -0.75rem;
+  padding-inline: 0.25rem;
   font-weight: 600;
 }
 </style>

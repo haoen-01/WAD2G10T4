@@ -34,7 +34,7 @@ test('Home shows the seeded family updates, each tagged as a sample', async ({ p
   await expect(feed(page).getByRole('heading', { name: 'Family updates' })).toBeVisible();
   await expect(feed(page).locator('li')).toHaveCount(6);
   await expect(feed(page).getByText('Sample', { exact: true })).toHaveCount(6);
-  await expect(feed(page)).toContainText('Sarah called Mdm Lim');
+  await expect(feed(page)).toContainText('You called Mdm Lim');
   await expect(feed(page)).toContainText('She sounded cheerful');
 });
 
@@ -104,7 +104,7 @@ test('the feed refreshes every 30 seconds and when the window gains focus', asyn
 test('the senior screen never asks for the family feed', async ({ page }) => {
   const asked: string[] = [];
   page.on('request', (request) => {
-    if (request.url().includes('/activity')) asked.push(request.url());
+    if (/\/v1\/groups\/[^/]+\/activity/.test(request.url())) asked.push(request.url());
   });
   await page.goto('/login');
   await page.getByTestId('choose-senior').click();

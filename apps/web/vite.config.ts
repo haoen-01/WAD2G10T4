@@ -14,5 +14,7 @@ export default defineConfig({
   // Several dev servers can run at once (parallel e2e runs): one dep cache per port, and listing the
   // deps up front stops the mid-test "optimized dependencies changed, reloading" flake.
   cacheDir: `node_modules/.vite/${port}`,
-  optimizeDeps: { include: ['vue', 'vue-router', '@supabase/supabase-js', 'motion-v', '@vueuse/core'] },
+  optimizeDeps: {
+    include: ['vue', 'vue-router', '@supabase/supabase-js', 'motion-v', '@vueuse/core'],
+  },
 });

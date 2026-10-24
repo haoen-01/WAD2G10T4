@@ -52,22 +52,6 @@ async function send(kind: CheckInKind, past: string) {
       group.
     </p>
 
-    <div class="row g-2 mb-3" role="group" aria-label="How you were in touch">
-      <div v-for="item in KINDS" :key="item.kind" class="col-4">
-        <PressScale>
-          <button
-            type="button"
-            class="btn btn-outline-primary checkin-btn w-100"
-            :disabled="busy || !actor"
-            @click="send(item.kind, item.past)"
-          >
-            <Icon :name="item.icon" class="checkin-icon" />
-            <span>{{ item.label }}</span>
-          </button>
-        </PressScale>
-      </div>
-    </div>
-
     <label class="form-label" for="checkin-note">Add a note (optional)</label>
     <textarea
       id="checkin-note"
@@ -78,12 +62,46 @@ async function send(kind: CheckInKind, past: string) {
       aria-describedby="checkin-note-left"
       placeholder="For example: she sounded cheerful"
     ></textarea>
-    <p id="checkin-note-left" class="form-text mb-0">{{ left }} characters left</p>
+    <p id="checkin-note-left" class="form-text mt-1 mb-3">{{ left }} characters left</p>
+    <p class="form-label mb-1" aria-hidden="true">Then tap how you were in touch</p>
+    <div class="checkin-row" role="group" aria-label="How you were in touch">
+      <div v-for="item in KINDS" :key="item.kind" class="checkin-cell">
+        <PressScale>
+          <button
+            type="button"
+            class="btn btn-outline-primary checkin-btn w-100"
+            :disabled="busy || !actor"
+            :aria-describedby="actor ? undefined : 'checkin-hint'"
+            @click="send(item.kind, item.past)"
+          >
+            <Icon :name="item.icon" class="checkin-icon" />
+            <span>{{ item.label }}</span>
+          </button>
+        </PressScale>
+      </div>
+    </div>
+
+    <p v-if="!actor" id="checkin-hint" class="form-text mt-2 mb-0">
+      Sharing is off until Care+ knows who you are. Pick your name under “Viewing as” on the
+      Calendar, or join the family group first.
+    </p>
   </BasePanel>
 </template>
 
 <style scoped>
+/* Three across when they fit; at a large zoom or a narrow phone they wrap instead of overflowing. */
+.checkin-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.checkin-cell {
+  min-width: 0;
+}
+
 .checkin-btn {
+  padding-inline: 0.35rem;
   display: flex;
   flex-direction: column;
   align-items: center;
