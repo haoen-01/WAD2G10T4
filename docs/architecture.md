@@ -117,10 +117,12 @@ Top-level modules:
 - `sql_repository.py` -- the single implementation of that Protocol: SQLAlchemy 2
   session management, every domain read/write, the decision-trace builder, learner wiring, and the
   call sites into the outreach/activity planning agent. By far the largest module in the API.
-- `family_groups.py` / `family_calendar.py` / `family_routes.py` -- care groups (sign-up as senior
-  or family, the senior-link and join PINs, approval), the shared calendar (appointments, family
-  availability, who is helping), and the `/v1/me` and `/v1/groups/...` routes for both. They own
-  their own tables and share the repository's database sessions.
+- `family_groups.py` / `family_calendar.py` / `family_activity.py` / `family_routes.py` -- care
+  groups (sign-up as senior or family, the senior-link and join PINs, approval), the shared calendar
+  (appointments, family availability, who is helping), the family activity feed and check-ins, and
+  the `/v1/me` and `/v1/groups/...` routes for all of them. They own their own tables and share the
+  repository's database sessions. `family_activity.py` imports nothing from the decision path
+  (tested).
 - `wearable_status.py` -- the simulated watch status on Home (connected, last sync, battery). No
   real device is connected.
 - `db_models.py` -- the SQLAlchemy 2 declarative schema. See [Data model](#data-model).
@@ -379,14 +381,16 @@ left alone ("write-once"), or updated in place:
 - **Accounts and family.** `accounts` (one per signed-up user, `senior` or `family`);
   `care_groups` and `group_members` (one group per senior; members are `pending` until approved);
   `family_pins` (hashed senior-link and join PINs, with expiry) and `pin_attempts` (wrong-PIN
-  lockout); `appointments`, `availability_entries` and `helper_assignments` (the shared calendar).
+  lockout); `appointments`, `availability_entries` and `helper_assignments` (the shared calendar);
+  `family_activity` (the family feed: append-only, no FK to appointments, cleared only by the demo
+  reset).
 
 ## Schema ownership
 
-SQLAlchemy 2 (`db_models.py`) and Alembic (`apps/api/alembic/versions/`, 21 revisions) are the
+SQLAlchemy 2 (`db_models.py`) and Alembic (`apps/api/alembic/versions/`, 22 revisions) are the
 schema of record for both PostgreSQL/Supabase and the SQLite test/offline
 fallback; `migrations.py` runs `alembic upgrade head` at API startup. `infra/supabase/migrations`
-is a **hand-maintained SQL mirror** of that schema for the Supabase project (22 files:
+is a **hand-maintained SQL mirror** of that schema for the Supabase project (23 files:
 Alembic's own DDL plus the explicit `REVOKE`-based deny policies for the `anon` and `authenticated`
 Data API roles, which do not belong in the Alembic chain because they are Supabase-platform
 concerns, not SQLAlchemy ones). Being hand-written rather than generated, the mirror has

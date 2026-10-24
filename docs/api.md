@@ -248,11 +248,45 @@ the senior's care group. **member** means an active member of that group.
 | POST   | `/v1/groups/{group_id}/answers`                              | member    | Available or not for one day of an appointment                 |
 | POST   | `/v1/groups/{group_id}/helpers`                              | member    | Help with one day of an appointment                            |
 | POST   | `/v1/groups/{group_id}/helpers/step-back`                    | member    | Stop helping with one day; the availability answer is kept     |
+| GET    | `/v1/groups/{group_id}/activity`                             | member    | The family feed, newest first (`limit`, `before` cursor)       |
+| POST   | `/v1/groups/{group_id}/check-ins`                            | member    | Tell the group you called, visited or messaged the senior      |
 | GET    | `/v1/people/{person_id}/wearable`                            | reader    | Simulated watch status: connected, last sync, battery          |
 
 A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN entry. PINs are stored
 as SHA-256 hashes. With `AUTH_ENABLED=false`, API startup and `POST /v1/demo/reset` (for Mdm Lim)
 put Mdm Lim's demo family and schedule back to their starting state, relative to today.
+
+### The family feed
+
+`GET /v1/groups/{group_id}/activity` returns `{entries, next_before}`, newest first. `limit` is 1-50
+(default 20, else 422). `before` is a cursor: pass the previous page's `next_before` (an
+`activity_id`) to get the entries after it; `next_before` is null on the last page, and a cursor that
+is not one of this group's entries is a 422. Only active members read it (anyone else, or an unknown
+group, is 404); the senior never does.
+
+Entries carry structured fields only, the browser writes the sentence: `kind` (`group_created`,
+`member_approved`, `member_declined`, `appointment_added`, `appointment_changed`,
+`appointment_removed`, `helper_joined`, `helper_stepped_back`, `availability_updated`, `check_in`),
+`actor_name`, `is_me`, `subject_name` (`member_approved` only), the appointment's title and kind as
+they were at the time, `on_date`, and `occurrence_id`. `occurrence_id` is worked out on read and is
+null once the appointment is gone or no longer has that day. Appointment entries (added, changed,
+removed) carry the appointment's `on_date` only for a one-off; for a repeating appointment the entry
+is about the series, so `on_date` and `occurrence_id` are null. Saving an appointment without
+changing anything records nothing. `origin` is `live`, or `demo_seed` for
+the offline demo's sample entries.
+
+Entries are written in the same transaction as the change they describe, so a refused request writes
+none. Not recorded: a pending join request, a per-day availability answer (except an "unavailable"
+answer that took the member off an appointment, which is `helper_stepped_back`), `volunteer` when
+already helping and `step-back` when not helping. Repeated free-time edits by one member for the same
+day within 15 minutes are one `availability_updated`. Rows are never edited or deleted (only the
+demo reset clears them). A member who has an entry must never be hard-deleted (entries point at
+members by foreign key): a future leave or remove feature has to change the member's status instead,
+and needs a PostgreSQL test.
+
+`POST /v1/groups/{group_id}/check-ins` takes `{kind: called|visited|messaged, note?}` (note: at most
+200 characters, trimmed, blank is none) and returns the new entry with 201. The note is shown to the
+group only: nothing is sent to the senior, and it is never logged, audited or given to the agent.
 
 ## The follow-through loop (no screen)
 

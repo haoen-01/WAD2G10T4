@@ -53,6 +53,13 @@ enters it waits as _pending_ until an active member approves them.
 **Helper.** A family member who has taken an appointment. An appointment with nobody taking it
 _needs a helper_.
 
+**Activity feed.** What family members did in the care group, newest first: appointments added or
+changed, who took one, free times shared, check-ins. Only active group members see it; the senior
+does not.
+
+**Check-in.** A family member telling the group they called, visited or messaged the senior, with an
+optional note. Care+ sends nothing and contacts no one.
+
 **Task.** A one-off, daily or weekly reminder on Home and Senior. Tasks are kept in the browser only;
 see `docs/tasks.md`.
 

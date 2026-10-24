@@ -59,6 +59,7 @@ begin
     'daily_metrics',
     'day_disputes',
     'decision_evidence',
+    'family_activity',
     'family_pins',
     'group_members',
     'helper_assignments',

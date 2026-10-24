@@ -5469,6 +5469,165 @@
         }
       }
     },
+    "/v1/groups/{group_id}/activity": {
+      "get": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Group Activity",
+        "description": "What the family has done in the group, newest first. `before` is the `next_before` of\nthe previous page. Active members only; the senior never reads it.",
+        "operationId": "group_activity_v1_groups__group_id__activity_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyActivityPage"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/check-ins": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Create Check In",
+        "description": "Tell the group you called, visited or messaged the senior, with an optional note for the\ngroup. Nothing is sent to the senior.",
+        "operationId": "create_check_in_v1_groups__group_id__check_ins_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckInRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyActivityEntry"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/v1/people/{person_id}/wearable": {
       "get": {
         "tags": [
@@ -7963,6 +8122,40 @@
         ],
         "title": "CaseStatus"
       },
+      "CheckInKind": {
+        "type": "string",
+        "enum": [
+          "called",
+          "visited",
+          "messaged"
+        ],
+        "title": "CheckInKind"
+      },
+      "CheckInRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CheckInKind"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "CheckInRequest",
+        "description": "A family member telling the group they called, visited or messaged the senior. The note is\nfor the group only: it is never sent to the senior, the agent or the audit trail."
+      },
       "ClarificationScope": {
         "type": "string",
         "enum": [
@@ -8949,6 +9142,195 @@
         ],
         "title": "FactSourceType",
         "description": "Who or what a fact came from. The distinction the mandate is built on: an inference is\nnever presented as something the person said."
+      },
+      "FamilyActivityEntry": {
+        "properties": {
+          "activity_id": {
+            "type": "string",
+            "title": "Activity Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FamilyActivityKind"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "actor_member_id": {
+            "type": "string",
+            "title": "Actor Member Id"
+          },
+          "actor_name": {
+            "type": "string",
+            "title": "Actor Name"
+          },
+          "is_me": {
+            "type": "boolean",
+            "title": "Is Me"
+          },
+          "subject_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Name"
+          },
+          "appointment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appointment Id"
+          },
+          "appointment_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appointment Title"
+          },
+          "appointment_kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppointmentKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "on_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Date"
+          },
+          "occurrence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurrence Id"
+          },
+          "check_in_kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckInKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "live",
+              "demo_seed"
+            ],
+            "title": "Origin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activity_id",
+          "kind",
+          "at",
+          "actor_member_id",
+          "actor_name",
+          "is_me",
+          "subject_name",
+          "appointment_id",
+          "appointment_title",
+          "appointment_kind",
+          "on_date",
+          "occurrence_id",
+          "check_in_kind",
+          "note",
+          "origin"
+        ],
+        "title": "FamilyActivityEntry",
+        "description": "One entry of the family feed: structured fields only, the browser writes the sentence."
+      },
+      "FamilyActivityKind": {
+        "type": "string",
+        "enum": [
+          "group_created",
+          "member_approved",
+          "member_declined",
+          "appointment_added",
+          "appointment_changed",
+          "appointment_removed",
+          "helper_joined",
+          "helper_stepped_back",
+          "availability_updated",
+          "check_in"
+        ],
+        "title": "FamilyActivityKind",
+        "description": "What a feed entry records. Closed: the browser words each one itself."
+      },
+      "FamilyActivityPage": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/FamilyActivityEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries",
+          "next_before"
+        ],
+        "title": "FamilyActivityPage",
+        "description": "Newest first. Pass `next_before` as `before` for the next page; None at the end."
       },
       "FamilyCalendar": {
         "properties": {
