@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
 
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import DisplayControls from '@/components/ui/DisplayControls.vue';
+import MainNav from '@/components/ui/MainNav.vue';
+import SettingsMenu from '@/components/ui/SettingsMenu.vue';
 import { useAuth } from '@/composables/useAuth';
 import { useMe } from '@/composables/useMe';
 import { useViewMode } from '@/composables/useViewMode';
@@ -46,47 +48,67 @@ async function leaveDemo() {
   await router.replace({ name: 'login' });
 }
 
+const signedIn = computed(() => (AUTH_ENABLED ? !!currentUser.value : !!mode.value));
+const ready = computed(() => !AUTH_ENABLED || !loading.value);
+
 /*
- * Keeping the menu in reach. On a wide screen the whole top bar is one row and stays pinned. On a
- * phone the menu is a second row of the top bar: the brand row scrolls away and the menu row stays
- * pinned at the top. The bar is pinned with a negative `top` equal to the height above the menu
- * (`--sl-tuck`), measured here because it changes with zoom and wrapping. `--sl-pinned-height`
- * (what stays on screen) lets in-page jump links stop below the bar, not under it.
+ * Keeping the header and menu in reach. Two shells:
+ * - The family's (`showTabs`): one slim frosted row that stays pinned. Its menu is a floating pill
+ *   inside that row on a wide screen, and a fixed tab bar outside the header on a phone (a backdrop
+ *   filter would trap a fixed child). Display settings and Sign out sit in the Settings popover.
+ * - The senior's: the plain top bar. On a phone the menu is a second row; the brand row scrolls away
+ *   and the menu row stays pinned, using a negative `top` equal to the height above the menu
+ *   (`--sl-tuck`, measured here because it changes with zoom and wrapping).
+ * `--sl-pinned-height` (what stays on screen) lets in-page jump links stop below the bar.
  */
+const showTabs = computed(() => mode.value !== 'senior' && links.value.length > 0);
 const header = ref<HTMLElement | null>(null);
-const nav = ref<HTMLElement | null>(null);
+const nav = ref<{ $el: HTMLElement } | null>(null);
 const PHONE = '(max-width: 767.98px)';
 let resizeObserver: ResizeObserver | null = null;
 let phoneQuery: MediaQueryList | null = null;
+const root = document.documentElement;
+// The family's menu is in the header on a wide screen and a bottom bar on a phone.
+const wide = ref(window.matchMedia(PHONE).matches === false);
+
+function onViewport() {
+  wide.value = !(phoneQuery?.matches ?? false);
+  measure();
+}
 
 function measure() {
   const bar = header.value;
   if (!bar) return;
   const onPhone = phoneQuery?.matches ?? false;
-  const tuck = onPhone && nav.value ? nav.value.offsetTop : 0;
+  const tuck = !showTabs.value && onPhone && nav.value ? nav.value.$el.offsetTop : 0;
   bar.style.setProperty('--sl-tuck', `${tuck}px`);
-  document.documentElement.style.setProperty('--sl-pinned-height', `${bar.offsetHeight - tuck}px`);
+  root.style.setProperty('--sl-pinned-height', `${bar.offsetHeight - tuck}px`);
 }
+
+watch([showTabs, wide], async () => {
+  await nextTick();
+  measure();
+});
 
 onMounted(() => {
   phoneQuery = window.matchMedia(PHONE);
-  phoneQuery.addEventListener('change', measure);
+  phoneQuery.addEventListener('change', onViewport);
   if (typeof ResizeObserver !== 'undefined' && header.value) {
     resizeObserver = new ResizeObserver(measure);
     resizeObserver.observe(header.value);
   }
-  measure();
+  onViewport();
 });
 
 onBeforeUnmount(() => {
-  phoneQuery?.removeEventListener('change', measure);
+  phoneQuery?.removeEventListener('change', onViewport);
   resizeObserver?.disconnect();
-  document.documentElement.style.removeProperty('--sl-pinned-height');
+  root.style.removeProperty('--sl-pinned-height');
 });
 </script>
 
 <template>
-  <div class="shell d-flex flex-column min-vh-100">
+  <div class="shell d-flex flex-column min-vh-100" :class="{ 'shell--tabs': showTabs }">
     <a class="visually-hidden-focusable" href="#main">Skip to content</a>
 
     <header ref="header" class="topbar">
@@ -109,37 +131,20 @@ onBeforeUnmount(() => {
           <span class="brand-name">Care<span class="brand-plus">+</span></span>
         </RouterLink>
 
-        <!-- One menu, always in the top bar. On a phone it is a second row that stays pinned. -->
-        <nav ref="nav" class="mainnav" aria-label="Main">
-          <ul class="mainnav-list">
-            <li v-for="link in links" :key="link.to">
-              <RouterLink
-                class="mainnav-link"
-                :to="link.to"
-                :active-class="link.exact ? '' : 'active'"
-                exact-active-class="active"
-              >
-                <Icon :name="link.icon" />
-                <span>{{ link.label }}</span>
-              </RouterLink>
-            </li>
-          </ul>
-        </nav>
+        <!-- The senior's one link stays in the top bar; the family's pill is in the same row. -->
+        <MainNav v-if="mode === 'senior'" ref="nav" variant="bar" :links="links" />
+        <MainNav v-else-if="showTabs && wide" variant="pill" :links="links" />
 
         <div class="topbar-tools">
-          <DisplayControls />
-          <template v-if="!AUTH_ENABLED || !loading">
-            <RouterLink
-              v-if="AUTH_ENABLED ? !currentUser : !mode"
-              class="btn btn-outline-primary"
-              to="/login"
-            >
+          <template v-if="showTabs">
+            <RouterLink v-if="ready && !signedIn" class="btn btn-outline-primary" to="/login">
               Sign in
             </RouterLink>
-            <template v-else>
+            <SettingsMenu v-slot="{ close }">
+              <p v-if="mode" class="menu-view mb-0">{{ VIEW_NAMES[mode] }} view</p>
               <select
                 v-if="mode === 'family' && activeGroups.length > 1"
-                class="form-select senior-picker"
+                class="form-select"
                 aria-label="Whose care to show"
                 data-testid="senior-picker"
                 :value="currentGroup?.group_id"
@@ -149,22 +154,48 @@ onBeforeUnmount(() => {
                   {{ group.senior_name }}
                 </option>
               </select>
-              <span v-if="mode" class="role-chip">{{ VIEW_NAMES[mode] }}</span>
-              <button
-                type="button"
-                class="btn btn-outline-secondary signout"
-                title="Sign out"
-                @click="AUTH_ENABLED ? signOut() : leaveDemo()"
-              >
-                <Icon name="sign-out" /><span class="signout-label">Sign out</span>
-              </button>
+              <DisplayControls />
+              <template v-if="ready && signedIn">
+                <hr class="menu-divider" />
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary menu-signout"
+                  @click="
+                    close();
+                    AUTH_ENABLED ? signOut() : leaveDemo();
+                  "
+                >
+                  <Icon name="sign-out" />Sign out
+                </button>
+              </template>
+            </SettingsMenu>
+          </template>
+          <template v-else>
+            <DisplayControls />
+            <template v-if="ready">
+              <RouterLink v-if="!signedIn" class="btn btn-outline-primary" to="/login">
+                Sign in
+              </RouterLink>
+              <template v-else>
+                <span v-if="mode" class="role-chip">{{ VIEW_NAMES[mode] }}</span>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary signout"
+                  title="Sign out"
+                  @click="AUTH_ENABLED ? signOut() : leaveDemo()"
+                >
+                  <Icon name="sign-out" /><span class="signout-label">Sign out</span>
+                </button>
+              </template>
             </template>
           </template>
         </div>
       </div>
     </header>
 
-    <main id="main" tabindex="-1" class="container flex-grow-1 py-4 py-md-5">
+    <MainNav v-if="showTabs && !wide" variant="tabs" :links="links" />
+
+    <main id="main" tabindex="-1" class="container flex-grow-1">
       <RouterView v-slot="{ Component, route }">
         <Transition name="page">
           <component :is="Component" :key="route.path" />
@@ -182,13 +213,13 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Senior and sign-in screens: the plain top bar, as it was. Solid, not blurred. */
 .topbar {
   position: sticky;
-  z-index: 1020;
+  z-index: var(--sl-header-z);
   /* 0 on wide screens; on a phone, minus the brand row, so only the menu row stays pinned. */
   top: calc(-1 * var(--sl-tuck, 0px));
   border-bottom: 1px solid var(--sl-line);
-  /* Solid, not blurred: a backdrop filter would trap the phone tab bar (position: fixed) inside. */
   background: var(--sl-mist);
 }
 
@@ -200,6 +231,54 @@ onBeforeUnmount(() => {
   min-height: 4.25rem;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
+}
+
+main {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  main {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+  }
+}
+
+/* The family's header: one slim frosted row, brand left, menu centred, settings right. The
+   frosted bar is safe here because the phone tab bar is outside the header. */
+.shell--tabs .topbar {
+  border-bottom-color: var(--sl-glass-border);
+  background: var(--sl-glass-bg);
+  -webkit-backdrop-filter: var(--sl-glass-filter);
+  backdrop-filter: var(--sl-glass-filter);
+}
+
+.shell--tabs .topbar-inner {
+  min-height: 3.75rem;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+  gap: 0.4rem 0.75rem;
+}
+
+/* Brand and tools share the row equally, so the menu is centred. If the menu cannot fit (high
+   zoom), the row wraps rather than clip a tab. */
+.shell--tabs .brand,
+.shell--tabs .topbar-tools {
+  flex: 1 1 0;
+  min-width: max-content;
+}
+
+.shell--tabs .topbar-tools {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+/* A phone keeps room under the footer for the fixed tab bar. */
+@media (max-width: 767.98px) {
+  .shell--tabs {
+    padding-bottom: var(--sl-tabbar-height);
+  }
 }
 
 .brand {
@@ -224,11 +303,7 @@ onBeforeUnmount(() => {
 
 .brand-plus {
   margin-left: 0.05em;
-  color: #9a6200; /* the logo ring's sun, darkened to 4.5:1 on the header */
-}
-
-:root[data-bs-theme='dark'] .brand-plus {
-  color: var(--sl-sun);
+  color: var(--sl-sun-deep); /* the logo ring's sun, darkened to 4.5:1 on the header */
 }
 
 /* Dark mode: jade is kept dark for button fills, so the name uses the light mint (9:1). */
@@ -263,57 +338,35 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-/* ---- Main menu: inline beside the brand on wider screens ---- */
-.mainnav-list {
-  display: flex;
-  gap: 0.25rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* Inside the Settings popover. */
+.menu-view {
+  color: var(--sl-ink-soft);
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 
-.mainnav-link {
-  position: relative;
+.menu-divider {
+  margin: 0.25rem 0;
+  border-color: var(--sl-line);
+  opacity: 1;
+}
+
+.menu-signout {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  color: var(--sl-ink-soft);
-  font-weight: 600;
-  text-decoration: none;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+  width: 100%;
 }
 
-.mainnav-link:hover {
-  background: var(--bs-tertiary-bg);
-  color: var(--sl-ink);
-}
-
-.mainnav-link.active {
-  background: var(--sl-ink);
-  color: var(--sl-on-ink);
-}
-
-/* ---- Tablet: words only, so the menu and the tools share one line ---- */
+/* ---- Tablet: a little less space between the senior's bar items, as before ---- */
 @media (min-width: 768px) and (max-width: 991.98px) {
-  .mainnav-link .sl-icon {
-    display: none;
-  }
-
-  .mainnav-link {
-    padding: 0.4rem 0.75rem;
-  }
-
   .topbar-inner {
     gap: 0.75rem 1rem;
   }
 }
 
-/* ---- On a phone: the menu is the top bar's second row, one equal tab per screen ---- */
+/* ---- On a phone the senior's header is two rows, so its tools stay close ---- */
 @media (max-width: 767.98px) {
   .topbar-inner {
     gap: 0.5rem 0.75rem;
@@ -321,41 +374,9 @@ onBeforeUnmount(() => {
     padding-bottom: 0;
   }
 
-  /* Brand and tools share the first row; the menu takes the whole second row. */
-  .mainnav {
-    order: 3;
-    flex: 1 0 100%;
-    margin: 0 calc(-0.5 * var(--bs-gutter-x));
-    padding: 0.3rem 0.5rem 0.4rem;
-    border-top: 1px solid var(--sl-line);
-  }
-
-  .mainnav-list li {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .mainnav-link {
-    flex-direction: column;
-    gap: 0.1rem;
-    width: 100%;
-    min-height: 3.25rem;
-    padding: 0.3rem 0.25rem;
-    border-radius: var(--sl-radius-sm);
-    font-size: 0.85rem;
-    text-align: center;
-  }
-
-  .mainnav-link .sl-icon {
-    width: 1.4rem;
-    height: 1.4rem;
-  }
-
-  /* The current tab: a tint plus a bar underneath, so it is shown by shape as well as colour. */
-  .mainnav-link.active {
-    background: var(--sl-jade-soft);
-    color: var(--sl-jade-deep);
-    box-shadow: inset 0 -3px 0 var(--sl-jade-deep);
+  .shell--tabs .topbar-inner {
+    min-height: 3.75rem;
+    padding-bottom: 0.4rem;
   }
 
   .topbar-tools {
@@ -388,10 +409,5 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--sl-line);
   color: var(--sl-ink-soft);
   font-size: 0.9rem;
-}
-
-.senior-picker {
-  width: auto;
-  max-width: 12rem;
 }
 </style>

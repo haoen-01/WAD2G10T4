@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext } from '@playwright/test';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 /**
  * Shared by the specs in this directory. Not a spec itself (no `.spec.ts`), so Playwright never
@@ -49,4 +49,16 @@ export async function advance(
   });
   expect(response.ok()).toBe(true);
   return response.json();
+}
+
+/**
+ * Opens the family header's Settings popover (zoom, light or dark, Sign out) and returns it. The
+ * senior keeps those controls in the top bar, so a senior test does not call this.
+ */
+export async function openSettings(page: Page) {
+  const button = page.getByRole('button', { name: 'Settings', exact: true });
+  if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+  const panel = page.getByRole('group', { name: 'Settings' });
+  await expect(panel).toBeVisible();
+  return panel;
 }
