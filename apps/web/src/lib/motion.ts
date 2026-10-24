@@ -43,3 +43,16 @@ export function enterFrom(reduced: boolean): { opacity: number; y: number } {
 export function durationFor(seconds: number, reduced: boolean): number {
   return reduced ? 0 : seconds;
 }
+
+/** When a bottom sheet dragged down is let go: far enough, or fast enough, and it closes. */
+export const SHEET_DISMISS = { fraction: 0.3, velocity: 500 } as const;
+
+/**
+ * Whether a sheet released after a downward drag should close. `offset` is how far it was pulled
+ * down (px), `velocity` how fast it was moving down (px/s) and `height` its own height (px);
+ * pulling up, or a sheet with no measurable height, never closes it.
+ */
+export function shouldDismissSheet(offset: number, velocity: number, height: number): boolean {
+  if (!(height > 0) || !(offset > 0)) return false;
+  return offset >= height * SHEET_DISMISS.fraction || velocity >= SHEET_DISMISS.velocity;
+}
