@@ -7,20 +7,20 @@ import type { AppointmentRequest } from '@silverloop/api-client';
 import AddAppointmentForm from '@/components/calendar/AddAppointmentForm.vue';
 import AppointmentDetails from '@/components/calendar/AppointmentDetails.vue';
 import Calendar from '@/components/calendar/Calendar.vue';
-import CoverageSummary from '@/components/calendar/CoverageSummary.vue';
+import CalendarToolbar from '@/components/calendar/CalendarToolbar.vue';
 import DayAgenda from '@/components/calendar/DayAgenda.vue';
-import DetailsSheet from '@/components/calendar/DetailsSheet.vue';
-import KindFilter from '@/components/calendar/KindFilter.vue';
 import PublicHolidays from '@/components/calendar/PublicHolidays.vue';
 import UpcomingList from '@/components/calendar/UpcomingList.vue';
 import ViewingAsPicker from '@/components/calendar/ViewingAsPicker.vue';
+import WeekStrip from '@/components/calendar/WeekStrip.vue';
+import BottomSheet from '@/components/motion/BottomSheet.vue';
 import { showToast } from '@/composables/useToast';
 import { useFamily } from '@/composables/useFamily';
 import { useTasks } from '@/composables/useTasks';
-import { monthGrid, monthOf, shiftMonth } from '@/lib/calendar';
+import { addDays, monthGrid, monthOf, shiftMonth } from '@/lib/calendar';
 import { coverageOf, stillNeedsHelper, upcomingWithin } from '@/lib/coverage';
 import { KIND_LABELS } from '@/lib/family';
-import type { Appointment, AppointmentKind, FamilyMember } from '@/lib/family';
+import type { Appointment, AppointmentKind, AvailabilityStatus, FamilyMember } from '@/lib/family';
 import { formatIsoDay, parseIsoDay } from '@/lib/format-date';
 import { DEMO_PERSON_ID } from '@/lib/labels';
 import { freeMembers, heatFor } from '@/lib/planner';
@@ -123,11 +123,21 @@ const comingUp = computed(() =>
 const selected = computed(
   () => appointments.find((appointment) => appointment.id === selectedId.value) ?? null,
 );
+// What the sheet shows. It keeps the last appointment while it slides away, so it never empties first.
+const lastSelected = ref<Appointment | null>(null);
+watch(
+  selected,
+  (now) => {
+    if (now) lastSelected.value = now;
+  },
+  { immediate: true, flush: 'sync' },
+);
+const shown = computed(() => selected.value ?? lastSelected.value);
 const statuses = computed(() =>
   Object.fromEntries(
     state.members.map((member) => [
       member.id,
-      selected.value ? family.statusOf(member.id, selected.value) : 'unknown',
+      shown.value ? family.statusOf(member.id, shown.value) : 'unknown',
     ]),
   ),
 );
@@ -145,10 +155,17 @@ function helpersOf(appointment: Appointment): FamilyMember[] {
 }
 
 // ---- Choosing things ----
-const narrow = ref(false);
+// Below lg (a phone or small tablet) the calendar is a week strip and an appointment opens in a
+// bottom sheet; from lg up it is the month grid with the details beside it.
+const PHONE_QUERY = '(max-width: 991.98px)';
 let media: MediaQueryList | null = null;
+const phone = ref(
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia(PHONE_QUERY).matches
+    : false,
+);
 const onMedia = () => {
-  narrow.value = media?.matches ?? false;
+  phone.value = media?.matches ?? false;
 };
 
 // Where focus was before the details opened, so closing them puts it back.
@@ -157,8 +174,9 @@ let opener: HTMLElement | null = null;
 function pickDay(iso: string) {
   selectedDay.value = iso;
   selectedId.value = null;
-  // Below xl the list sits under the calendar, out of sight: bring it into view.
-  // The chosen day's list sits under the calendar: bring it into view if it is off screen.
+  // The chosen day's list sits under the calendar: bring it into view if it is off screen. (Under
+  // the week strip it is already in view, and scrolling would only jolt the page.)
+  if (phone.value) return;
   void nextTick(() => side.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
 }
 
@@ -175,7 +193,7 @@ function pickAppointment(appointment: Appointment) {
   selectedDay.value = appointment.date;
   month.value = monthOf(appointment.date);
   // Wide screens show the details under the calendar: bring them into view.
-  if (!narrow.value) {
+  if (!phone.value) {
     void nextTick(() => detailsRow.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   }
 }
@@ -185,8 +203,14 @@ function closeDetails() {
   const back = opener;
   opener = null;
   void nextTick(() => {
-    if (back && document.contains(back)) back.focus();
+    // A deep link has no opener: land on the day's heading rather than the top of the page.
+    const target = back && document.contains(back) ? back : document.getElementById('day-heading');
+    target?.focus();
   });
+}
+
+function shiftWeek(delta: -1 | 1) {
+  moveDay(addDays(selectedDay.value, delta * 7));
 }
 
 function goToday() {
@@ -351,21 +375,43 @@ function onSelectDay(iso: string) {
   else pickDay(iso);
 }
 
-// ---- On a phone the details rise as a sheet over the calendar ----
-const sheetOpen = computed(() => narrow.value && selected.value !== null);
-watch(sheetOpen, (open) => {
-  document.body.style.overflow = open ? 'hidden' : '';
-});
+// ---- On a phone the details rise as a sheet over the page ----
+// The sheet itself handles Escape, scroll lock and inert; the page's Escape is for the side panel.
+const sheetOpen = computed(() => phone.value && selected.value !== null);
+
+// The same details, in the side panel (wide) or the bottom sheet (phone).
+const detailsProps = computed(() =>
+  shown.value
+    ? {
+        appointment: shown.value,
+        members: state.members,
+        helperIds: family.helperIdsOf(shown.value.id),
+        statuses: statuses.value,
+        currentMember: currentMember.value,
+        elderName: elderName.value,
+        today,
+        groupId: groupId.value,
+      }
+    : null,
+);
+const detailsHandlers = {
+  back: () => closeDetails(),
+  volunteer: () => selected.value && family.volunteer(selected.value.id),
+  'step-back': () => selected.value && stepBack(selected.value),
+  respond: (status: AvailabilityStatus) =>
+    selected.value && family.respond(selected.value.id, status),
+  remove: () => selected.value && removeAppointment(selected.value),
+  edit: () => selected.value && openEdit(selected.value),
+};
 
 function onKey(event: KeyboardEvent) {
-  if (event.key !== 'Escape') return;
+  if (event.key !== 'Escape' || sheetOpen.value) return;
   if (selected.value) closeDetails();
   else if (formFor.value) formFor.value = null;
 }
 
 onMounted(() => {
-  // Below xl the details open as a sheet (the lists sit under a full-width calendar there).
-  media = window.matchMedia('(max-width: 1199.98px)');
+  media = window.matchMedia(PHONE_QUERY);
   onMedia();
   media.addEventListener('change', onMedia);
   window.addEventListener('keydown', onKey);
@@ -373,7 +419,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   media?.removeEventListener('change', onMedia);
   window.removeEventListener('keydown', onKey);
-  document.body.style.overflow = '';
 });
 </script>
 
@@ -407,22 +452,22 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <div class="toolbar">
-      <CoverageSummary :coverage="coverage" />
-      <KindFilter
-        :shown="shownKinds"
-        :only-open="onlyOpen"
-        :filters-on="filtersOn"
-        @toggle="toggleKind"
-        @toggle-open="onlyOpen = !onlyOpen"
-        @clear="clearFilters"
-      />
-    </div>
+    <CalendarToolbar
+      v-if="!phone"
+      :coverage="coverage"
+      :shown="shownKinds"
+      :only-open="onlyOpen"
+      :filters-on="filtersOn"
+      @toggle="toggleKind"
+      @toggle-open="onlyOpen = !onlyOpen"
+      @clear="clearFilters"
+    />
 
     <p v-if="formOpen" class="hint" role="status">
-      Greener days = more family free. Tap one to pick it.
+      <template v-if="phone">Tap a day in the week to pick it.</template>
+      <template v-else>Greener days = more family free. Tap one to pick it.</template>
     </p>
-    <p v-else-if="movableIds.size" class="sl-note mb-2 d-none d-md-block">
+    <p v-else-if="movableIds.size && !phone" class="sl-note mb-2">
       Tip: drag an appointment to another day to move it.
     </p>
 
@@ -431,12 +476,25 @@ onBeforeUnmount(() => {
     </p>
 
     <!-- Bootstrap grid, one thing per row: the calendar, then the chosen day ("Today"), then
-         "Coming up". While adding or editing, the form sits beside the calendar from xl, so a day
-         can be tapped to pick it. An appointment's details open under the calendar from xl, and as
-         a sheet over the page below that. -->
+         "Coming up". The calendar is the week strip on a phone and the month grid from lg. While
+         adding or editing, the form sits beside the calendar from xl. An appointment's details open
+         under the calendar from lg, and as a bottom sheet over the page below that. -->
     <div class="row g-4">
       <div class="col-12" :class="{ 'col-xl-7': formFor }">
+        <WeekStrip
+          v-if="phone"
+          :selected-day="selectedDay"
+          :today="today"
+          :appointments-by-day="byDay"
+          :uncovered-by-day="uncoveredByDay"
+          :holidays-by-day="holidays"
+          :picked-day="formOpen ? draft.date : null"
+          @select-day="onSelectDay"
+          @shift-week="shiftWeek"
+          @go-today="goToday"
+        />
         <Calendar
+          v-else
           :month="month"
           :today="today"
           :selected-day="selectedDay"
@@ -481,25 +539,8 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <div v-if="selected" ref="detailsRow" class="col-12">
-        <DetailsSheet :open="selected !== null" :narrow="narrow" @close="closeDetails">
-          <AppointmentDetails
-            v-if="selected"
-            :appointment="selected"
-            :members="state.members"
-            :helper-ids="family.helperIdsOf(selected.id)"
-            :statuses="statuses"
-            :current-member="currentMember"
-            :elder-name="elderName"
-            :today="today"
-            @back="closeDetails"
-            @volunteer="family.volunteer(selected.id)"
-            @step-back="selected && stepBack(selected)"
-            @respond="(status) => selected && family.respond(selected.id, status)"
-            @remove="selected && removeAppointment(selected)"
-            @edit="selected && openEdit(selected)"
-          />
-        </DetailsSheet>
+      <div v-if="selected && !phone && detailsProps" ref="detailsRow" class="col-12">
+        <AppointmentDetails v-bind="detailsProps" v-on="detailsHandlers" />
       </div>
 
       <div ref="side" class="col-12">
@@ -520,6 +561,20 @@ onBeforeUnmount(() => {
         />
       </div>
 
+      <!-- On a phone the week and its day come first; the totals and filters follow them. -->
+      <div v-if="phone" class="col-12">
+        <CalendarToolbar
+          class="mb-0"
+          :coverage="coverage"
+          :shown="shownKinds"
+          :only-open="onlyOpen"
+          :filters-on="filtersOn"
+          @toggle="toggleKind"
+          @toggle-open="onlyOpen = !onlyOpen"
+          @clear="clearFilters"
+        />
+      </div>
+
       <div class="col-12">
         <UpcomingList
           :appointments="comingUp"
@@ -531,6 +586,15 @@ onBeforeUnmount(() => {
         />
       </div>
     </div>
+
+    <BottomSheet
+      :open="sheetOpen"
+      labelledby="details-heading"
+      close-label="Close details"
+      @close="closeDetails"
+    >
+      <AppointmentDetails v-if="detailsProps" v-bind="detailsProps" sheet v-on="detailsHandlers" />
+    </BottomSheet>
   </div>
 </template>
 
@@ -553,19 +617,6 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 0.5rem 1rem;
   margin-left: auto;
-}
-
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem 1.5rem;
-  margin-bottom: 1rem;
-  padding: 0.6rem 0.9rem;
-  border: 1px solid var(--sl-line);
-  border-radius: var(--sl-radius);
-  background: var(--sl-surface);
 }
 
 .hint {

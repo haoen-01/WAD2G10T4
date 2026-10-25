@@ -94,10 +94,13 @@ function linkLabel(iso: string, count: number, open: number, taskCount = 0) {
             </span>
             <span v-else class="week-need"><Icon name="alert" class="me-1" />No one going</span>
           </span>
+          <span v-if="day.tasks.length" class="week-count d-md-none">
+            {{ day.tasks.length }} {{ day.tasks.length === 1 ? 'task' : 'tasks' }}
+          </span>
           <span
             v-for="task in day.tasks"
             :key="`task-${task.task_id}`"
-            class="week-item week-task kind-task"
+            class="week-item week-task kind-task d-none d-md-flex"
             :class="{ done: task.completed }"
           >
             <span class="week-time">{{ formatClockTime(task.time) }} · Task</span>
@@ -198,6 +201,12 @@ function linkLabel(iso: string, count: number, open: number, taskCount = 0) {
 
 .week-task {
   border-left-style: dashed;
+}
+
+.week-count {
+  color: var(--sl-ink-soft);
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 /* Nobody going: a coral dashed edge on the three other sides, keeping the kind's colour on the left. */

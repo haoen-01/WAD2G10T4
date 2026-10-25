@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { demoOccurrence, resetDemo } from './support';
+import { demoOccurrence, openSettings, resetDemo } from './support';
 
 // The interaction layer added in the interface redesign: text size, calendar filters and keyboard
 // moves, undo, taking an appointment away as a calendar file, and Home's links and chart. The
@@ -30,6 +30,7 @@ test('the chosen zoom applies to the whole app and is remembered', async ({ page
   await page.goto('/calendar');
   const html = page.locator('html');
   const value = page.getByTestId('zoom-value');
+  await openSettings(page);
   await expect(value).toHaveText('100%');
 
   await page.getByRole('button', { name: 'Zoom in' }).click();
@@ -38,6 +39,7 @@ test('the chosen zoom applies to the whole app and is remembered', async ({ page
   await expect(html).toHaveAttribute('style', /font-size: 125%/);
 
   await page.reload();
+  await openSettings(page);
   await expect(value).toHaveText('125%');
 
   // Pressing the percentage puts it back to 100%.
@@ -52,11 +54,13 @@ test('light and dark mode switch from the top bar and are remembered', async ({ 
   const html = page.locator('html');
   await expect(html).toHaveAttribute('data-bs-theme', 'light');
 
+  await openSettings(page);
   await page.getByTestId('theme-toggle').click();
   await expect(html).toHaveAttribute('data-bs-theme', 'dark');
   await page.reload();
   await expect(html).toHaveAttribute('data-bs-theme', 'dark');
 
+  await openSettings(page);
   await page.getByTestId('theme-toggle').click();
   await expect(html).toHaveAttribute('data-bs-theme', 'light');
 });

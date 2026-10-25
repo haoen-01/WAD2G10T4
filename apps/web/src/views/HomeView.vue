@@ -4,6 +4,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 import ErrorAlert from '@/components/ErrorAlert.vue';
+import ActivityFeed from '@/components/home/ActivityFeed.vue';
+import CheckInCard from '@/components/home/CheckInCard.vue';
 import FortnightPanel from '@/components/home/FortnightPanel.vue';
 import HomeHero from '@/components/home/HomeHero.vue';
 import NeedsHelperList from '@/components/home/NeedsHelperList.vue';
@@ -98,6 +100,10 @@ const unhelped = computed(() =>
 
 // "I'll go" straight from Home: the same change as the calendar's "I'll help" (saved through the
 // API by useFamily), with an undo. Only someone in the group can take a visit.
+const checkInActor = computed(() => {
+  const member = family.currentMember.value;
+  return member ? { id: member.id, name: member.name } : null;
+});
 const canVolunteer = computed(() => family.currentMember.value !== null);
 function goWith(appointment: Appointment) {
   family.volunteer(appointment.id);
@@ -131,6 +137,17 @@ const weekTasks = computed(() =>
     />
 
     <ErrorAlert v-if="error" :message="error" class="mb-4" @retry="load" />
+
+    <!-- What the family has been doing, and a one-tap way to say you were in touch. Phones: the
+         check-in first; wide screens: the feed on the left, the check-in beside it. -->
+    <div v-if="!loading && currentGroup" class="row g-4 mb-4">
+      <div class="col-12 col-lg-5 order-lg-last">
+        <CheckInCard :elder="elder" :actor="checkInActor" />
+      </div>
+      <div class="col-12 col-lg-7">
+        <ActivityFeed :elder="elder" :members="state.members" />
+      </div>
+    </div>
 
     <LoadingSpinner v-if="loading" />
 
@@ -170,7 +187,7 @@ const weekTasks = computed(() =>
       <div class="col-12">
         <section id="home-week" aria-labelledby="week-heading">
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-            <h2 id="week-heading" class="h4 d-flex align-items-center gap-2 mb-0">
+            <h2 id="week-heading" class="sl-section-title d-flex align-items-center gap-2 mb-0">
               <Icon name="calendar" />The week ahead
             </h2>
             <RouterLink class="btn btn-outline-primary" to="/calendar">

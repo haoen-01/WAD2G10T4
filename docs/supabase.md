@@ -164,6 +164,19 @@ exactly `7c3e9a1f4b28`.
 **It has not been applied to the live project.** Apply it only **after** `202610140021`; it moves the
 marker to `b9d3e5f71a26` only from exactly `a4f6c2e81d37`.
 
+`202610240023_family_activity.sql` (Alembic `c4a7e1b93d58`) creates `family_activity`, the family
+feed's append-only table, the same way (`if not exists`, RLS on, guarded `deny_browser_access`
+policy). It is listed in `infra/supabase/rls_posture_apply.sql`. **It has not been applied to the live
+project.** Apply it only **after** `202610140022`; it moves the marker to `c4a7e1b93d58` only from
+exactly `b9d3e5f71a26`.
+
+`202610240024_appointment_notes.sql` (Alembic `d8e2b6a4c917`) creates `appointment_notes`, the
+family's per-day notes on appointments (deletable by their author, so not append-only), the same
+way (`if not exists`, RLS on, guarded `deny_browser_access` policy). It is listed in
+`infra/supabase/rls_posture_apply.sql`. **It has not been applied to the live project.** Apply it
+only **after** `202610240023`; it moves the marker to `d8e2b6a4c917` only from exactly
+`c4a7e1b93d58`.
+
 ## Schema ownership
 
 Three things can define this schema, and they have drifted from each other three times. The split is:

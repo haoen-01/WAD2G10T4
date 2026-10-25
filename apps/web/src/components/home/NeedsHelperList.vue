@@ -68,8 +68,8 @@ defineEmits<{ volunteer: [appointment: Appointment] }>();
   display: flex;
   flex-direction: column;
   padding: 1.25rem;
-  border: 2px solid var(--sl-coral-soft);
-  border-left: 6px solid var(--sl-coral);
+  border: 1px solid var(--sl-line);
+  border-left: 4px solid var(--sl-coral);
   border-radius: var(--sl-radius);
   background: var(--sl-surface);
 }
@@ -107,8 +107,9 @@ defineEmits<{ volunteer: [appointment: Appointment] }>();
   align-items: stretch;
   gap: 0.5rem;
   padding: 0.5rem;
+  border: 1px solid var(--sl-line);
   border-radius: var(--sl-radius-sm);
-  background: var(--sl-coral-soft);
+  background: var(--sl-surface);
 }
 
 .needs-link {
@@ -120,7 +121,7 @@ defineEmits<{ volunteer: [appointment: Appointment] }>();
   min-height: 2.75rem;
   padding: 0.25rem 0.35rem;
   border-radius: var(--sl-radius-sm);
-  color: var(--sl-coral-deep);
+  color: var(--sl-ink);
   text-decoration: none;
 }
 

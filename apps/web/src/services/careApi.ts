@@ -1,13 +1,18 @@
 import type {
   AccountRole,
+  AppointmentNote,
+  AppointmentNoteRequest,
   AppointmentRequest,
   AvailabilityEntryOut,
   AvailabilityRequest,
   AvailabilityStatus,
   CalendarAppointment,
   CareGroup,
+  CheckInRequest,
   DailyMetric,
   DeclineReason,
+  FamilyActivityEntry,
+  FamilyActivityPage,
   FamilyCalendar,
   Intervention,
   MeResponse,
@@ -191,4 +196,56 @@ export async function stepBackFrom(groupId: string, occurrenceId: string): Promi
 export async function getWearable(personId: string): Promise<WearableStatus> {
   const response = await http.get<WearableStatus>(`/v1/people/${personId}/wearable`);
   return response.data;
+}
+
+// ── Family activity feed ─────────────────────────────────────────────────────
+
+/** The group's feed, newest first. Pass the last page's `next_before` as `before` for older entries. */
+export async function getGroupActivity(
+  groupId: string,
+  options: { limit?: number; before?: string } = {},
+): Promise<FamilyActivityPage> {
+  const response = await http.get<FamilyActivityPage>(`/v1/groups/${groupId}/activity`, {
+    params: { limit: options.limit, before: options.before },
+  });
+  return response.data;
+}
+
+/** A family member tells the group they were in touch with the senior. Care+ sends nothing. */
+export async function checkIn(groupId: string, body: CheckInRequest): Promise<FamilyActivityEntry> {
+  const response = await http.post<FamilyActivityEntry>(`/v1/groups/${groupId}/check-ins`, body);
+  return response.data;
+}
+
+// ── Appointment notes (one day of an appointment, for the family group only) ──
+
+/** The day's notes, oldest first. `appointmentId` is the stored appointment (`seriesId`), not a day. */
+export async function getAppointmentNotes(
+  groupId: string,
+  appointmentId: string,
+  date: string,
+): Promise<AppointmentNote[]> {
+  const response = await http.get<AppointmentNote[]>(
+    `/v1/groups/${groupId}/appointments/${appointmentId}/notes`,
+    { params: { date } },
+  );
+  return response.data;
+}
+
+/** Adds a note (1 to 500 characters) to one day. A day that already holds 100 notes answers 409. */
+export async function addAppointmentNote(
+  groupId: string,
+  appointmentId: string,
+  note: AppointmentNoteRequest,
+): Promise<AppointmentNote> {
+  const response = await http.post<AppointmentNote>(
+    `/v1/groups/${groupId}/appointments/${appointmentId}/notes`,
+    note,
+  );
+  return response.data;
+}
+
+/** Removes your own note; another member's note answers 403. */
+export async function deleteAppointmentNote(groupId: string, noteId: string): Promise<void> {
+  await http.post(`/v1/groups/${groupId}/notes/${noteId}/delete`);
 }

@@ -17,13 +17,18 @@ from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.local_time import local_date
 from silverloop.models import (
     Appointment,
+    AppointmentNote,
+    AppointmentNoteRequest,
     AppointmentRequest,
     AuthRole,
     AvailabilityEntryOut,
     AvailabilityRequest,
     CareGroup,
+    CheckInRequest,
     CreateGroupRequest,
     CurrentUser,
+    FamilyActivityEntry,
+    FamilyActivityPage,
     FamilyCalendar,
     JoinGroupRequest,
     MeResponse,
@@ -345,6 +350,94 @@ def register_family_routes(application: FastAPI) -> None:
         """Stop helping with one day of an appointment. Your availability answer is kept."""
         store = _calendar(request)
         _call(lambda: store.step_back(current_user.sub, group_id, body.occurrence_id))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # ── Family activity feed and check-ins ────────────────────────────────────
+
+    @application.get(
+        "/v1/groups/{group_id}/activity",
+        response_model=FamilyActivityPage,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def group_activity(
+        request: Request,
+        group_id: str,
+        current_user: Family,
+        limit: Annotated[int, Query(ge=1, le=50)] = 20,
+        before: Annotated[str | None, Query(max_length=64)] = None,
+    ) -> FamilyActivityPage:
+        """What the family has done in the group, newest first. `before` is the `next_before` of
+        the previous page. Active members only; the senior never reads it."""
+        store = _calendar(request)
+        return _call(lambda: store.activity(current_user.sub, group_id, limit, before))
+
+    @application.post(
+        "/v1/groups/{group_id}/check-ins",
+        response_model=FamilyActivityEntry,
+        status_code=status.HTTP_201_CREATED,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def create_check_in(
+        request: Request, group_id: str, body: CheckInRequest, current_user: Family
+    ) -> FamilyActivityEntry:
+        """Tell the group you called, visited or messaged the senior, with an optional note for the
+        group. Nothing is sent to the senior."""
+        store = _calendar(request)
+        return _call(lambda: store.check_in(current_user.sub, group_id, body))
+
+    # ── Appointment notes ─────────────────────────────────────────────────────
+
+    @application.get(
+        "/v1/groups/{group_id}/appointments/{appointment_id}/notes",
+        response_model=list[AppointmentNote],
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def list_appointment_notes(
+        request: Request,
+        group_id: str,
+        appointment_id: str,
+        current_user: Family,
+        on_date: Annotated[date, Query(alias="date")],
+    ) -> list[AppointmentNote]:
+        """The family's notes on one day of an appointment, oldest first (at most 100). Active
+        members only; the senior never reads them."""
+        store = _calendar(request)
+        return _call(lambda: store.list_notes(current_user.sub, group_id, appointment_id, on_date))
+
+    @application.post(
+        "/v1/groups/{group_id}/appointments/{appointment_id}/notes",
+        response_model=AppointmentNote,
+        status_code=status.HTTP_201_CREATED,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 409: {}, 422: {}},
+    )
+    def add_appointment_note(
+        request: Request,
+        group_id: str,
+        appointment_id: str,
+        body: AppointmentNoteRequest,
+        current_user: Family,
+    ) -> AppointmentNote:
+        """Add a note to one day of an appointment, for the group only. The feed records that a
+        note was added, not what it said."""
+        store = _calendar(request)
+        return _call(lambda: store.add_note(current_user.sub, group_id, appointment_id, body))
+
+    @application.post(
+        "/v1/groups/{group_id}/notes/{note_id}/delete",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}},
+    )
+    def delete_appointment_note(
+        request: Request, group_id: str, note_id: str, current_user: Family
+    ) -> Response:
+        """Remove one of your own notes. Its feed entry stays."""
+        store = _calendar(request)
+        _call(lambda: store.delete_note(current_user.sub, group_id, note_id))
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ── The senior's watch ────────────────────────────────────────────────────

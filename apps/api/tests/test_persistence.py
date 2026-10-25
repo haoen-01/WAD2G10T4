@@ -229,8 +229,9 @@ def test_schema_compiles_for_postgresql() -> None:
     # review-threshold calibrator's append-only `review_threshold_proposals` and
     # `review_threshold_decisions` (ADR 0008); +5 for family groups: `accounts`, `care_groups`,
     # `group_members`, `family_pins` and `pin_attempts`; +3 for the family calendar:
-    # `appointments`, `availability_entries` and `helper_assignments`.
-    assert len(compiled) == 38
+    # `appointments`, `availability_entries` and `helper_assignments`; +1 for `family_activity`,
+    # the family feed; +1 for `appointment_notes`.
+    assert len(compiled) == 40
     assert any("decision_evidence" in statement for statement in compiled)
     assert any("simulation_events" in statement for statement in compiled)
     for table in (
@@ -259,6 +260,8 @@ def test_schema_compiles_for_postgresql() -> None:
         "appointments",
         "availability_entries",
         "helper_assignments",
+        "family_activity",
+        "appointment_notes",
     ):
         assert any(table in statement for statement in compiled), f"{table} missing from schema"
 

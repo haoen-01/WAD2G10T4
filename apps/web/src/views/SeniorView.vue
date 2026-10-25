@@ -111,7 +111,7 @@ function companions(appointmentId: string): FamilyMember[] {
       <SeniorStatus id="status" :person="person" :today="today" />
 
       <Transition name="page">
-        <div v-if="thanks" class="thanks mt-4" data-testid="thanks">
+        <div v-if="thanks" class="thanks mt-5" data-testid="thanks">
           <span class="thanks-mark" aria-hidden="true"><Icon name="check" /></span>
           <span>{{ thanks }}</span>
         </div>
@@ -119,14 +119,14 @@ function companions(appointmentId: string): FamilyMember[] {
 
       <SuggestionCard
         v-if="suggestion"
-        class="mt-4"
+        class="mt-5"
         :suggestion="suggestion"
         :busy="busy"
         @reply="reply"
       />
 
       <!-- 2. Today: tasks beside activities (stacked on phones). -->
-      <div class="row g-4 mt-1">
+      <div class="row g-4 mt-4">
         <div class="col-lg-7">
           <TaskPanel id="tasks" :key="personId" :person-id="personId" can-manage />
         </div>
@@ -167,7 +167,7 @@ function companions(appointmentId: string): FamilyMember[] {
 }
 
 .senior-head {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 .senior-date {
@@ -186,9 +186,10 @@ function companions(appointmentId: string): FamilyMember[] {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1rem 1.25rem;
+  padding: 1.25rem 1.5rem;
   border-radius: var(--sl-radius);
   background: var(--sl-jade-soft);
+  font-size: 1.25rem;
   color: var(--sl-jade-deep);
   font-weight: 700;
 }

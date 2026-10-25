@@ -75,14 +75,14 @@ export default defineComponent({
 <template>
   <section class="mb-4" aria-labelledby="day-heading">
     <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-      <h2 id="day-heading" class="h4 mb-0">
+      <h2 id="day-heading" tabindex="-1" class="h4 mb-0 day-heading">
         <span v-if="day === today" class="today-tag">Today</span>
         {{ formatIsoDay(day, { style: 'long' }) }}
       </h2>
       <button
         v-if="canAdd && day >= today"
         type="button"
-        class="btn btn-sm btn-outline-primary"
+        class="btn btn-sm btn-outline-primary text-nowrap flex-shrink-0"
         :aria-label="`Add on ${formatIsoDay(day, { style: 'long' })}`"
         @click="$emit('add', day)"
       >
@@ -173,6 +173,14 @@ export default defineComponent({
 
 .task-cards .day-task {
   margin-bottom: 0;
+}
+
+.day-heading {
+  min-width: 0;
+}
+
+.day-heading:focus {
+  outline: none;
 }
 
 .today-tag {

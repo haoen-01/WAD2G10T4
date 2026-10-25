@@ -38,11 +38,13 @@ from silverloop.db_models import (
     PersonRow,
     PinAttemptRow,
 )
+from silverloop.family_activity import record
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.models import (
     AccountRole,
     AuthRole,
     CareGroup,
+    FamilyActivityKind,
     GroupMember,
     GroupRole,
     MemberStatus,
@@ -308,9 +310,10 @@ class FamilyGroups:
                     )
                 )
                 session.flush()
+                owner_id = _id("mem")
                 session.add(
                     GroupMemberRow(
-                        member_id=_id("mem"),
+                        member_id=owner_id,
                         group_id=group_id,
                         sub=sub,
                         relationship=relationship.strip(),
@@ -320,6 +323,14 @@ class FamilyGroups:
                         approved_by=sub,
                         approved_at=now,
                     )
+                )
+                session.flush()  # the member row first: the feed entry points at it
+                record(
+                    session,
+                    group_id=group_id,
+                    actor_member_id=owner_id,
+                    kind=FamilyActivityKind.GROUP_CREATED,
+                    at=now,
                 )
         except IntegrityError as exc:
             # Two family members redeeming PINs for the same senior at once.
@@ -363,9 +374,9 @@ class FamilyGroups:
             my_status=MemberStatus.PENDING,
         )
 
-    def _require_active_member(self, session: Session, sub: str, group_id: str) -> None:
-        """404, not 403, for anyone who is not an active member: whether a group exists is not
-        theirs to know."""
+    def _require_active_member(self, session: Session, sub: str, group_id: str) -> GroupMemberRow:
+        """The caller's membership. 404, not 403, for anyone who is not an active member: whether
+        a group exists is not theirs to know."""
         member = session.scalar(
             select(GroupMemberRow).where(
                 GroupMemberRow.group_id == group_id,
@@ -375,6 +386,7 @@ class FamilyGroups:
         )
         if member is None:
             raise FamilyGroupError(404, "Group not found")
+        return member
 
     def group(self, sub: str, group_id: str) -> CareGroup:
         with self.sessions() as session:
@@ -428,17 +440,31 @@ class FamilyGroups:
 
     def approve(self, sub: str, group_id: str, member_id: str) -> CareGroup:
         with self.sessions.begin() as session:
-            self._require_active_member(session, sub, group_id)
+            approver = self._require_active_member(session, sub, group_id)
             member = self._pending_member(session, group_id, member_id)
             member.status = MemberStatus.ACTIVE.value
             member.approved_by = sub
             member.approved_at = _utcnow()
+            record(
+                session,
+                group_id=group_id,
+                actor_member_id=approver.member_id,
+                kind=FamilyActivityKind.MEMBER_APPROVED,
+                subject_member_id=member.member_id,
+            )
         return self.group(sub, group_id)
 
     def decline(self, sub: str, group_id: str, member_id: str) -> CareGroup:
         with self.sessions.begin() as session:
-            self._require_active_member(session, sub, group_id)
+            decliner = self._require_active_member(session, sub, group_id)
             session.delete(self._pending_member(session, group_id, member_id))
+            # No subject and no name: someone who was turned away is not kept in the feed.
+            record(
+                session,
+                group_id=group_id,
+                actor_member_id=decliner.member_id,
+                kind=FamilyActivityKind.MEMBER_DECLINED,
+            )
         return self.group(sub, group_id)
 
     # ── Offline demo ──────────────────────────────────────────────────────────

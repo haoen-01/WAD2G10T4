@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import Icon from '@/components/ui/Icon.vue';
+import { expiryLabel } from '@/lib/countdown';
 
 /** A PIN shown large enough to read across a table, as "123 456", with a countdown to its expiry. */
 const props = defineProps<{ pin: string; expiresAt: string; testid?: string }>();
@@ -15,16 +16,6 @@ function secondsUntil(expiresAt: string, now: number): number {
   if (Number.isNaN(end)) return 0;
   // Rounded down, so a fresh code shows its full time (15:00, not 15:01) and 0 means it is over.
   return Math.max(0, Math.floor((end - now) / 1000));
-}
-
-/** "4:59", "1:02:03" for a code that lasts hours, or "Code expired" once it reaches 0. */
-function formatCountdown(seconds: number): string {
-  const total = Math.floor(seconds);
-  if (!Number.isFinite(total) || total <= 0) return 'Code expired';
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = String(total % 60).padStart(2, '0');
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${secs}` : `${minutes}:${secs}`;
 }
 
 /**
@@ -50,9 +41,7 @@ onUnmounted(() => clearInterval(timer));
 const spaced = computed(() => `${props.pin.slice(0, 3)} ${props.pin.slice(3)}`);
 const remaining = computed(() => secondsUntil(props.expiresAt, now.value));
 const expired = computed(() => remaining.value === 0);
-const expiryText = computed(() =>
-  expired.value ? formatCountdown(0) : `Expires in ${formatCountdown(remaining.value)}`,
-);
+const expiryText = computed(() => expiryLabel(remaining.value));
 const announcement = computed(() => countdownAnnouncement(remaining.value));
 </script>
 

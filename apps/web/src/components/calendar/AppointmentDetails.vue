@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
+import AppointmentNotes from '@/components/calendar/AppointmentNotes.vue';
 import AssignmentList from '@/components/calendar/AssignmentList.vue';
 import KindBadge from '@/components/calendar/KindBadge.vue';
 import Icon from '@/components/ui/Icon.vue';
@@ -22,6 +23,10 @@ const props = defineProps<{
   currentMember: FamilyMember | null;
   elderName: string;
   today: string;
+  /** The care group, for the family notes. Without it (or a member) the notes are left out. */
+  groupId?: string | null;
+  /** Inside the phone's bottom sheet: the sheet has its own close button, and no card frame. */
+  sheet?: boolean;
 }>();
 defineEmits<{
   back: [];
@@ -100,9 +105,13 @@ async function share() {
 </script>
 
 <template>
-  <article class="details" :class="`kind-${appointment.kind}`" aria-labelledby="details-heading">
+  <article
+    class="details"
+    :class="[`kind-${appointment.kind}`, { 'in-sheet': sheet }]"
+    aria-labelledby="details-heading"
+  >
     <div class="details-top">
-      <button type="button" class="btn btn-quiet back" @click="$emit('back')">
+      <button v-if="!sheet" type="button" class="btn btn-quiet back" @click="$emit('back')">
         <Icon name="chevron-left" class="me-1" />Back
       </button>
       <KindBadge :kind="appointment.kind" />
@@ -131,8 +140,11 @@ async function share() {
         <dd>{{ appointment.location }}</dd>
       </div>
       <div v-if="appointment.notes" class="fact">
-        <dt><Icon name="note" /><span class="visually-hidden">Notes</span></dt>
-        <dd>{{ appointment.notes }}</dd>
+        <dt><Icon name="note" /></dt>
+        <dd>
+          <span class="d-block fw-bold">Details</span>
+          {{ appointment.notes }}
+        </dd>
       </div>
     </dl>
 
@@ -201,6 +213,17 @@ async function share() {
       <RouterLink to="/family">Join the family group</RouterLink> to help with this.
     </p>
 
+    <template v-if="groupId && currentMember && appointment.seriesId">
+      <hr class="my-4" />
+      <AppointmentNotes
+        :key="appointment.id"
+        :group-id="groupId"
+        :appointment-id="appointment.seriesId"
+        :date="appointment.date"
+        :members="members"
+      />
+    </template>
+
     <div v-if="currentMember" class="mt-4 pt-3 border-top d-flex gap-2">
       <button
         v-if="canEdit"
@@ -236,6 +259,19 @@ async function share() {
   .details {
     padding: 1.5rem;
   }
+}
+
+/* In the bottom sheet the sheet is the card: no frame of its own, and the kind's colour moves up. */
+.details.in-sheet {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.details.in-sheet .details-top {
+  justify-content: flex-start;
+  margin: 0 0 0.5rem;
 }
 
 .details-top {

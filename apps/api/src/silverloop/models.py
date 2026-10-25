@@ -4,7 +4,7 @@ from datetime import date, datetime
 from enum import IntEnum, StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from silverloop.ontology import ActivityFamily, ActivityType, Format
 
@@ -3814,6 +3814,105 @@ class OccurrenceAnswerRequest(BaseModel):
 
 class OccurrenceRequest(BaseModel):
     occurrence_id: str = Field(max_length=100)
+
+
+# ── Family activity feed and check-ins ────────────────────────────────────────
+
+
+class FamilyActivityKind(StrEnum):
+    """What a feed entry records. Closed: the browser words each one itself."""
+
+    GROUP_CREATED = "group_created"
+    MEMBER_APPROVED = "member_approved"
+    MEMBER_DECLINED = "member_declined"
+    APPOINTMENT_ADDED = "appointment_added"
+    APPOINTMENT_CHANGED = "appointment_changed"
+    APPOINTMENT_REMOVED = "appointment_removed"
+    HELPER_JOINED = "helper_joined"
+    HELPER_STEPPED_BACK = "helper_stepped_back"
+    AVAILABILITY_UPDATED = "availability_updated"
+    CHECK_IN = "check_in"
+    NOTE_ADDED = "note_added"
+
+
+class CheckInKind(StrEnum):
+    CALLED = "called"
+    VISITED = "visited"
+    MESSAGED = "messaged"
+
+
+class CheckInRequest(BaseModel):
+    """A family member telling the group they called, visited or messaged the senior. The note is
+    for the group only: it is never sent to the senior, the agent or the audit trail."""
+
+    kind: CheckInKind
+    note: str | None = Field(default=None, max_length=200)
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def _strip_note(cls, value: object) -> object:
+        # Before the length check, so only what is kept counts towards the 200.
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+
+class FamilyActivityEntry(BaseModel):
+    """One entry of the family feed: structured fields only, the browser writes the sentence."""
+
+    activity_id: str
+    kind: FamilyActivityKind
+    at: datetime
+    actor_member_id: str
+    actor_name: str
+    is_me: bool
+    # `member_approved` only: the member who was let in.
+    subject_name: str | None
+    appointment_id: str | None
+    # A snapshot from when it happened, so it survives the appointment being removed.
+    appointment_title: str | None
+    appointment_kind: AppointmentKind | None
+    on_date: date | None
+    # Computed on read: set only while the appointment exists and still has that day.
+    occurrence_id: str | None
+    check_in_kind: CheckInKind | None
+    note: str | None
+    origin: Literal["live", "demo_seed"]
+
+
+class FamilyActivityPage(BaseModel):
+    """Newest first. Pass `next_before` as `before` for the next page; None at the end."""
+
+    entries: list[FamilyActivityEntry]
+    next_before: str | None
+
+
+# ── Appointment notes ─────────────────────────────────────────────────────────
+
+
+class AppointmentNoteRequest(BaseModel):
+    """A note on one day of an appointment, for the family group only: the senior never reads it,
+    and it is never logged, audited or given to the agent."""
+
+    date: date
+    text: str = Field(min_length=1, max_length=500)
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def _strip_text(cls, value: object) -> object:
+        # Before the length checks, so a blank note is refused and only what is kept counts.
+        return value.strip() if isinstance(value, str) else value
+
+
+class AppointmentNote(BaseModel):
+    note_id: str
+    appointment_id: str
+    occurrence_id: str
+    member_id: str
+    author_name: str
+    is_mine: bool
+    text: str
+    created_at: datetime
 
 
 # ── The senior's watch ───────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { computed, onMounted, ref, useId } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 
 import PinInput from '@/components/family/PinInput.vue';
+import AuthShell from '@/components/ui/AuthShell.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { useAction } from '@/composables/useAction';
 import { loadMe, useMe } from '@/composables/useMe';
@@ -73,12 +74,11 @@ function checkAgain() {
 </script>
 
 <template>
-  <div class="group-start">
-    <header class="sl-page-head">
-      <h1>{{ hasGroup ? 'Add another family group' : 'Join your family' }}</h1>
-      <p class="sl-lede mb-0">One family group looks after one senior. Pick one:</p>
-    </header>
-
+  <AuthShell
+    :title="hasGroup ? 'Add another family group' : 'Join your family'"
+    lead="One family group looks after one senior. Pick one:"
+    width="wide"
+  >
     <div v-if="checking.error.value" class="alert alert-danger" role="alert">
       {{ checking.error.value }}
     </div>
@@ -109,25 +109,29 @@ function checkAgain() {
       <div class="col-sm-6">
         <button
           type="button"
-          class="choice sl-panel w-100 h-100"
+          class="auth-choice sl-panel h-100"
           data-testid="choose-join"
           @click="choose('join')"
         >
-          <span class="choice-icon choice-join"><Icon name="users" /></span>
-          <span class="choice-title">Join a group</span>
-          <span class="choice-text">Your family already uses Care+.</span>
+          <span class="choice-icon"><Icon name="users" /></span>
+          <span>
+            <span class="choice-title">Join a group</span>
+            <span class="choice-text">Your family already uses Care+.</span>
+          </span>
         </button>
       </div>
       <div class="col-sm-6">
         <button
           type="button"
-          class="choice sl-panel w-100 h-100"
+          class="auth-choice sl-panel h-100"
           data-testid="choose-create"
           @click="choose('create')"
         >
-          <span class="choice-icon choice-create"><Icon name="user-plus" /></span>
-          <span class="choice-title">Create a group</span>
-          <span class="choice-text">You are the first in your family.</span>
+          <span class="choice-icon"><Icon name="user-plus" /></span>
+          <span>
+            <span class="choice-title">Create a group</span>
+            <span class="choice-text">You are the first in your family.</span>
+          </span>
         </button>
       </div>
     </div>
@@ -135,7 +139,7 @@ function checkAgain() {
     <!-- Step 2a: join with a PIN from someone already in the group. -->
     <form
       v-else-if="choice === 'join'"
-      class="sl-panel step d-grid gap-3"
+      class="sl-panel d-grid gap-3"
       aria-labelledby="join-title"
       @submit.prevent="submitJoin"
     >
@@ -161,7 +165,7 @@ function checkAgain() {
         >
           Ask to join
         </button>
-        <button type="button" class="btn btn-outline-secondary btn-lg" @click="choose(null)">
+        <button type="button" class="btn btn-outline-primary btn-lg" @click="choose(null)">
           Back
         </button>
       </div>
@@ -170,7 +174,7 @@ function checkAgain() {
     <!-- Step 2b: create the group with the code on the senior's own screen. -->
     <form
       v-else
-      class="sl-panel step d-grid gap-3"
+      class="sl-panel d-grid gap-3"
       aria-labelledby="create-title"
       @submit.prevent="submitCreate"
     >
@@ -200,7 +204,7 @@ function checkAgain() {
         >
           Start the group
         </button>
-        <button type="button" class="btn btn-outline-secondary btn-lg" @click="choose(null)">
+        <button type="button" class="btn btn-outline-primary btn-lg" @click="choose(null)">
           Back
         </button>
       </div>
@@ -210,70 +214,10 @@ function checkAgain() {
       <RouterLink to="/">Back to Home</RouterLink>
     </p>
     <p v-else-if="me" class="sl-note mt-4 mb-0">Signed in as {{ me.display_name }}.</p>
-  </div>
+  </AuthShell>
 </template>
 
 <style scoped>
-.group-start {
-  max-width: 48rem;
-}
-
-.choice {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  border: 2px solid var(--sl-line);
-  color: var(--sl-ink);
-  text-align: center;
-  transition:
-    border-color 0.15s ease,
-    transform 0.15s var(--sl-ease);
-}
-
-.choice:hover {
-  border-color: var(--sl-jade);
-  transform: translateY(-2px);
-}
-
-.choice:focus-visible {
-  outline: 3px solid var(--sl-jade);
-  outline-offset: 2px;
-}
-
-.choice-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: 50%;
-  font-size: 1.6rem;
-}
-
-.choice-join {
-  background: var(--sl-jade-soft);
-  color: var(--sl-jade-deep);
-}
-
-.choice-create {
-  background: var(--sl-sun-soft);
-  color: var(--sl-ink);
-}
-
-.choice-title {
-  font-size: 1.35rem;
-  font-weight: 800;
-}
-
-.choice-text {
-  color: var(--sl-ink-soft);
-}
-
-.step {
-  max-width: 34rem;
-}
-
 .steps {
   padding-left: 1.25rem;
 }

@@ -4,6 +4,7 @@ import type { AuthError } from '@supabase/supabase-js';
 import { computed, ref, useId } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 
+import AuthShell from '@/components/ui/AuthShell.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { useAuth } from '@/composables/useAuth';
 import { useViewMode } from '@/composables/useViewMode';
@@ -174,12 +175,7 @@ async function handleSubmit(): Promise<void> {
       <p class="login-side-text">{{ copy.side }}</p>
     </aside>
 
-    <div class="login-main">
-      <header class="mb-4">
-        <h1>{{ copy.title }}</h1>
-        <p class="text-body-secondary mt-2 mb-0">{{ copy.lead }}</p>
-      </header>
-
+    <AuthShell class="login-main" :title="copy.title" :lead="copy.lead" width="narrow">
       <div v-if="!AUTH_ENABLED" class="sl-panel d-grid gap-3">
         <p class="mb-0">Sign-in is switched off in this demo, so there is no password to enter.</p>
         <button
@@ -241,18 +237,20 @@ async function handleSubmit(): Promise<void> {
         </button>
       </form>
 
-      <p class="mt-4 mb-0 fs-5">
-        New to Care+?
-        <RouterLink :to="{ name: 'signup', params: { audience } }" data-testid="signup-link">
-          Create an account
-        </RouterLink>
-      </p>
-      <p class="mt-3 mb-0">
-        <RouterLink :to="{ name: 'login-as', params: { audience: other }, query: route.query }">
-          {{ other === 'senior' ? 'Are you the senior? Sign in here' : 'Family? Sign in here' }}
-        </RouterLink>
-      </p>
-    </div>
+      <div class="d-grid gap-1 mt-4 pt-3 border-top">
+        <p class="mb-0 fs-5 py-2">
+          New to Care+?
+          <RouterLink :to="{ name: 'signup', params: { audience } }" data-testid="signup-link">
+            Create an account
+          </RouterLink>
+        </p>
+        <p class="mb-0 py-2">
+          <RouterLink :to="{ name: 'login-as', params: { audience: other }, query: route.query }">
+            {{ other === 'senior' ? 'Are you the senior? Sign in here' : 'Family? Sign in here' }}
+          </RouterLink>
+        </p>
+      </div>
+    </AuthShell>
   </div>
 </template>
 
@@ -260,7 +258,7 @@ async function handleSubmit(): Promise<void> {
 .login {
   display: grid;
   gap: 2rem;
-  max-width: 60rem;
+  max-width: 62rem;
   margin: 0 auto;
 }
 
@@ -302,9 +300,8 @@ async function handleSubmit(): Promise<void> {
   line-height: 1.25;
 }
 
-.login-main h1 {
-  font-size: clamp(2rem, 5vw, 2.8rem);
-  font-weight: 800;
+.login-main {
+  width: 100%;
 }
 
 .pw {
@@ -319,6 +316,7 @@ async function handleSubmit(): Promise<void> {
   position: absolute;
   top: 50%;
   right: 0.35rem;
+  min-height: 2.75rem;
   transform: translateY(-50%);
 }
 

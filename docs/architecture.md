@@ -31,6 +31,19 @@ evidence.
   Calendar and Family screens use the family API. The exception is tasks (Home, Senior, and shown
   on the Calendar): the API has no such concept yet, so they are kept in the browser's
   `localStorage` (`composables/useTasks.ts`, rules in `lib/tasks.ts`; see `docs/tasks.md`).
+- The family screens are an app-style shell: a bottom tab bar on phones and a header pill on
+  desktop (`components/ui/MainNav.vue`, CSS only). Home shows the family activity feed and
+  check-ins (`composables/useFamilyActivity.ts`: one polling store per app, 30 s and on focus,
+  paused while hidden); the Calendar's phone bottom sheet carries each day's family notes
+  (`composables/useAppointmentNotes.ts`, one per open sheet). The browser writes the feed's
+  sentences from structured entries (`lib/family-feed.ts`); state changes are pure functions in
+  `lib/*` with `node --test` coverage.
+- Motion uses `motion-v` (with `@vueuse/core`), pinned exactly, in `components/motion/*`. It is
+  imported only from the lazily loaded Home, Calendar and Family views, so its chunk never loads
+  with the senior or sign-in screens, and every motion component falls back to instant or
+  opacity-only under `prefers-reduced-motion`. Drags always have a button that does the same. The
+  bottom sheet and the toast host are teleported to `<body>`; while the sheet is open `#app` is
+  `inert`, and toasts stay outside it so they are announced and reachable.
 - FastAPI/Pydantic is the API source of truth; CI regenerates and verifies the TypeScript SDK.
 - SQLAlchemy 2 + Alembic own the PostgreSQL/SQLite schema. Supabase is the shared runtime, denies
   browser roles and accepts domain writes only through FastAPI. SQLite is explicit test and
@@ -94,9 +107,10 @@ scored as such; it is not attributable to the offer and is never reported as if 
 `apps/api/src/silverloop/` is about 45,000 lines, a third of it `sql_repository.py`. This is what
 each file owns; `docs/api.md` covers the HTTP surface these files back.
 
-**What the screens use.** The web app calls about 25 of the API's 80 routes: person state and
-metrics, interventions and their outcomes, `/v1/me`, care groups, the family calendar and the watch
-status (all listed in `apps/web/src/services/careApi.ts`). The e2e suite also calls
+**What the screens use.** The web app calls about 28 of the API's 85 routes: person state and
+metrics, interventions and their outcomes, `/v1/me`, care groups, the family calendar, the family
+activity feed and check-ins, per-day appointment notes and the watch status (all listed in
+`apps/web/src/services/careApi.ts`). The e2e suite also calls
 `/v1/demo/reset` and `/v1/simulation/advance`. The rest serve features with no current screen:
 coordinator review (queue, cases, review setting, care priorities), the evaluator ranker inspector,
 activity search, week plans, goals, preferences, the world model and replanning. Several of those
@@ -117,10 +131,12 @@ Top-level modules:
 - `sql_repository.py` -- the single implementation of that Protocol: SQLAlchemy 2
   session management, every domain read/write, the decision-trace builder, learner wiring, and the
   call sites into the outreach/activity planning agent. By far the largest module in the API.
-- `family_groups.py` / `family_calendar.py` / `family_routes.py` -- care groups (sign-up as senior
-  or family, the senior-link and join PINs, approval), the shared calendar (appointments, family
-  availability, who is helping), and the `/v1/me` and `/v1/groups/...` routes for both. They own
-  their own tables and share the repository's database sessions.
+- `family_groups.py` / `family_calendar.py` / `family_activity.py` / `family_routes.py` -- care
+  groups (sign-up as senior or family, the senior-link and join PINs, approval), the shared calendar
+  (appointments, family availability, who is helping, per-day appointment notes), the family activity feed and check-ins, and
+  the `/v1/me` and `/v1/groups/...` routes for all of them. They own their own tables and share the
+  repository's database sessions. `family_activity.py` imports nothing from the decision path
+  (tested).
 - `wearable_status.py` -- the simulated watch status on Home (connected, last sync, battery). No
   real device is connected.
 - `db_models.py` -- the SQLAlchemy 2 declarative schema. See [Data model](#data-model).
@@ -379,14 +395,17 @@ left alone ("write-once"), or updated in place:
 - **Accounts and family.** `accounts` (one per signed-up user, `senior` or `family`);
   `care_groups` and `group_members` (one group per senior; members are `pending` until approved);
   `family_pins` (hashed senior-link and join PINs, with expiry) and `pin_attempts` (wrong-PIN
-  lockout); `appointments`, `availability_entries` and `helper_assignments` (the shared calendar).
+  lockout); `appointments`, `availability_entries` and `helper_assignments` (the shared calendar);
+  `family_activity` (the family feed: append-only, no FK to appointments, cleared only by the demo
+  reset); `appointment_notes` (per-day notes on an appointment, group-only, deletable by their
+  author; deleted with their appointment).
 
 ## Schema ownership
 
-SQLAlchemy 2 (`db_models.py`) and Alembic (`apps/api/alembic/versions/`, 21 revisions) are the
+SQLAlchemy 2 (`db_models.py`) and Alembic (`apps/api/alembic/versions/`, 23 revisions) are the
 schema of record for both PostgreSQL/Supabase and the SQLite test/offline
 fallback; `migrations.py` runs `alembic upgrade head` at API startup. `infra/supabase/migrations`
-is a **hand-maintained SQL mirror** of that schema for the Supabase project (22 files:
+is a **hand-maintained SQL mirror** of that schema for the Supabase project (24 files:
 Alembic's own DDL plus the explicit `REVOKE`-based deny policies for the `anon` and `authenticated`
 Data API roles, which do not belong in the Alembic chain because they are Supabase-platform
 concerns, not SQLAlchemy ones). Being hand-written rather than generated, the mirror has

@@ -9,10 +9,13 @@ import {
   fromCalendar,
   describeWindow,
   helperIds,
+  idToRemove,
+  isSavingId,
   respondTo,
   statusBadge,
   statusFor,
   stepBackFrom,
+  swapEntryId,
   volunteerFor,
 } from './family';
 import type { Answers, Appointment, AvailabilityEntry } from './family';
@@ -310,5 +313,41 @@ describe('fromCalendar', () => {
     assert.equal('appointmentId' in state.availability[1], false);
     assert.deepEqual(helperIds(state.assignments, 'a1@2026-11-02'), ['m1']);
     assert.equal(statusFor(state.availability, 'm1', appointments[0]), 'available');
+  });
+});
+
+describe('removing a window that is still being saved', () => {
+  const entry = (id: string): AvailabilityEntry => ({
+    id,
+    memberId: 'm1',
+    date: '2026-01-05',
+    start: '09:00',
+    end: '10:00',
+    status: 'available',
+  });
+
+  it('tells temporary ids from saved ones', () => {
+    assert.equal(isSavingId('saving-abc'), true);
+    assert.equal(isSavingId('av-1'), false);
+  });
+
+  it('swaps only the entry carrying the temporary id', () => {
+    const list = [entry('saving-a'), entry('av-2')];
+    const next = swapEntryId(list, 'saving-a', 'av-9');
+    assert.deepEqual(
+      next.map((e) => e.id),
+      ['av-9', 'av-2'],
+    );
+    assert.deepEqual(
+      swapEntryId(list, 'saving-zzz', 'av-9').map((e) => e.id),
+      ['saving-a', 'av-2'],
+    );
+  });
+
+  it('removes a saved id as is, a temporary id by its real one, and a failed add not at all', () => {
+    const saved = new Map([['saving-a', 'av-9']]);
+    assert.equal(idToRemove('av-2', saved), 'av-2');
+    assert.equal(idToRemove('saving-a', saved), 'av-9');
+    assert.equal(idToRemove('saving-b', saved), null);
   });
 });
