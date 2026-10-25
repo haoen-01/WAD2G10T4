@@ -646,6 +646,61 @@ export type Appointment = {
 export type AppointmentKind = 'medical' | 'therapy' | 'activity' | 'errand';
 
 /**
+ * AppointmentNote
+ */
+export type AppointmentNote = {
+    /**
+     * Note Id
+     */
+    note_id: string;
+    /**
+     * Appointment Id
+     */
+    appointment_id: string;
+    /**
+     * Occurrence Id
+     */
+    occurrence_id: string;
+    /**
+     * Member Id
+     */
+    member_id: string;
+    /**
+     * Author Name
+     */
+    author_name: string;
+    /**
+     * Is Mine
+     */
+    is_mine: boolean;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * AppointmentNoteRequest
+ *
+ * A note on one day of an appointment, for the family group only: the senior never reads it,
+ * and it is never logged, audited or given to the agent.
+ */
+export type AppointmentNoteRequest = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
  * AppointmentOccurrence
  *
  * One day of an appointment. `occurrence_id` is `<appointment_id>@<YYYY-MM-DD>`: what
@@ -1344,6 +1399,25 @@ export type CaseReviewResponse = {
 export type CaseStatus = 'open' | 'acknowledged' | 'resolved';
 
 /**
+ * CheckInKind
+ */
+export type CheckInKind = 'called' | 'visited' | 'messaged';
+
+/**
+ * CheckInRequest
+ *
+ * A family member telling the group they called, visited or messaged the senior. The note is
+ * for the group only: it is never sent to the senior, the agent or the audit trail.
+ */
+export type CheckInRequest = {
+    kind: CheckInKind;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
  * ClarificationScope
  *
  * How far a decline reaches, when the person chose to say. Always optional, always skippable.
@@ -1995,6 +2069,88 @@ export type FactConfidence = 'low' | 'medium' | 'high';
  * never presented as something the person said.
  */
 export type FactSourceType = 'explicit' | 'inferred' | 'external' | 'fixture';
+
+/**
+ * FamilyActivityEntry
+ *
+ * One entry of the family feed: structured fields only, the browser writes the sentence.
+ */
+export type FamilyActivityEntry = {
+    /**
+     * Activity Id
+     */
+    activity_id: string;
+    kind: FamilyActivityKind;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Actor Member Id
+     */
+    actor_member_id: string;
+    /**
+     * Actor Name
+     */
+    actor_name: string;
+    /**
+     * Is Me
+     */
+    is_me: boolean;
+    /**
+     * Subject Name
+     */
+    subject_name: string | null;
+    /**
+     * Appointment Id
+     */
+    appointment_id: string | null;
+    /**
+     * Appointment Title
+     */
+    appointment_title: string | null;
+    appointment_kind: AppointmentKind | null;
+    /**
+     * On Date
+     */
+    on_date: string | null;
+    /**
+     * Occurrence Id
+     */
+    occurrence_id: string | null;
+    check_in_kind: CheckInKind | null;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Origin
+     */
+    origin: 'live' | 'demo_seed';
+};
+
+/**
+ * FamilyActivityKind
+ *
+ * What a feed entry records. Closed: the browser words each one itself.
+ */
+export type FamilyActivityKind = 'group_created' | 'member_approved' | 'member_declined' | 'appointment_added' | 'appointment_changed' | 'appointment_removed' | 'helper_joined' | 'helper_stepped_back' | 'availability_updated' | 'check_in' | 'note_added';
+
+/**
+ * FamilyActivityPage
+ *
+ * Newest first. Pass `next_before` as `before` for the next page; None at the end.
+ */
+export type FamilyActivityPage = {
+    /**
+     * Entries
+     */
+    entries: Array<FamilyActivityEntry>;
+    /**
+     * Next Before
+     */
+    next_before: string | null;
+};
 
 /**
  * FamilyCalendar
@@ -10159,6 +10315,268 @@ export type StepBackV1GroupsGroupIdHelpersStepBackPostResponses = {
 };
 
 export type StepBackV1GroupsGroupIdHelpersStepBackPostResponse = StepBackV1GroupsGroupIdHelpersStepBackPostResponses[keyof StepBackV1GroupsGroupIdHelpersStepBackPostResponses];
+
+export type GroupActivityV1GroupsGroupIdActivityGetData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Before
+         */
+        before?: string | null;
+    };
+    url: '/v1/groups/{group_id}/activity';
+};
+
+export type GroupActivityV1GroupsGroupIdActivityGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type GroupActivityV1GroupsGroupIdActivityGetError = GroupActivityV1GroupsGroupIdActivityGetErrors[keyof GroupActivityV1GroupsGroupIdActivityGetErrors];
+
+export type GroupActivityV1GroupsGroupIdActivityGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FamilyActivityPage;
+};
+
+export type GroupActivityV1GroupsGroupIdActivityGetResponse = GroupActivityV1GroupsGroupIdActivityGetResponses[keyof GroupActivityV1GroupsGroupIdActivityGetResponses];
+
+export type CreateCheckInV1GroupsGroupIdCheckInsPostData = {
+    body: CheckInRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/check-ins';
+};
+
+export type CreateCheckInV1GroupsGroupIdCheckInsPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type CreateCheckInV1GroupsGroupIdCheckInsPostError = CreateCheckInV1GroupsGroupIdCheckInsPostErrors[keyof CreateCheckInV1GroupsGroupIdCheckInsPostErrors];
+
+export type CreateCheckInV1GroupsGroupIdCheckInsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: FamilyActivityEntry;
+};
+
+export type CreateCheckInV1GroupsGroupIdCheckInsPostResponse = CreateCheckInV1GroupsGroupIdCheckInsPostResponses[keyof CreateCheckInV1GroupsGroupIdCheckInsPostResponses];
+
+export type ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Appointment Id
+         */
+        appointment_id: string;
+    };
+    query: {
+        /**
+         * Date
+         */
+        date: string;
+    };
+    url: '/v1/groups/{group_id}/appointments/{appointment_id}/notes';
+};
+
+export type ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetError = ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetErrors[keyof ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetErrors];
+
+export type ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetResponses = {
+    /**
+     * Response List Appointment Notes V1 Groups  Group Id  Appointments  Appointment Id  Notes Get
+     *
+     * Successful Response
+     */
+    200: Array<AppointmentNote>;
+};
+
+export type ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetResponse = ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetResponses[keyof ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetResponses];
+
+export type AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostData = {
+    body: AppointmentNoteRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Appointment Id
+         */
+        appointment_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/appointments/{appointment_id}/notes';
+};
+
+export type AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Conflict
+     */
+    409: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostError = AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostErrors[keyof AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostErrors];
+
+export type AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: AppointmentNote;
+};
+
+export type AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostResponse = AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostResponses[keyof AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostResponses];
+
+export type DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Note Id
+         */
+        note_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/notes/{note_id}/delete';
+};
+
+export type DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostError = DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostErrors[keyof DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostErrors];
+
+export type DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponse = DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses[keyof DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses];
 
 export type PersonWearableV1PeoplePersonIdWearableGetData = {
     body?: never;

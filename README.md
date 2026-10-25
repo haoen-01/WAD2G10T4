@@ -39,12 +39,15 @@ model, and the web app with sign-in off. It works in any shell, including Window
 reachable directly. Only the Supabase-backed "Shared runtime" below uses real accounts, created
 through Supabase's own sign-up, not a fixed demo login.
 
-The web app is a Vue 3 + Bootstrap 5 single-page app in `apps/web`. **Home** is a daily overview
-(the senior's activity metrics, a brief look at the calendar, and today's tasks and medicine).
-**Senior** (the senior's own day: activity, a suggestion to answer, and today's plans) follows the
-loop from there. **Calendar** (Mdm
-Lim's activities and appointments, and which family members are helping) and **Family** (the
-family group, and when each member can help) help a family share the care. Calendar and family
+The web app is a Vue 3 + Bootstrap 5 single-page app in `apps/web`. The family screens use a
+bottom tab bar on phones and a header pill on desktop. **Home** is a daily overview (the senior's
+activity against a usual day, a feed of what the family has done, a one-tap "Tell the family you
+were in touch" check-in, a brief look at the calendar, and today's tasks and medicine). **Senior**
+(the senior's own day: activity, one suggestion to answer with large buttons, and today's plans)
+follows the loop from there. **Calendar** (Mdm Lim's activities and appointments and who is
+helping; on phones a week strip, the day's agenda and a bottom sheet with each day's family notes,
+kept apart from the appointment's own details; on desktop the month grid) and **Family** (the care
+group, an invite PIN, and when each member can help) help a family share the care. Calendar and family
 coordination use the API. Tasks on Home and Senior (one-off, daily or weekly) are kept in the
 browser only, since the API has no tasks yet, and show on the calendar too; see `docs/tasks.md`.
 Only the offline demo persona, Mdm Lim, exists until you run `pnpm seed`.

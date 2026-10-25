@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -1121,4 +1122,71 @@ class HelperAssignmentRow(Base):
     )
     on_date: Mapped[date] = mapped_column(Date)
     member_id: Mapped[str] = mapped_column(ForeignKey("group_members.member_id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class AppointmentNoteRow(Base):
+    """A family member's note on one day of an appointment. Unlike the feed it is not append-only:
+    its author can delete it. Group-only text: never logged, audited, sent to the agent or shown to
+    the senior, and never copied into `family_activity` (the feed records only that a note was
+    added). Deleted with its appointment, when an edit to the appointment leaves its day no longer
+    one of its occurrences (the text could not be read or removed again), and by the demo reset
+    before the feed and appointments."""
+
+    __tablename__ = "appointment_notes"
+    __table_args__ = (
+        Index("ix_appointment_notes_day_created", "appointment_id", "on_date", "created_at"),
+    )
+
+    note_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("care_groups.group_id"), index=True)
+    appointment_id: Mapped[str] = mapped_column(
+        ForeignKey("appointments.appointment_id"), index=True
+    )
+    on_date: Mapped[date] = mapped_column(Date)
+    member_id: Mapped[str] = mapped_column(ForeignKey("group_members.member_id"), index=True)
+    text: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class FamilyActivityRow(Base):
+    """One thing a family member did in the group, for the family's activity feed. Append-only:
+    nothing updates or deletes a row except the demo reset. Written only by
+    `silverloop.family_activity.record`, in the transaction of the change it describes.
+
+    `appointment_id` deliberately has no foreign key and `appointment_title` is a snapshot, so an
+    entry outlives the appointment it mentions. A check-in's `note` is group-only text: it is never
+    logged, audited, sent to the agent, or shown to the senior.
+
+    Members are referenced by foreign key, so a member who has an entry here must never be
+    hard-deleted. A future "leave" or "remove member" feature has to change `status` instead, and
+    needs a PostgreSQL test (SQLite does not enforce foreign keys). Only a pending request that was
+    declined is deleted, and it has no entries. The demo reset clears the feed before the members.
+    """
+
+    __tablename__ = "family_activity"
+    __table_args__ = (
+        CheckConstraint(
+            "(kind = 'check_in') = (check_in_kind IS NOT NULL) "
+            "AND (note IS NULL OR kind = 'check_in')",
+            name="ck_family_activity_check_in_fields",
+        ),
+        Index("ix_family_activity_group_created", "group_id", "created_at", "activity_id"),
+    )
+
+    activity_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("care_groups.group_id"))
+    kind: Mapped[str] = mapped_column(String(32))
+    actor_member_id: Mapped[str] = mapped_column(ForeignKey("group_members.member_id"), index=True)
+    # Only `member_approved`: the member who was let in.
+    subject_member_id: Mapped[str | None] = mapped_column(
+        ForeignKey("group_members.member_id"), nullable=True
+    )
+    appointment_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    appointment_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    appointment_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    on_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    check_in_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    origin: Mapped[str] = mapped_column(String(16), default="live")  # live | demo_seed
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

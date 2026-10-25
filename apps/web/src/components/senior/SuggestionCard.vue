@@ -109,56 +109,76 @@ export default defineComponent({
 </template>
 
 <style scoped>
-/* The suggestion reads as a message from the centre: generous type, nothing else competing. */
+/* The suggestion reads as a message from the centre: one big calm card, nothing else competing. */
 .suggestion {
   position: relative;
-  padding: 1.5rem;
+  padding: 1.25rem 1rem;
   border: 2px solid var(--sl-jade);
   border-radius: var(--sl-radius);
-  background: var(--sl-surface);
+  background: color-mix(in srgb, var(--sl-jade) 6%, var(--sl-surface));
+  box-shadow: var(--sl-elev-2);
+}
+
+@media (min-width: 576px) {
+  .suggestion {
+    padding: 1.5rem 1.25rem;
+  }
 }
 
 @media (min-width: 768px) {
   .suggestion {
-    padding: 2rem 2.25rem;
+    padding: 2.25rem 2.5rem;
   }
 }
 
 .suggestion-from {
   display: inline-flex;
   align-items: center;
-  margin-bottom: 0.75rem;
-  padding: 0.25rem 0.85rem;
-  border-radius: 999px;
+  margin-bottom: 1rem;
+  padding: 0.3rem 0.9rem;
+  border-radius: 1rem;
+  line-height: 1.25;
   background: var(--sl-sun-soft);
+  color: var(--sl-ink);
   font-size: 1rem;
   font-weight: 700;
 }
 
 .suggestion-title {
-  font-size: clamp(1.7rem, 4vw, 2.3rem);
+  margin-bottom: 0.75rem;
+  font-size: clamp(1.55rem, 4vw, 2.4rem);
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .suggestion-message {
   max-width: 40rem;
+  margin-bottom: 1.25rem;
   font-size: 1.3rem;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .read-btn {
   --bs-btn-padding-x: 0.9rem;
+  min-height: 3.5rem;
   margin-left: -0.9rem;
+  font-size: 1.1rem;
 }
 
+/* Yes is the one big primary; the two quieter answers sit under it, side by side when there is room. */
 .replies {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.85rem;
+  max-width: 40rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 576px) {
   .replies {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reply:first-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -167,5 +187,16 @@ export default defineComponent({
   align-items: center;
   justify-content: center;
   min-height: 4rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.reply:first-child {
+  min-height: 4.5rem;
+  font-size: 1.4rem;
+}
+
+.reply.btn-outline-primary {
+  background: var(--sl-surface);
 }
 </style>

@@ -123,6 +123,8 @@ const ICONS = {
   list: '<path d="M10 6h10M10 12h10M10 18h10M4.5 6h.5M4.5 12h.5M4.5 18h.5"/>',
   checklist:
     '<path d="M11 6h9M11 12h9M11 18h9"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5"/>',
+  sliders:
+    '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   question:
     '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.9-.9 1.6v.4M12 16.8v.2"/>',

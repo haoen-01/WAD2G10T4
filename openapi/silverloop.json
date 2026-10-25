@@ -5469,6 +5469,397 @@
         }
       }
     },
+    "/v1/groups/{group_id}/activity": {
+      "get": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Group Activity",
+        "description": "What the family has done in the group, newest first. `before` is the `next_before` of\nthe previous page. Active members only; the senior never reads it.",
+        "operationId": "group_activity_v1_groups__group_id__activity_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyActivityPage"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/check-ins": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Create Check In",
+        "description": "Tell the group you called, visited or messaged the senior, with an optional note for the\ngroup. Nothing is sent to the senior.",
+        "operationId": "create_check_in_v1_groups__group_id__check_ins_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckInRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyActivityEntry"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/appointments/{appointment_id}/notes": {
+      "get": {
+        "tags": [
+          "family"
+        ],
+        "summary": "List Appointment Notes",
+        "description": "The family's notes on one day of an appointment, oldest first (at most 100). Active\nmembers only; the senior never reads them.",
+        "operationId": "list_appointment_notes_v1_groups__group_id__appointments__appointment_id__notes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "appointment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Appointment Id"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppointmentNote"
+                  },
+                  "title": "Response List Appointment Notes V1 Groups  Group Id  Appointments  Appointment Id  Notes Get"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Add Appointment Note",
+        "description": "Add a note to one day of an appointment, for the group only. The feed records that a\nnote was added, not what it said.",
+        "operationId": "add_appointment_note_v1_groups__group_id__appointments__appointment_id__notes_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "appointment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Appointment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentNoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentNote"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/notes/{note_id}/delete": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Delete Appointment Note",
+        "description": "Remove one of your own notes. Its feed entry stays.",
+        "operationId": "delete_appointment_note_v1_groups__group_id__notes__note_id__delete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/people/{person_id}/wearable": {
       "get": {
         "tags": [
@@ -6800,6 +7191,77 @@
         ],
         "title": "AppointmentKind"
       },
+      "AppointmentNote": {
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "title": "Note Id"
+          },
+          "appointment_id": {
+            "type": "string",
+            "title": "Appointment Id"
+          },
+          "occurrence_id": {
+            "type": "string",
+            "title": "Occurrence Id"
+          },
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "author_name": {
+            "type": "string",
+            "title": "Author Name"
+          },
+          "is_mine": {
+            "type": "boolean",
+            "title": "Is Mine"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note_id",
+          "appointment_id",
+          "occurrence_id",
+          "member_id",
+          "author_name",
+          "is_mine",
+          "text",
+          "created_at"
+        ],
+        "title": "AppointmentNote"
+      },
+      "AppointmentNoteRequest": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "text"
+        ],
+        "title": "AppointmentNoteRequest",
+        "description": "A note on one day of an appointment, for the family group only: the senior never reads it,\nand it is never logged, audited or given to the agent."
+      },
       "AppointmentOccurrence": {
         "properties": {
           "occurrence_id": {
@@ -7963,6 +8425,40 @@
         ],
         "title": "CaseStatus"
       },
+      "CheckInKind": {
+        "type": "string",
+        "enum": [
+          "called",
+          "visited",
+          "messaged"
+        ],
+        "title": "CheckInKind"
+      },
+      "CheckInRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CheckInKind"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "CheckInRequest",
+        "description": "A family member telling the group they called, visited or messaged the senior. The note is\nfor the group only: it is never sent to the senior, the agent or the audit trail."
+      },
       "ClarificationScope": {
         "type": "string",
         "enum": [
@@ -8949,6 +9445,196 @@
         ],
         "title": "FactSourceType",
         "description": "Who or what a fact came from. The distinction the mandate is built on: an inference is\nnever presented as something the person said."
+      },
+      "FamilyActivityEntry": {
+        "properties": {
+          "activity_id": {
+            "type": "string",
+            "title": "Activity Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FamilyActivityKind"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "actor_member_id": {
+            "type": "string",
+            "title": "Actor Member Id"
+          },
+          "actor_name": {
+            "type": "string",
+            "title": "Actor Name"
+          },
+          "is_me": {
+            "type": "boolean",
+            "title": "Is Me"
+          },
+          "subject_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Name"
+          },
+          "appointment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appointment Id"
+          },
+          "appointment_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appointment Title"
+          },
+          "appointment_kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppointmentKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "on_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Date"
+          },
+          "occurrence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurrence Id"
+          },
+          "check_in_kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckInKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "live",
+              "demo_seed"
+            ],
+            "title": "Origin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activity_id",
+          "kind",
+          "at",
+          "actor_member_id",
+          "actor_name",
+          "is_me",
+          "subject_name",
+          "appointment_id",
+          "appointment_title",
+          "appointment_kind",
+          "on_date",
+          "occurrence_id",
+          "check_in_kind",
+          "note",
+          "origin"
+        ],
+        "title": "FamilyActivityEntry",
+        "description": "One entry of the family feed: structured fields only, the browser writes the sentence."
+      },
+      "FamilyActivityKind": {
+        "type": "string",
+        "enum": [
+          "group_created",
+          "member_approved",
+          "member_declined",
+          "appointment_added",
+          "appointment_changed",
+          "appointment_removed",
+          "helper_joined",
+          "helper_stepped_back",
+          "availability_updated",
+          "check_in",
+          "note_added"
+        ],
+        "title": "FamilyActivityKind",
+        "description": "What a feed entry records. Closed: the browser words each one itself."
+      },
+      "FamilyActivityPage": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/FamilyActivityEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries",
+          "next_before"
+        ],
+        "title": "FamilyActivityPage",
+        "description": "Newest first. Pass `next_before` as `before` for the next page; None at the end."
       },
       "FamilyCalendar": {
         "properties": {

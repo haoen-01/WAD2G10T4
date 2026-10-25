@@ -3,7 +3,7 @@ import type { CareGroup, GroupMember, PinResponse } from '@silverloop/api-client
 import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
-import PinDisplay from '@/components/family/PinDisplay.vue';
+import InvitePinCard from '@/components/family/InvitePinCard.vue';
 import BasePanel from '@/components/ui/BasePanel.vue';
 import Icon from '@/components/ui/Icon.vue';
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue';
@@ -138,9 +138,10 @@ watch(
             <Icon name="user-plus" />Invite family
           </h3>
           <p class="sl-note mb-2">Give them this PIN. You let them in after they enter it.</p>
-          <PinDisplay
+          <InvitePinCard
             v-if="joinPin"
-            class="mb-2"
+            :key="joinPin.pin"
+            class="mb-3"
             :pin="joinPin.pin"
             :expires-at="joinPin.expires_at"
             testid="join-pin"

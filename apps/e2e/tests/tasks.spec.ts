@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { resetDemo } from './support';
+import { openSettings, resetDemo } from './support';
 
 // Tasks live in the browser, and Mdm Lim starts with a sample checklist. These tests start from
 // an empty list instead, so they only see the tasks they add (set once; a reload keeps changes).
@@ -31,6 +31,7 @@ test('caregiver creates a daily task, senior completes it, and changes persist',
   await page.reload();
   await expect(panel.getByRole('checkbox', { name: /Water the balcony plants/ })).not.toBeChecked();
 
+  await openSettings(page);
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByTestId('choose-senior').click();
   await page.getByTestId('continue-senior').click();

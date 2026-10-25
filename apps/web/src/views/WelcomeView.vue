@@ -3,6 +3,7 @@ import type { AccountRole } from '@silverloop/api-client';
 import { onMounted, ref, useId } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+import AuthShell from '@/components/ui/AuthShell.vue';
 import { refreshCurrentUser, useAuth } from '@/composables/useAuth';
 import { loadMe } from '@/composables/useMe';
 import { AUTH_ENABLED } from '@/lib/config';
@@ -50,36 +51,33 @@ function submit() {
 </script>
 
 <template>
-  <div class="welcome">
-    <header class="mb-4">
-      <h1>One last step</h1>
-      <p class="text-body-secondary mt-2 mb-0">Tell us who you are. You only do this once.</p>
-    </header>
-
+  <AuthShell
+    title="One last step"
+    lead="Tell us who you are. You only do this once."
+    width="narrow"
+  >
     <form class="sl-panel d-grid gap-4" @submit.prevent="submit">
-      <fieldset>
+      <fieldset class="d-grid gap-2">
         <legend class="form-label">I am</legend>
-        <div class="form-check">
+        <div class="role-row">
           <input
             id="role-family"
             v-model="role"
-            class="form-check-input"
+            class="form-check-input mt-0"
             type="radio"
             value="family"
           />
-          <label class="form-check-label" for="role-family"
-            >Family, helping to care for someone</label
-          >
+          <label class="role-label" for="role-family">Family, helping to care for someone</label>
         </div>
-        <div class="form-check">
+        <div class="role-row">
           <input
             id="role-senior"
             v-model="role"
-            class="form-check-input"
+            class="form-check-input mt-0"
             type="radio"
             value="senior"
           />
-          <label class="form-check-label" for="role-senior">The senior</label>
+          <label class="role-label" for="role-senior">The senior</label>
         </div>
       </fieldset>
       <div>
@@ -96,17 +94,48 @@ function submit() {
       <div v-if="error" class="alert alert-danger mb-0" role="alert">{{ error }}</div>
       <button type="submit" class="btn btn-primary btn-lg" :disabled="busy">Continue</button>
     </form>
-  </div>
+  </AuthShell>
 </template>
 
 <style scoped>
-.welcome {
-  max-width: 34rem;
-  margin: 0 auto;
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.welcome h1 {
-  font-size: clamp(2rem, 5vw, 2.6rem);
-  font-weight: 800;
+/* Each choice is a whole bordered row you can tap, not just the small radio. */
+.role-row {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  border: 1px solid var(--sl-line);
+  border-radius: var(--sl-radius-sm);
+  background: var(--sl-surface);
+}
+
+.role-row:has(:checked) {
+  border-color: var(--sl-jade);
+  background: var(--sl-jade-soft);
+}
+
+.role-row:has(:focus-visible) {
+  outline: 3px solid var(--sl-jade);
+  outline-offset: 2px;
+}
+
+.role-row .form-check-input {
+  flex: none;
+  margin-left: 0.9rem;
+}
+
+.role-label {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
 }
 </style>

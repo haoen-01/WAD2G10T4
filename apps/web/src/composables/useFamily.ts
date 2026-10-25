@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 
 import { currentGroup, loadMe } from '@/composables/useMe';
 import { showToast } from '@/composables/useToast';
-import { DEMO_FAMILY_SUBS, setDemoMember } from '@/composables/useViewMode';
+import { DEMO_FAMILY_SUBS, setDemoMember, useViewMode } from '@/composables/useViewMode';
 import { classifyApiError } from '@/lib/api-errors';
 import { todayIso } from '@/lib/calendar';
 import { AUTH_ENABLED } from '@/lib/config';
@@ -11,10 +11,12 @@ import {
   checkWindow,
   fromCalendar,
   helperIds,
+  idToRemove,
   newId,
   respondTo,
   statusFor,
   stepBackFrom,
+  swapEntryId,
   volunteerFor,
 } from '@/lib/family';
 import type { Appointment, AvailabilityStatus, FamilyState, MemberStatus } from '@/lib/family';
@@ -41,6 +43,22 @@ const state = reactive<FamilyState>({
   assignments: [],
   currentMemberId: null,
 });
+
+/**
+ * A tiny registry so other family-only code (the Home activity feed) can hear about changes made
+ * here without this file importing it (the senior screen loads this file, and must not pull in
+ * the feed or motion code). `saved`: the save queue drained. `viewer`: the demo switched member.
+ */
+export type FamilyChange = 'saved' | 'viewer';
+const listeners = new Set<(change: FamilyChange) => void>();
+export function onFamilyChange(listener: (change: FamilyChange) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+function notify(change: FamilyChange): void {
+  for (const listener of listeners) listener(change);
+}
+
 const elderName = ref('Your senior');
 const groupId = ref<string | null>(null);
 const personId = ref<string | null>(null);
@@ -113,9 +131,44 @@ function save(work: (group: string) => Promise<unknown>): Promise<void> {
     )
     .finally(() => {
       inFlight -= 1;
-      if (inFlight === 0) void refresh();
+      if (inFlight === 0) {
+        // Queue drained: temp ids are gone after the refresh, so the map need not grow all session.
+        savedIds.clear();
+        void refresh();
+        // The senior screen shares this queue, and the family routes refuse a senior.
+        if (groupId.value && useViewMode().mode.value !== 'senior') notify('saved');
+      }
     });
   return saving;
+}
+
+/**
+ * An availability window shows at once under a temporary id and gets its real one when the API
+ * has saved it. Removing it before then (a double tap) must remove the saved entry, so the save
+ * queue (which runs one change at a time) looks the real id up when the removal runs.
+ */
+const savedIds = new Map<string, string>();
+
+function saveWindow(
+  tempId: string,
+  window: { date: string; start: string; end: string; status: AvailabilityStatus },
+): Promise<void> {
+  return save(async (group) => {
+    const saved = await api.addAvailability(group, window);
+    savedIds.set(tempId, saved.entry_id);
+    state.availability = swapEntryId(state.availability, tempId, saved.entry_id);
+  });
+}
+
+function saveRemoval(id: string): Promise<void> {
+  return save(async (group) => {
+    try {
+      const realId = idToRemove(id, savedIds);
+      if (realId) await api.removeAvailability(group, realId);
+    } finally {
+      savedIds.delete(id);
+    }
+  });
 }
 
 const currentMember = computed(
@@ -137,6 +190,7 @@ function setCurrentMember(id: string): void {
   if (!sub) return;
   setDemoMember(sub);
   state.currentMemberId = id;
+  notify('viewer');
   void refresh();
 }
 
@@ -151,14 +205,15 @@ function addAvailability(chosen: {
   if (!member) return 'Only family members in the group can share when they are free.';
   const problem = checkWindow(chosen);
   if (problem) return problem;
-  state.availability.push({ id: newId('saving'), memberId: member.id, ...chosen });
-  void save((group) => api.addAvailability(group, chosen));
+  const tempId = newId('saving');
+  state.availability.push({ id: tempId, memberId: member.id, ...chosen });
+  void saveWindow(tempId, chosen);
   return null;
 }
 
 function removeAvailability(id: string): void {
   state.availability = state.availability.filter((entry) => entry.id !== id);
-  void save((group) => api.removeAvailability(group, id));
+  void saveRemoval(id);
 }
 
 function apply(next: {
@@ -248,12 +303,13 @@ function paintDay(day: string, painted: SlotStatus[]): boolean {
   if (!member) return false;
   const { remove, add } = paintChanges(state.availability, member.id, day, painted);
   if (!remove.length && !add.length) return false;
+  const added = add.map((window) => ({ tempId: newId('saving'), window }));
   state.availability = [
     ...state.availability.filter((entry) => !remove.includes(entry.id)),
-    ...add.map((window) => ({ id: newId('saving'), memberId: member.id, ...window })),
+    ...added.map(({ tempId, window }) => ({ id: tempId, memberId: member.id, ...window })),
   ];
-  for (const id of remove) void save((group) => api.removeAvailability(group, id));
-  for (const window of add) void save((group) => api.addAvailability(group, window));
+  for (const id of remove) void saveRemoval(id);
+  for (const { tempId, window } of added) void saveWindow(tempId, window);
   return true;
 }
 

@@ -5,10 +5,12 @@ import { RouterLink } from 'vue-router';
 import AvailabilityGrid from '@/components/family/AvailabilityGrid.vue';
 import AvailabilityList from '@/components/family/AvailabilityList.vue';
 import AvailabilityPainter from '@/components/family/AvailabilityPainter.vue';
+import AvatarCluster from '@/components/family/AvatarCluster.vue';
 import CareShare from '@/components/family/CareShare.vue';
 import FamilyMemberCard from '@/components/family/FamilyMemberCard.vue';
 import GroupPanel from '@/components/family/GroupPanel.vue';
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
+import SeniorLocationCard from '@/components/family/SeniorLocationCard.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { useFamily } from '@/composables/useFamily';
 import { showToast } from '@/composables/useToast';
@@ -69,7 +71,13 @@ function remove(entry: AvailabilityEntry) {
         <h1 class="mb-0">Family</h1>
         <p class="text-body-secondary mb-0">Caring for {{ elderName }}</p>
       </div>
-      <RouterLink class="btn btn-outline-primary btn-lg" to="/groups/start" data-testid="to-groups">
+      <AvatarCluster :members="state.members" :current-id="state.currentMemberId" />
+      <RouterLink
+        class="btn btn-outline-primary"
+        :class="currentMember ? 'btn-sm' : 'btn-lg'"
+        to="/groups/start"
+        data-testid="to-groups"
+      >
         <Icon name="user-plus" class="me-1" />Join or create a family group
       </RouterLink>
     </header>
@@ -94,7 +102,7 @@ function remove(entry: AvailabilityEntry) {
           <GroupPanel class="h-100" />
         </div>
         <div class="col-12 col-lg-5">
-          <h2 id="members-heading" class="h4 mb-3">Who helps</h2>
+          <h2 id="members-heading" class="sl-section-title">Who helps</h2>
           <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-1 g-2">
             <div v-for="member in state.members" :key="member.id" class="col">
               <FamilyMemberCard
@@ -112,7 +120,7 @@ function remove(entry: AvailabilityEntry) {
       <!-- Paint your week on the left; everyone's shared times on the right. -->
       <section id="availability" class="row g-4 mb-5 order-1" aria-label="Free times">
         <div class="col-12 col-xl-7">
-          <h2 id="availability-heading" class="h4 mb-3">When can you help?</h2>
+          <h2 id="availability-heading" class="sl-section-title">When can you help?</h2>
           <div v-if="currentMember" class="sl-panel">
             <p class="d-flex align-items-center gap-2 mb-3">
               <MemberAvatar
@@ -152,7 +160,7 @@ function remove(entry: AvailabilityEntry) {
         <!-- From xl the share of care sits beside the two-week grid; below that each takes the
              full width, so the grid's fourteen days fit without scrolling sideways. -->
         <div class="col-12 col-xl-5">
-          <h2 id="share-heading" class="h4 mb-1">Sharing the care</h2>
+          <h2 id="share-heading" class="sl-section-title mb-1">Sharing the care</h2>
           <p class="text-body-secondary">Next 2 weeks · {{ coming.length }} visits</p>
           <div class="sl-panel">
             <CareShare
@@ -164,7 +172,7 @@ function remove(entry: AvailabilityEntry) {
           </div>
         </div>
         <div class="col-12 col-xl-7 d-none d-md-block">
-          <h2 class="h4 mb-1">The next two weeks</h2>
+          <h2 class="sl-section-title mb-1">The next two weeks</h2>
           <p class="text-body-secondary">Spot days when nobody is free.</p>
           <div class="sl-panel">
             <AvailabilityGrid
@@ -179,5 +187,7 @@ function remove(entry: AvailabilityEntry) {
         </div>
       </div>
     </section>
+
+    <SeniorLocationCard :elder="elderName" />
   </div>
 </template>

@@ -121,11 +121,11 @@ onBeforeUnmount(finish);
 <template>
   <div class="painter">
     <div class="painter-bar">
-      <div class="btn-group" role="group" aria-label="Paint as">
+      <div class="mode-toggle" role="group" aria-label="Paint as">
         <button
           type="button"
-          class="btn btn-sm"
-          :class="mode === 'available' ? 'btn-primary' : 'btn-outline-primary'"
+          class="mode-btn"
+          :class="{ on: mode === 'available' }"
           :aria-pressed="mode === 'available'"
           @click="mode = 'available'"
         >
@@ -133,28 +133,30 @@ onBeforeUnmount(finish);
         </button>
         <button
           type="button"
-          class="btn btn-sm"
-          :class="mode === 'unavailable' ? 'btn-primary' : 'btn-outline-primary'"
+          class="mode-btn"
+          :class="{ on: mode === 'unavailable' }"
           :aria-pressed="mode === 'unavailable'"
           @click="mode = 'unavailable'"
         >
           <span class="key key-busy" aria-hidden="true"></span>Busy
         </button>
       </div>
-      <div class="d-flex align-items-center gap-1">
+      <div class="week-nav d-flex align-items-center gap-1">
         <button
           type="button"
-          class="btn btn-sm btn-quiet"
+          class="btn btn-quiet nav-btn"
           aria-label="Previous week"
           :disabled="week === 0"
           @click="week--"
         >
           <Icon name="chevron-left" />
         </button>
-        <span class="small fw-semibold">{{ week === 0 ? 'This week' : `In ${week} wk` }}</span>
+        <span class="small fw-semibold week-label">{{
+          week === 0 ? 'This week' : `In ${week} wk`
+        }}</span>
         <button
           type="button"
-          class="btn btn-sm btn-quiet"
+          class="btn btn-quiet nav-btn"
           aria-label="Next week"
           :disabled="week >= 3"
           @click="week++"
@@ -164,7 +166,13 @@ onBeforeUnmount(finish);
       </div>
     </div>
 
-    <p class="sl-note mb-2">Drag to paint. Drag again to clear.</p>
+    <p class="sl-note mb-1">
+      Choose Free or Busy, then drag across the hours. Drag again to clear.
+    </p>
+    <ul class="legend list-unstyled sl-note mb-2" aria-label="Key">
+      <li><span class="key key-empty" aria-hidden="true"></span>Not set</li>
+      <li><span class="others-key" aria-hidden="true">+1</span>others free then</li>
+    </ul>
 
     <div class="grid" role="grid" aria-label="Your availability" @pointerdown="start">
       <div class="corner" aria-hidden="true"></div>
@@ -179,7 +187,7 @@ onBeforeUnmount(finish);
           :key="`${day.iso}-${slot.start}`"
           type="button"
           class="cell"
-          :class="slotsOf(day.iso)[index] ?? 'empty'"
+          :class="[slotsOf(day.iso)[index] ?? 'empty', { 'is-today': day.iso === today }]"
           :style="{ '--others': othersFree(day.iso, index).length / Math.max(others.length, 1) }"
           :data-day="day.iso"
           :data-slot="index"
@@ -199,8 +207,6 @@ onBeforeUnmount(finish);
         </button>
       </template>
     </div>
-
-    <p class="sl-note mt-2 mb-0"><span class="others-key">+2</span> = others free then</p>
   </div>
 </template>
 
@@ -212,6 +218,66 @@ onBeforeUnmount(finish);
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+
+/* Free / Busy as one segmented control, tall enough for a thumb. */
+.mode-toggle {
+  display: inline-flex;
+  padding: 0.2rem;
+  border: 1px solid var(--sl-line);
+  border-radius: 999px;
+  background: var(--sl-mist);
+}
+
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sl-ink);
+  font-weight: 700;
+  transition:
+    background-color var(--sl-dur-base) var(--sl-ease),
+    color var(--sl-dur-base) var(--sl-ease);
+}
+
+.mode-btn.on {
+  background: var(--sl-jade);
+  color: var(--sl-jade-on);
+}
+
+.mode-btn.on .key {
+  box-shadow: 0 0 0 1.5px var(--sl-jade-on);
+}
+
+.mode-btn:focus-visible,
+.cell:focus-visible {
+  outline: 3px solid var(--sl-sun-deep);
+  outline-offset: 2px;
+}
+
+.nav-btn {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+.week-label {
+  min-width: 4.5rem;
+  text-align: center;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.key-empty {
+  border: 1px solid var(--sl-line);
+  background: var(--sl-surface);
 }
 
 .key {
@@ -265,8 +331,23 @@ onBeforeUnmount(finish);
   font-size: 1rem;
 }
 
+/* Today: its date sits in a filled disc and its whole column gets a faint edge. */
+.head.today {
+  color: var(--sl-jade-deep);
+  font-weight: 700;
+}
+
 .head.today strong {
-  color: var(--sl-jade);
+  align-self: center;
+  min-width: 1.75rem;
+  border-radius: 999px;
+  background: var(--sl-jade);
+  color: var(--sl-jade-on);
+  text-align: center;
+}
+
+.cell.is-today {
+  border-color: color-mix(in srgb, var(--sl-jade) 45%, var(--sl-line));
 }
 
 .hour {
@@ -279,7 +360,7 @@ onBeforeUnmount(finish);
 
 .cell {
   position: relative;
-  min-height: 1.9rem;
+  min-height: 2.5rem;
   padding: 0;
   border: 1px solid var(--sl-line);
   border-radius: 0.35rem;
@@ -313,7 +394,7 @@ onBeforeUnmount(finish);
 
 .others,
 .others-key {
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--sl-jade-deep);
 }
@@ -329,6 +410,7 @@ onBeforeUnmount(finish);
 }
 
 .others-key {
+  margin-right: 0.35rem;
   padding: 0 0.25rem;
   border: 1px solid var(--sl-line);
   border-radius: 0.25rem;
@@ -336,7 +418,7 @@ onBeforeUnmount(finish);
 
 @media (min-width: 768px) {
   .cell {
-    min-height: 2.1rem;
+    min-height: 2.5rem;
   }
 }
 </style>
