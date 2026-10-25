@@ -1,37 +1,11 @@
-<script setup lang="ts">
+<script setup>
 import { computed } from 'vue';
-
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import BasePanel from '@/components/ui/BasePanel.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { useFamily } from '@/composables/useFamily';
-import type { FamilyMember } from '@/lib/family';
-
-/**
- * "My family": who is in the senior's group, small cards with a picture, a name and how they are
- * related. Read only; the family's own screens change the group.
- *
- * Built for a list of groups, but the API gives a senior one group (`care_groups.person_id` is
- * unique) and no group name, photo or caregiver flag yet, so today there is always one group and
- * neither the photo nor the "Caregiver" label shows. Nothing here is made up to fill them in.
- */
-interface MemberView extends FamilyMember {
-  /** Not in the API yet. */
-  photoUrl?: string;
-  /** Not in the API yet: a professional or external carer rather than family. */
-  caregiver?: boolean;
-}
-
-interface GroupView {
-  id: string;
-  /** Not in the API yet; only shown when there is more than one group. */
-  name: string | null;
-  members: MemberView[];
-}
-
 const { state, groupId, loading, loaded, error } = useFamily();
-
-const groups = computed<GroupView[]>(() =>
+const groups = computed(() =>
   state.members.length === 0
     ? []
     : [{ id: groupId.value ?? 'family', name: null, members: state.members }],
@@ -55,7 +29,7 @@ const firstLoad = computed(() => loading.value && !loaded.value);
       <div v-for="group in groups" :key="group.id" class="mb-3 last-mb-0">
         <h3 v-if="showGroupNames" class="h6 fw-bold mb-2">{{ group.name ?? 'Family group' }}</h3>
         <ul
-          class="list-unstyled row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-2 row-cols-xxl-3 g-2 mb-0"
+          class="list-unstyled row row-cols-2 row-cols-lg-3 row-cols-xl-4 g-2 mb-0"
           data-testid="my-family"
         >
           <li v-for="member in group.members" :key="member.id" class="col">
@@ -86,6 +60,7 @@ const firstLoad = computed(() => loading.value && !loaded.value);
         </ul>
       </div>
     </template>
+    <slot />
   </BasePanel>
 </template>
 

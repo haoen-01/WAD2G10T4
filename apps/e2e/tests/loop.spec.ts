@@ -76,7 +76,7 @@ test('a persistent decline is handed to a person, not offered to the senior as a
 
 test('the senior screen has no privacy switch', async ({ page }) => {
   await page.goto('/senior');
-  await expect(page.getByRole('heading', { name: 'Your activity' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My steps' })).toBeVisible();
   await expect(page.getByRole('switch')).toHaveCount(0);
   await expect(page.getByText('Your privacy')).toHaveCount(0);
 });

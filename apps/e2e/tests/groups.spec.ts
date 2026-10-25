@@ -52,6 +52,7 @@ test('the senior shows a code, and a senior already in a group cannot get a seco
   page,
 }) => {
   await enterAs(page, 'senior');
+  await page.getByRole('tab', { name: 'Family', exact: true }).click();
   await page.getByTestId('add-family-member').click();
   await page.getByTestId('show-family-code').click();
   const code = await digitsOf(page, 'senior-link-pin');

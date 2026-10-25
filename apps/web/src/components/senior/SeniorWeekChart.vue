@@ -1,19 +1,18 @@
-<script setup lang="ts">
-import type { DailyMetric } from '@silverloop/api-client';
+<script setup>
 import { computed, ref, useId, watch } from 'vue';
-
 import { percentOfUsual } from '@/lib/activity';
 import { formatIsoDay, parseIsoDay, WEEKDAYS_SHORT } from '@/lib/format-date';
-
 /**
  * The senior's week as bars, drawn with plain HTML and CSS. Each bar is a button: hovering,
  * focusing or tapping one lifts it and shows a small tooltip, and choosing one fills in the box
  * below. Every date is the reading's own day, written "Tue 18 Aug". Describes the numbers only.
  */
-const props = defineProps<{ days: DailyMetric[]; usual: number }>();
-
+const props = defineProps({
+  days: { type: Array, required: true },
+  usual: { type: Number, required: true },
+});
 const id = useId();
-const selected = ref<string | null>(null);
+const selected = ref(null);
 watch(
   () => props.days,
   (days) => {
@@ -22,40 +21,24 @@ watch(
   { immediate: true },
 );
 // The bar whose tooltip shows: the one under the pointer, else the one with focus or just tapped.
-const hovered = ref<string | null>(null);
-const focused = ref<string | null>(null);
+const hovered = ref(null);
+const focused = ref(null);
 const tipDay = computed(() => hovered.value ?? focused.value);
-
 /** "Tue 18 Aug" (or "Tuesday 18 August" when `long`): the reading's own day. */
-function dayWords(iso: string, long = false): string {
+function dayWords(iso, long = false) {
   return formatIsoDay(iso, long ? { style: 'long' } : {}).replace(',', '');
 }
-function stepWords(steps: number): string {
+function stepWords(steps) {
   return `${Math.round(steps).toLocaleString('en-SG')} steps`;
 }
-function usualWords(steps: number): string {
+function usualWords(steps) {
   const percent = percentOfUsual(steps, props.usual);
   return percent === null ? '' : `${percent}% of your usual day`;
 }
-
-interface Bar {
-  day: string;
-  height: string;
-  label: string;
-  weekday: string;
-  date: string;
-  steps: string;
-  ofUsual: string;
-  /** Keeps the tooltip inside the card: the first bars align it left, the last bars right. */
-  align: 'start' | 'center' | 'end';
-  left: string;
-}
-
 // The top of the chart: the busiest day or a fifth above usual, whichever is higher.
 const top = computed(() => Math.max(props.usual * 1.2, ...props.days.map((day) => day.steps), 1));
 const usualLine = computed(() => `${(props.usual / top.value) * 100}%`);
-
-const bars = computed<Bar[]>(() => {
+const bars = computed(() => {
   const count = props.days.length;
   return props.days.map((reading, index) => {
     const ofUsual = usualWords(reading.steps);
@@ -87,15 +70,13 @@ const chosenText = computed(() => {
   const ofUsual = usualWords(chosen.value.steps);
   return `${stepWords(chosen.value.steps)}${ofUsual ? ` (${ofUsual})` : ''} and ${chosen.value.active_minutes} active minutes.`;
 });
-
-function choose(day: string) {
+function choose(day) {
   selected.value = day;
   focused.value = day;
 }
-
 // Arrow keys move between bars, as in any row of options.
-const buttons = ref<HTMLButtonElement[]>([]);
-function onKey(event: KeyboardEvent, index: number) {
+const buttons = ref([]);
+function onKey(event, index) {
   const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
   if (!step) return;
   event.preventDefault();
