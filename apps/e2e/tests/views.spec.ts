@@ -36,9 +36,77 @@ test('the senior sees only their day: activity, a suggestion and today’s plans
   await expect(page).toHaveURL(/\/senior$/);
 
   await expect(nav(page).getByRole('link')).toHaveText(['My day']);
-  await expect(page.getByRole('heading', { name: 'Your activity' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My steps' })).toBeVisible();
   await expect(page.getByTestId('steps-today')).not.toBeEmpty();
-  await expect(page.getByRole('heading', { name: 'Today’s activities' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next up' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Today', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByRole('button', { name: 'Show more details' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'See my calendar' }).click();
+  await expect(page.getByRole('heading', { name: 'My calendar' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My steps' })).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole('tab', { name: 'Calendar', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByRole('tab', { name: 'Calendar', exact: true }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Family', exact: true })).toBeFocused();
+  await expect(page.getByTestId('add-family-member')).toHaveCount(1);
+  await page.getByTestId('add-family-member').click();
+  await expect(page.getByTestId('senior-link-pin')).toBeVisible();
+  await expect(page.getByText('Link your family', { exact: true })).toHaveCount(0);
+  await page.keyboard.press('Home');
+  await page.getByRole('tab', { name: 'Today', exact: true }).click();
+  const chart = page.getByRole('group', { name: 'Steps on each day. Choose a day for details.' });
+  const bars = chart.getByRole('button');
+  await expect(bars).toHaveCount(7);
+  await bars.first().hover();
+  await expect(chart.locator('.chart-tip')).toBeVisible();
+  await bars.first().focus();
+  await expect(chart.locator('.chart-tip')).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await expect(bars.nth(1)).toBeFocused();
+  await expect(bars.nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await bars.last().click();
+  await expect(bars.last()).toHaveAttribute('aria-pressed', 'true');
+  const detailId = await bars.last().getAttribute('aria-controls');
+  await expect(page.locator(`[id="${detailId}"]`)).toContainText('active minutes');
+  await page.evaluate(() => {
+    document.documentElement.dataset.bsTheme = 'dark';
+    document.documentElement.style.zoom = '1.5';
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '1';
+  });
+  await page.addInitScript(() => {
+    const get = Storage.prototype.getItem;
+    const set = Storage.prototype.setItem;
+    Storage.prototype.getItem = function (key) {
+      if (key === 'careplus.seniorTab.v1') throw new Error('Storage unavailable');
+      return get.call(this, key);
+    };
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'careplus.seniorTab.v1') throw new Error('Storage unavailable');
+      set.call(this, key, value);
+    };
+  });
+  await page.reload();
+  await expect(page.getByRole('tab', { name: 'Today', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByRole('tab', { name: 'Calendar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'My calendar' })).toBeVisible();
 
   for (const path of ['/', '/calendar', '/family']) {
     await page.goto(path);

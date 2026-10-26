@@ -1,78 +1,45 @@
-<script lang="ts">
-import type { Intervention, OutcomeKind } from '@silverloop/api-client';
-import { defineComponent, type PropType } from 'vue';
+<script setup>
+import { onBeforeUnmount, ref } from 'vue';
 
-import Icon, { type IconName } from '@/components/ui/Icon.vue';
+import Icon from '@/components/ui/Icon.vue';
 import { SENIOR_REPLIES } from '@/lib/labels';
 
-const REPLY_ICONS: Record<string, IconName> = {
-  accepted: 'check-circle',
-  deferred: 'clock',
-  declined: 'x',
-};
-
-/**
- * One suggestion for the senior, in large type, with "Read this to me" and the three replies.
- * A reply is emitted as `reply(outcome, thanks)`; the senior screen sends it to the API.
- */
-export default defineComponent({
-  name: 'SuggestionCard',
-  components: { Icon },
-
-  props: {
-    suggestion: { type: Object as PropType<Intervention>, required: true },
-    /** True while a reply is being saved, so it cannot be sent twice. */
-    busy: { type: Boolean, default: false },
-  },
-
-  emits: {
-    reply: (outcome: OutcomeKind, thanks: string) => Boolean(outcome && thanks),
-  },
-
-  data() {
-    return {
-      replies: SENIOR_REPLIES,
-      icons: REPLY_ICONS,
-      // Read aloud, for eyes that are tired today. Uses the browser's own speech; hidden where
-      // there is none.
-      canSpeak: typeof window !== 'undefined' && 'speechSynthesis' in window,
-      reading: false,
-    };
-  },
-
-  // Leaving the screen stops any reading.
-  beforeUnmount() {
-    this.stopReading();
-  },
-
-  methods: {
-    stopReading() {
-      if (this.canSpeak) window.speechSynthesis.cancel();
-      this.reading = false;
-    },
-    readAloud() {
-      if (!this.canSpeak) return;
-      if (this.reading) return this.stopReading();
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(
-        `${this.suggestion.title}. ${this.suggestion.message}`,
-      );
-      utterance.rate = 0.9;
-      utterance.onend = () => {
-        this.reading = false;
-      };
-      utterance.onerror = () => {
-        this.reading = false;
-      };
-      this.reading = true;
-      window.speechSynthesis.speak(utterance);
-    },
-    reply(outcome: OutcomeKind, thanks: string) {
-      this.stopReading();
-      this.$emit('reply', outcome, thanks);
-    },
-  },
+const props = defineProps({
+  suggestion: { type: Object, required: true },
+  busy: { type: Boolean, default: false },
 });
+const emit = defineEmits({ reply: (outcome, thanks) => Boolean(outcome && thanks) });
+const replies = SENIOR_REPLIES;
+const icons = { accepted: 'check-circle', deferred: 'clock', declined: 'x' };
+const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window;
+const reading = ref(false);
+
+function stopReading() {
+  if (canSpeak) window.speechSynthesis.cancel();
+  reading.value = false;
+}
+function readAloud() {
+  if (!canSpeak) return;
+  if (reading.value) return stopReading();
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(
+    `${props.suggestion.title}. ${props.suggestion.message}`,
+  );
+  utterance.rate = 0.9;
+  utterance.onend = () => {
+    reading.value = false;
+  };
+  utterance.onerror = () => {
+    reading.value = false;
+  };
+  reading.value = true;
+  window.speechSynthesis.speak(utterance);
+}
+function reply(outcome, thanks) {
+  stopReading();
+  emit('reply', outcome, thanks);
+}
+onBeforeUnmount(stopReading);
 </script>
 
 <template>

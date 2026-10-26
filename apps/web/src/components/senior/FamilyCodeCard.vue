@@ -1,5 +1,4 @@
-<script setup lang="ts">
-import type { PinResponse } from '@silverloop/api-client';
+<script setup>
 import { ref } from 'vue';
 
 import PinDisplay from '@/components/family/PinDisplay.vue';
@@ -13,7 +12,7 @@ import { getSeniorLinkPin } from '@/services/careApi';
  * Showing it is how the senior agrees to being linked, so only the senior's own screen can make one.
  */
 const { busy, error, run } = useAction();
-const code = ref<PinResponse | null>(null);
+const code = ref(null);
 
 function show() {
   void run(async () => {
@@ -25,9 +24,7 @@ function show() {
 <template>
   <BasePanel heading-class="h3 d-flex align-items-center gap-2">
     <template #title><Icon name="users" />Link your family</template>
-    <p>
-      Setting up Care+ for you? Show this code to your family member. It works once, for 15 minutes.
-    </p>
+    <p>Show this code to your family member. It works once.</p>
     <PinDisplay
       v-if="code"
       class="mb-3"
