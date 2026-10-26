@@ -134,6 +134,22 @@ Do not use subagents for:
 
 Do not spawn agents merely to use agents.
 
+## Agents
+
+Defined in `.claude/agents/`:
+
+| Agent               | Role                                                                       | Edits files |
+| ------------------- | -------------------------------------------------------------------------- | ----------- |
+| `architect`         | Design review before building; architecture verification after             | No          |
+| `implementer`       | Backend and general implementation from an agreed spec                     | Yes         |
+| `frontend-engineer` | Screens, `theme.css`, motion and copy in `apps/web`; fixes design findings | Yes         |
+| `code-reviewer`     | Correctness, invariants, authorization, tests                              | No          |
+| `design-reviewer`   | Looks at the screens (375 px / desktop, light / dark) against the UI rules | No          |
+| `verifier`          | Pass/fail per acceptance criterion, plus every validation gate             | No          |
+
+No agent commits, pushes, opens a PR or writes to GitHub, and no commit carries a Claude
+`Co-Authored-By` line: the human reviews and commits every change.
+
 ## What this is
 
 Care+ — an agentic active-ageing / AAC (Active Ageing Centre) outreach prototype. It learns a
