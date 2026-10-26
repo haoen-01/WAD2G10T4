@@ -32,16 +32,23 @@ one, they also get 3 days of quiet.
 
 **Rain context.** Live weather that can explain a quiet day, so Care+ waits instead of nudging.
 
-**Synthetic data.** Every activity figure in the demo is generated, and labelled as such. No real
-wearable is connected.
+**Synthetic data.** Generated activity figures for the sample seniors, labelled _Sample_. They are
+never mixed with live data.
+_Avoid_: demo data, fake data
+
+**Live data.** Daily steps read from a senior's own Google Health account with their agreement,
+labelled _Live_. Only steps, plus wear time where it exists, are read.
 
 ## Family
 
-**Care group.** The family members caring for one senior.
+**Family group.** The family members caring for one senior. A family member creates it, and it can
+exist before its senior is linked; until then it sees nothing about the senior. A senior belongs to
+one family group; a family member can belong to several.
+_Avoid_: care group
 
 **Senior-link PIN.** A 6-digit PIN the senior shows on their own screen. It lasts 10 minutes and works
-once. A family member who enters it creates the senior's care group; showing it is the senior's
-agreement to be linked.
+once. An active member who enters it links the senior to their family group; showing it is the
+senior's agreement to be linked.
 
 **Join PIN.** A 6-digit PIN any active member can show. It lasts 7 days and can be reused. Someone who
 enters it waits as _pending_ until an active member approves them.
@@ -53,7 +60,13 @@ enters it waits as _pending_ until an active member approves them.
 **Helper.** A family member who has taken an appointment. An appointment with nobody taking it
 _needs a helper_.
 
-**Activity feed.** What family members did in the care group, newest first: appointments added or
+**Asked helper.** A family member another member has asked to take an appointment, who has not yet
+said yes or no. They become the helper only by saying yes.
+
+**Notification.** A message inside Care+ for one family member: they have been asked to help, or
+someone has answered their ask. The senior never gets one, and none leaves the app.
+
+**Activity feed.** What family members did in the family group, newest first: appointments added or
 changed, who took one, free times shared, check-ins. Only active group members see it; the senior
 does not.
 
@@ -63,8 +76,12 @@ see it; the senior does not.
 **Check-in.** A family member telling the group they called, visited or messaged the senior, with an
 optional note. Care+ sends nothing and contacts no one.
 
-**Task.** A one-off, daily or weekly reminder on Home and Senior. Tasks are kept in the browser only;
-see `docs/tasks.md`.
+**Location share.** The senior's latest approximate area and the time it was shared, which their
+family group can see. The senior turns it on and off themselves; it keeps no history and raises no
+alerts.
+
+**Task.** A one-off, daily or weekly reminder for the senior, shared by the senior and their care
+group.
 
 ## Backend only (no screen)
 
