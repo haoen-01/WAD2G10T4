@@ -35,12 +35,28 @@ test('caregiver creates a daily task, senior completes it, and changes persist',
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByTestId('choose-senior').click();
   await page.getByTestId('continue-senior').click();
-  await expect(panel.getByRole('button', { name: 'Add task' })).toHaveCount(0);
-  // The tick box is drawn by its label, which sits on top of the real checkbox: tap the label.
-  await panel.locator('label', { hasText: 'Water the balcony plants' }).click();
-  await expect(panel.getByRole('checkbox', { name: /Water the balcony plants/ })).toBeChecked();
+  await expect(panel.getByRole('button', { name: 'Add task' })).toBeVisible();
+  await panel
+    .getByRole('button', { name: 'Mark Water the balcony plants done', exact: true })
+    .click();
+  await expect(
+    panel.getByRole('button', { name: 'Mark Water the balcony plants not done' }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await page.reload();
-  await expect(panel.getByRole('checkbox', { name: /Water the balcony plants/ })).toBeChecked();
+  await expect(
+    panel.getByRole('button', { name: 'Mark Water the balcony plants not done' }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await panel.getByRole('button', { name: 'Add task' }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal).toBeVisible();
+  await modal.getByLabel('Name', { exact: true }).fill('Water the seedlings');
+  await modal.getByRole('button', { name: 'Add task', exact: true }).click();
+  await expect(modal).toBeHidden();
+  await expect(panel.getByRole('button', { name: 'Mark Water the seedlings done' })).toBeVisible();
+  await panel.getByRole('button', { name: 'Add task' }).click();
+  await page.keyboard.press('Escape');
+  await expect(modal).toBeHidden();
+  await expect(panel.getByTestId('add-task')).toBeFocused();
 
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByTestId('choose-family').click();
@@ -55,6 +71,8 @@ test('caregiver creates a daily task, senior completes it, and changes persist',
   page.on('dialog', () => {
     throw new Error('Deleting a task should not ask for confirmation');
   });
+  await panel.getByRole('button', { name: 'Delete', exact: true }).click();
+  await panel.getByRole('button', { name: 'Edit Water the seedlings', exact: true }).click();
   await panel.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(panel.getByText('No tasks.', { exact: true })).toBeVisible();
   await page.reload();
