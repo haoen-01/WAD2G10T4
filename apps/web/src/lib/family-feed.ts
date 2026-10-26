@@ -172,3 +172,42 @@ export function mergeActivity(
     return a.activity_id < b.activity_id ? 1 : a.activity_id > b.activity_id ? -1 : 0;
   });
 }
+
+/** How soon a step back counts as undoing "I'll go" rather than real news for the family. */
+export const UNDO_WINDOW_MS = 5 * 60_000;
+
+/**
+ * The feed without "I'll go" moments that were undone: when a member takes an appointment and
+ * steps back from the same day within `UNDO_WINDOW_MS`, both lines are left out, so nobody reads
+ * that they are going when they are not. A step back later than that stays, because the family
+ * needs to know the appointment needs someone again. Every viewer gets the same filtered list.
+ */
+export function withoutUndone(entries: readonly FamilyActivityEntry[]): FamilyActivityEntry[] {
+  const sameDay = (a: FamilyActivityEntry, b: FamilyActivityEntry) =>
+    a.actor_member_id === b.actor_member_id &&
+    a.appointment_id === b.appointment_id &&
+    a.on_date === b.on_date;
+  const oldestFirst = [...entries].sort(
+    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+  );
+  const hidden = new Set<string>();
+  for (const back of oldestFirst) {
+    if (back.kind !== 'helper_stepped_back') continue;
+    const backAt = new Date(back.at).getTime();
+    // The latest "took" before this step back that is not already paired with one.
+    const joined = oldestFirst
+      .filter(
+        (entry) =>
+          entry.kind === 'helper_joined' &&
+          !hidden.has(entry.activity_id) &&
+          sameDay(entry, back) &&
+          new Date(entry.at).getTime() <= backAt,
+      )
+      .pop();
+    if (joined && backAt - new Date(joined.at).getTime() <= UNDO_WINDOW_MS) {
+      hidden.add(joined.activity_id);
+      hidden.add(back.activity_id);
+    }
+  }
+  return entries.filter((entry) => !hidden.has(entry.activity_id));
+}

@@ -2,7 +2,14 @@ import type { FamilyActivityEntry } from '@silverloop/api-client';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { feedLine, feedLink, feedSentence, mergeActivity, relativeTime } from './family-feed';
+import {
+  feedLine,
+  feedLink,
+  feedSentence,
+  mergeActivity,
+  relativeTime,
+  withoutUndone,
+} from './family-feed';
 
 function entry(overrides: Partial<FamilyActivityEntry> = {}): FamilyActivityEntry {
   return {
@@ -153,5 +160,33 @@ describe('mergeActivity', () => {
       ['b', 'a'],
     );
     assert.equal(current.length, 1);
+  });
+});
+
+describe('withoutUndone', () => {
+  const took = (id: string, at: string, actor = 'm1') =>
+    entry({ activity_id: id, kind: 'helper_joined', at, actor_member_id: actor, ...physio });
+  const back = (id: string, at: string, actor = 'm1') =>
+    entry({ activity_id: id, kind: 'helper_stepped_back', at, actor_member_id: actor, ...physio });
+  const ids = (list: FamilyActivityEntry[]) => list.map((item) => item.activity_id);
+
+  it('leaves out an "I’ll go" that was undone straight away, and its step back', () => {
+    const feed = [back('b', '2026-10-26T00:31:00Z'), took('t', '2026-10-26T00:30:00Z')];
+    assert.deepEqual(ids(withoutUndone(feed)), []);
+  });
+
+  it('keeps a step back that came later, so the family knows it needs someone again', () => {
+    const feed = [back('b', '2026-10-26T02:00:00Z'), took('t', '2026-10-26T00:30:00Z')];
+    assert.deepEqual(ids(withoutUndone(feed)), ['b', 't']);
+  });
+
+  it('pairs each step back with one "took", and only for the same member and day', () => {
+    const feed = [
+      took('t2', '2026-10-26T00:33:00Z'),
+      back('b', '2026-10-26T00:32:00Z'),
+      took('t1', '2026-10-26T00:31:00Z'),
+      took('other', '2026-10-26T00:31:30Z', 'm2'),
+    ];
+    assert.deepEqual(ids(withoutUndone(feed)), ['t2', 'other']);
   });
 });
