@@ -77,8 +77,9 @@ see it; the senior does not.
 optional note. Care+ sends nothing and contacts no one.
 
 **Location share.** The senior's latest approximate area and the time it was shared, which their
-family group can see. The senior turns it on and off themselves; it keeps no history and raises no
-alerts.
+family group sees as a rough circle on a map. The senior turns it on and off themselves; it keeps no
+history and raises no alerts.
+_Avoid_: tracking, live location
 
 **Task.** A one-off, daily or weekly reminder for the senior, shared by the senior and their care
 group.
