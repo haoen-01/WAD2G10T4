@@ -5,6 +5,7 @@ import { computed, effectScope, getCurrentInstance, onBeforeUnmount, onMounted, 
 import { onFamilyChange } from '@/composables/useFamily';
 import { currentGroup, loadMe } from '@/composables/useMe';
 import { classifyApiError } from '@/lib/api-errors';
+import { withoutUndone } from '@/lib/family-feed';
 import {
   addOptimistic,
   applyFirstPage,
@@ -35,7 +36,8 @@ const POLL_MS = 30_000;
 
 // The state changes are pure (`lib/family-feed-state.ts`); this file reads, writes and sequences.
 const feedState = ref<FeedState>(emptyFeed());
-const entries = computed(() => feedState.value.entries);
+// An undone "I'll go" is left out for everyone (see `withoutUndone`).
+const entries = computed(() => withoutUndone(feedState.value.entries));
 const nextBefore = computed(() => feedState.value.nextBefore);
 const loaded = ref(false);
 const loading = ref(false);

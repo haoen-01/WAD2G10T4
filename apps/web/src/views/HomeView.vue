@@ -6,6 +6,7 @@ import { RouterLink } from 'vue-router';
 import ErrorAlert from '@/components/ErrorAlert.vue';
 import ActivityFeed from '@/components/home/ActivityFeed.vue';
 import CheckInCard from '@/components/home/CheckInCard.vue';
+import DayTimeline from '@/components/home/DayTimeline.vue';
 import FortnightPanel from '@/components/home/FortnightPanel.vue';
 import HomeHero from '@/components/home/HomeHero.vue';
 import NeedsHelperList from '@/components/home/NeedsHelperList.vue';
@@ -137,6 +138,15 @@ const weekTasks = computed(() =>
     />
 
     <ErrorAlert v-if="error" :message="error" class="mb-4" @retry="load" />
+
+    <!-- The senior's day by the hour, live: appointments, tasks and the family. -->
+    <DayTimeline
+      v-if="!loading"
+      id="home-timeline"
+      class="mb-4"
+      :person-id="personId"
+      :elder="elder"
+    />
 
     <!-- What the family has been doing, and a one-tap way to say you were in touch. Phones: the
          check-in first; wide screens: the feed on the left, the check-in beside it. -->
