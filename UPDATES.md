@@ -9,6 +9,44 @@ changed and why, list the files, and note anything others must do.
 
 ---
 
+## 2026-10-28: Details pop out on hover (two-week chart, calendar)
+
+**Frontend only, no new package.**
+
+- **The last two weeks (Home):** the box under the chart that always showed one day is gone. A
+  day's figures (date, steps, % of her usual day, active minutes, and a note if it was more than
+  20% below usual) now pop out in a small card above the bar while the mouse is on it; the other
+  bars dim a little. Off the chart, the card goes. Keyboard: Tab to the chart, arrow keys move along
+  it with the card following, Escape hides it. Touch: tapping a bar keeps its card showing; tapping
+  it again hides it. Each bar's name still says all of it for screen readers.
+- **Calendar chips:** pointing at an appointment or task chip pops out a card with all of it, so
+  nothing is cut off: the kind and time ("Medical visit · 10:00 am – 12:00 pm"), the full title,
+  the place or notes, "Done" for a ticked task, and "Drag to another day to move it" for one that
+  can be moved. Pointing at "+3 more" lists the rest with their times. Cards in the first week open
+  downwards and those on Thursday to Saturday open to the left, so none is cut off. The chips
+  themselves look as before. No cards while dragging an appointment.
+- **Calendar grid:** a day lifts slightly when pointed at, with a soft green tint, a shadow and its
+  number lit up (past days and other months' days get a lighter version).
+- Mouse and trackpad only (`hover: hover`): on a touch screen a tap selects the day, and its agenda
+  beside the calendar lists everything, as before. With "reduce motion" on, nothing lifts or slides.
+
+### Files
+
+- Changed: `components/home/ActivityChart.vue`, `components/calendar/CalendarDay.vue`.
+- New test: `apps/e2e/tests/hover-details.spec.ts` (the chart's card on hover, focus, tap and
+  Escape; a chip's card and the "+ more" list).
+
+### Checked
+
+- Type check clean, 234 web unit tests pass, Prettier clean, Vite build.
+- Browser tests: 59 of 61 pass, including the 2 new ones and the existing chart test. The 2 failures
+  are not touched by this change: `family.spec.ts:183` (painting busy hours) is the known flaky test
+  (passed 2 of 3 times alone), and `family.spec.ts:219` (dragging an appointment) fails only in the
+  last days of a month, as noted in the entry below.
+- Looked at in light and dark at 1440 px.
+
+---
+
 ## 2026-10-28: A live sky behind "Weather nearby" on Home
 
 The weather card now shows the forecast as a moving sky behind its words, like a phone's weather
