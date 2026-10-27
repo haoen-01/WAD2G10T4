@@ -12,6 +12,8 @@ import SeniorStatus from '@/components/senior/SeniorStatus.vue';
 import SuggestionCard from '@/components/senior/SuggestionCard.vue';
 import TodayStats from '@/components/senior/TodayStats.vue';
 import Icon from '@/components/ui/Icon.vue';
+import ShareWalkCard from '@/components/walk/ShareWalkCard.vue';
+import StillnessPrompt from '@/components/walk/StillnessPrompt.vue';
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue';
 import { useAction } from '@/composables/useAction';
 import { useFamily } from '@/composables/useFamily';
@@ -110,6 +112,9 @@ function companions(appointmentId: string): FamilyMember[] {
       <!-- 1. The one status line. -->
       <SeniorStatus id="status" :person="person" :today="today" />
 
+      <!-- Asked first: "Are you OK?" before the family is told she has been still a long time. -->
+      <StillnessPrompt class="mt-4" />
+
       <Transition name="page">
         <div v-if="thanks" class="thanks mt-4" data-testid="thanks">
           <span class="thanks-mark" aria-hidden="true"><Icon name="check" /></span>
@@ -148,6 +153,7 @@ function companions(appointmentId: string): FamilyMember[] {
       <!-- Full width, so no column is left empty beside a long section. -->
       <SeniorCalendar id="my-calendar" class="mt-4" />
       <TodayStats id="activity" class="mt-4" :person="person" :week="week" :today="today" />
+      <ShareWalkCard id="my-walks" class="mt-4" />
       <LinkFamily id="link-family" class="mt-4" />
 
       <!-- 6. Always last: styled as the first line of the site footer just below it. -->

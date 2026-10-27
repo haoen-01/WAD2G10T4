@@ -9,7 +9,7 @@
  * middleware's matcher had them. The guard is a courtesy, not the security boundary: every API
  * route enforces its own role check.
  */
-export const PROTECTED_PREFIXES = ['/senior', '/calendar', '/family'] as const;
+export const PROTECTED_PREFIXES = ['/senior', '/walk', '/calendar', '/family'] as const;
 
 /**
  * Whether `pathname` is one of the protected sections or lives under one. Matches whole path

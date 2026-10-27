@@ -74,6 +74,8 @@ export default defineConfig({
         E2E_WEB_PORT: webPort,
         VITE_API_BASE_URL: apiUrl,
         VITE_AUTH_ENABLED: 'false',
+        // The walk map starts on its offline sketch, so no test fetches outside map pictures.
+        VITE_WALK_MAP: 'sketch',
       },
     },
   ],

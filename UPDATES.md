@@ -9,6 +9,108 @@ changed and why, list the files, and note anything others must do.
 
 ---
 
+## 2026-10-23: Live walk map and the "Still for a while" check-in (branch `feat/maptracker`)
+
+A new **Walk** page for the family: the senior's walk, live, on a 3D map they can explore, plus a
+calm check-in when she stays in one place away from home for a long time. **Frontend only: no
+backend, API or contract change.** One new package: **MapLibre GL JS** (`maplibre-gl` 6.13.0,
+BSD licence), agreed with the group, loaded only when the Walk page opens.
+
+- **Walk page (`/walk`, "Walk" in the family's menu).** A tilted 3D map with buildings, her marker
+  (pulsing, with an arrow for her direction and a faint GPS-accuracy circle), the path walked so
+  far, her usual route dashed, and Home. Buttons: **2D/3D**, **map look** (Streets, Quiet, Sketch),
+  **follow her**, **point north**, zoom. Drag, scroll, pinch, right-drag to turn and tilt, or the
+  keyboard once the map has focus. Dragging stops following her; "Back to Mdm Lim" follows again.
+  A **replay slider** shows where she was at any time today.
+- **Her walk in words** beside the map: walking / resting / back home / watch out of signal, near
+  which place, when the watch last sent a reading, time out, distance, about how many steps
+  (an estimate from distance), pace, distance from home, GPS quality. A screen reader hears each
+  change of state.
+- **"Still for a while" check-in.** Raised when she has stayed within about 50 m of one spot, away
+  from home, for longer than the family's limit (**2 hours** by default, 30 minutes to 4 hours).
+  Never at home, never at a usual place such as the AAC, never during a calendar appointment, and
+  never when the watch is out of signal (no data is not "still").
+  - The family sees a banner at the top of every screen, a pop-up message, a dot on "Walk", and,
+    if they turn it on, a browser notification. Wording is factual: _"Mdm Lim has been in one place
+    for 2 h 05 min, near the big lawn (since 2:05 pm). You may want to check in."_
+  - Actions: **Call** and **Message** (open the phone's own dialler and messages, SMS only, no
+    WhatsApp for now), **Show on map**, **I'm checking in** (tells the rest of the family "Sarah is
+    checking in") and **She's fine** (no more alerts for that stop). "Check-ins today" lists each
+    one and how it ended.
+- **The senior decides** ("My walks" on her page): "Share my walk with my family" and "Tell my
+  family if I stay in one place for a long time". Both start **off**; only she can turn them on.
+  With sharing off the family sees "Mdm Lim is not sharing her walks" and no location anywhere.
+  **She is asked first:** 15 minutes before the family would be told, her page asks "Are you
+  OK?" with a big **I'm OK** button, which restarts the clock (and, if the family was already
+  told, tells them she is OK).
+- **Home:** under her watch, "Walking near the pond · See live" links to the Walk page.
+- **Simulated watch** (clearly labelled): a made-up walk from a made-up home around Bishan–Ang Mo
+  Kio Park (about 2.4 km, an older walker's pace, two rests, GPS wobble). Controls: start, pause,
+  speed 1× / 5× / 20×, **Stay still here**, **Skip 15 min**, **Skip 1 hour**, **Lose the signal**, reset, and
+  **play a recorded walk from a GPX file** (read in the browser, never sent anywhere). To show the
+  check-in in a presentation: start, 20×, wait until she is in the park, Stay still here, Skip 1 hour
+  twice (she is asked "Are you OK?" on the way, then the family is told).
+
+### What teammates need to know
+
+- **Product boundary.** This is a stillness timer on location, not fall detection: it never says
+  she has fallen or is unwell, never contacts anyone by itself, and only runs with the senior's
+  consent. The page says so, and that it is not an emergency service (995). Please keep any
+  wording changes inside that line.
+- **Open decision: the street map's pictures.** "Streets" and "Quiet" come from OpenFreeMap (free,
+  no key, OpenStreetMap data). The browser fetches them directly, so OpenFreeMap can tell which
+  area is being viewed. CLAUDE.md says nothing about the senior may be sent to an outside service:
+  fine for the made-up demo walk, but a real walk needs the team to accept and document this or
+  host the map pictures. If OpenFreeMap cannot be reached, the map falls back to **Sketch**, a
+  simple offline drawing of the park, river, roads and blocks (in 3D). Satellite was left out:
+  free use of Esri's imagery like this could not be confirmed (MapTiler's free key is an option).
+- **Not checked against the real map.** The street map could not be reached from the machine this
+  was built on, so only the Sketch look was seen. The demo route was drawn by hand around the park,
+  so on the street map it may not follow the park's paths exactly. A GPX of a real walk there can
+  be played instead.
+- **Everything is in this browser** (like the calendar's sample data used to be): consent and the
+  family's limit are kept in `localStorage` (`careplus.walk.v1`); the walk and alerts are in memory
+  and reset on reload. With a real watch, readings, consent and the check-in timer belong in the
+  API (a new `GET /v1/people/{id}/walk`, consent checked on the server, each alert stored with
+  source, time and an ID), and a real push to a locked phone needs a notification service.
+- **Phone number:** the family data has no phone numbers, so Call and Message use an obviously
+  made-up demo number (`+65 0000 0000`).
+- **Tests changed (not only new ones):** `views.spec.ts` and `shared-look.spec.ts` now expect
+  "Walk" in the family's menu. `loop.spec.ts` "the senior screen has no privacy switch" now allows
+  the two walk switches and checks that none is a privacy/consent switch (the 2026-10-14 decision
+  still holds). `playwright.config.ts` sets `VITE_WALK_MAP=sketch` so no test fetches outside maps.
+- **Bundle:** MapLibre adds about 290 KB gzipped plus its 508 KB worker file, both loaded only on
+  the Walk page (Vite warns about the chunk size; that is expected).
+
+### Files
+
+- New: `apps/web/src/views/WalkView.vue`; `components/walk/` (`WalkMap`, `WalkFacts`,
+  `CheckInPanel`, `CheckInActions`, `CheckInBanner`, `DemoWalkControls`, `ShareWalkCard`,
+  `StillnessPrompt`, `WalkLink`); `composables/useWalk.ts`; `lib/geo.ts`, `lib/walk.ts`,
+  `lib/stillness.ts`, `lib/demo-walk.ts`, `lib/map-style.ts` (+ tests for the first four);
+  `apps/e2e/tests/walk.spec.ts`.
+- Changed: `router/index.ts`, `layouts/AppLayout.vue` (Walk link, banner, menu dot),
+  `lib/view-mode.ts` and `lib/route-guard.ts` (+ tests: `/walk` is a family screen),
+  `views/SeniorView.vue` (prompt, "My walks"), `components/home/HomeHero.vue` (walk link),
+  `composables/useFamily.ts` (exports the calendar's appointments for the check-in),
+  `components/ui/Icon.vue` (map, layers, locate, compass, play, pause), `env.d.ts`,
+  `vite.config.ts` (pre-bundle MapLibre), `apps/web/package.json`, `pnpm-lock.yaml`;
+  e2e `views.spec.ts`, `shared-look.spec.ts`, `loop.spec.ts`, `playwright.config.ts`.
+
+### Checked
+
+- Type check clean, 229 web unit tests pass (42 new), Prettier clean, Vite build.
+- Browser tests: the whole suite passes, 58 of 58, including 7 new walk tests (consent on and
+  off, the map and replay, the check-in on Home, none at home, the senior asked first, and her
+  "I'm OK" after the family was told).
+- An independent review found eight problems (among them: readings kept while sharing was off,
+  time without signal counted as "still", the family told before the senior was asked, and the
+  banner read out every minute). All are fixed, with tests, and a second review confirmed it.
+- Screens checked at 1280 px and 390 px, light and dark; no sideways scrolling; text contrast
+  passes WCAG AA on the Walk page, the banner and the senior's prompt.
+
+---
+
 ## 2026-10-23: The 5 failing browser tests fixed (tests only)
 
 The whole e2e suite now passes (51 of 51). Only test files changed; the app is unchanged.

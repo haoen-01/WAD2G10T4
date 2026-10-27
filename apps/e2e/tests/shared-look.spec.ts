@@ -31,7 +31,13 @@ test.describe('on a phone', () => {
   }) => {
     // The calendar, as Home is now too short on a phone to scroll the brand row away.
     await page.goto('/calendar');
-    await expect(menu(page).getByRole('link')).toHaveText(['Home', 'My day', 'Calendar', 'Family']);
+    await expect(menu(page).getByRole('link')).toHaveText([
+      'Home',
+      'My day',
+      'Walk',
+      'Calendar',
+      'Family',
+    ]);
 
     // The brand row scrolls away; the menu row stays pinned at the very top.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));

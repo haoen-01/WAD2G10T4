@@ -95,6 +95,15 @@ const ICONS = {
     '<rect x="6" y="2.5" width="12" height="4" rx="1"/><path d="M7 6.5h10V19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M12 10.5v6M9 13.5h6"/>',
   stethoscope: STETHOSCOPE,
   walk: WALK,
+  map: '<path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6z"/><path d="M9 4v14M15 6v14"/>',
+  layers:
+    '<path d="M12 3 2.5 8 12 13l9.5-5z"/><path d="M2.5 12.5 12 17.5l9.5-5M2.5 16.5 12 21.5l9.5-5"/>',
+  locate:
+    '<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/>',
+  compass:
+    '<circle cx="12" cy="12" r="9"/><path d="m12 5 2.6 7H9.4z" fill="currentColor"/><path d="m12 19-2.6-7h5.2z"/>',
+  play: '<path d="M7 4.5v15l12-7.5z"/>',
+  pause: '<path d="M8 5v14M16 5v14"/>',
   water: '<path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/>',
   meal: '<path d="M6 3v6.5a2.5 2.5 0 0 0 5 0V3M8.5 3v18M17.5 21V3c-2.2 0-3.5 2.6-3.5 6.5S15.3 14 17.5 14"/>',
   bag: BAG,

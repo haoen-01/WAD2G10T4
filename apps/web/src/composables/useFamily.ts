@@ -35,6 +35,8 @@ import * as api from '@/services/careApi';
  */
 const today = todayIso();
 const appointments = reactive<Appointment[]>([]);
+/** The calendar's appointments as last read, for the walk check-in (no alert at an appointment). */
+export const calendarAppointments: readonly Appointment[] = appointments;
 const state = reactive<FamilyState>({
   members: [],
   availability: [],

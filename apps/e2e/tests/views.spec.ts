@@ -19,11 +19,13 @@ async function enterAs(page: Page, audience: 'family' | 'senior') {
   await page.getByTestId(`continue-${audience}`).click();
 }
 
-test('the family sees Home, Calendar and Family, and never the senior screen', async ({ page }) => {
+test('the family sees Home, Walk, Calendar and Family, and never the senior screen', async ({
+  page,
+}) => {
   await enterAs(page, 'family');
   await expect(page).toHaveURL(/\/$/);
 
-  await expect(nav(page).getByRole('link')).toHaveText(['Home', 'Calendar', 'Family']);
+  await expect(nav(page).getByRole('link')).toHaveText(['Home', 'Walk', 'Calendar', 'Family']);
 
   await page.goto('/senior');
   await expect(page).toHaveURL(/\/$/);
@@ -40,7 +42,7 @@ test('the senior sees only their day: activity, a suggestion and today’s plans
   await expect(page.getByTestId('steps-today')).not.toBeEmpty();
   await expect(page.getByRole('heading', { name: 'Today’s activities' })).toBeVisible();
 
-  for (const path of ['/', '/calendar', '/family']) {
+  for (const path of ['/', '/walk', '/calendar', '/family']) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/senior$/);
   }

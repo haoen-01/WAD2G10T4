@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { RouterLink, RouterView, useRouter } from 'vue-router';
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import DisplayControls from '@/components/ui/DisplayControls.vue';
+import CheckInBanner from '@/components/walk/CheckInBanner.vue';
 import { useAuth } from '@/composables/useAuth';
 import { useMe } from '@/composables/useMe';
 import { useViewMode } from '@/composables/useViewMode';
+import { useWalk } from '@/composables/useWalk';
 import { AUTH_ENABLED } from '@/lib/config';
-import { homeFor, isPathInView } from '@/lib/view-mode';
+import { homeFor, isLoginPath, isPathInView } from '@/lib/view-mode';
 
 const { loading, currentUser, signOut } = useAuth();
 const { mode, leaveDemoView } = useViewMode();
@@ -19,15 +21,25 @@ function pickSenior(event: Event) {
   selectGroup((event.target as HTMLSelectElement).value);
 }
 const router = useRouter();
+const route = useRoute();
+
+// The walk check-in: a banner on the family's screens (not the Walk page, which shows it itself),
+// and a dot on the Walk link while one is waiting. A notification click opens the Walk page.
+const walk = useWalk();
+walk.setNavigator((path) => void router.push(path));
+const showCheckIn = computed(
+  () => mode.value !== 'senior' && route.path !== '/walk' && !isLoginPath(route.path),
+);
 
 const ALL_LINKS: { to: string; label: string; exact: boolean; icon: IconName }[] = [
   { to: '/', label: 'Home', exact: true, icon: 'home' },
   { to: '/senior', label: 'My day', exact: false, icon: 'person' },
+  { to: '/walk', label: 'Walk', exact: false, icon: 'walk' },
   { to: '/calendar', label: 'Calendar', exact: false, icon: 'calendar' },
   { to: '/family', label: 'Family', exact: false, icon: 'users' },
 ];
 
-// The family sees Home, Calendar and Family; the senior sees only their own screen. Nobody signed
+// The family sees Home, Walk, Calendar and Family; the senior sees only their own screen. Nobody signed
 // in sees none, except with sign-in off and no demo view chosen, when every screen is listed. The API enforces each role too, except for
 // the calendar and family screens, which hold sample data in the browser and have no API behind
 // them.
@@ -121,6 +133,12 @@ onBeforeUnmount(() => {
               >
                 <Icon :name="link.icon" />
                 <span>{{ link.label }}</span>
+                <span
+                  v-if="link.to === '/walk' && walk.openAlert.value"
+                  class="mainnav-dot"
+                  data-testid="walk-dot"
+                  ><span class="visually-hidden"> (a check-in is waiting)</span></span
+                >
               </RouterLink>
             </li>
           </ul>
@@ -165,9 +183,10 @@ onBeforeUnmount(() => {
     </header>
 
     <main id="main" tabindex="-1" class="container flex-grow-1 py-4 py-md-5">
-      <RouterView v-slot="{ Component, route }">
+      <CheckInBanner v-if="showCheckIn" />
+      <RouterView v-slot="{ Component, route: shown }">
         <Transition name="page">
-          <component :is="Component" :key="route.path" />
+          <component :is="Component" :key="shown.path" />
         </Transition>
       </RouterView>
     </main>
@@ -296,6 +315,18 @@ onBeforeUnmount(() => {
 .mainnav-link.active {
   background: var(--sl-ink);
   color: var(--sl-on-ink);
+}
+
+/* A check-in is waiting: a sun-coloured dot on the Walk link (its words are read out too). */
+.mainnav-dot {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.45rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--sl-mist);
+  border-radius: 50%;
+  background: var(--sl-sun);
 }
 
 /* ---- Tablet: words only, so the menu and the tools share one line ---- */
