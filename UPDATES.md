@@ -9,6 +9,45 @@ changed and why, list the files, and note anything others must do.
 
 ---
 
+## 2026-10-28: A live sky behind "Weather nearby" on Home
+
+The weather card now shows the forecast as a moving sky behind its words, like a phone's weather
+app. **Frontend only, no new package, no new outside request:** it uses the same NEA 2-hour
+forecast the card already reads, so changing the area changes the sky.
+
+- **What it shows:** a deep blue sky with the sun's glow (fair), the moon and twinkling stars
+  (fair or partly cloudy at night), clouds drifting past (more and darker as it gets cloudier),
+  drizzle, rain or heavy rain falling at a slant (more slant when windy) with drops on the glass
+  and splashes along the bottom, lightning flashes in thundery showers, and pale bands drifting for
+  haze and mist. Day or night comes from NEA's "(Day)"/"(Night)", else the hour (7 am to 7 pm).
+- **Interactive:** the sky leans a little towards the pointer, and a tap or click on the card
+  splashes. The card keeps the area picker and Refresh; they are drawn as frosted glass on the sky.
+- **Calm for everyone:** the sky is decoration, hidden from screen readers (the card still says
+  the forecast in words). It pauses when the card is off screen or the tab is hidden. With "reduce
+  motion" on, it stands still: no drifting, no falling rain, no lightning. Lightning is a double
+  flash at most every 5 seconds, well under the three-flashes-a-second limit. White text is 4.5:1
+  or better on every sky (a unit test checks all 14 skies), with a soft shadow over the clouds.
+- While the forecast is loading, or if it cannot be reached, the card keeps its plain look.
+
+### Files
+
+- New: `components/home/WeatherSky.vue` (the sky: CSS for sun, moon, stars, clouds and mist, one
+  canvas for rain, drops and splashes), `lib/weather-scene.ts` (+ test: NEA's words to a sky).
+- Changed: `components/home/WeatherCard.vue` (the sky behind it, white glass styling, an icon per
+  sky), `components/ui/Icon.vue` (a `cloud` icon), `apps/e2e/tests/public-apis.spec.ts` (the sky
+  follows the forecast; none when it fails; still with reduced motion).
+
+### Checked
+
+- Type check clean, 234 web unit tests pass, Prettier clean, Vite build.
+- Browser tests: 58 of 59 pass, including the three weather tests. The one failure,
+  `family.spec.ts:219` (dragging an appointment), happens only in the last days of a month: it adds
+  the appointment 5 days ahead, which this week is next month. It is not touched by this change and
+  should pass again from November.
+- Every NEA forecast word checked on screen, by day and by night, at 1280 px and 390 px.
+
+---
+
 ## 2026-10-23: Live walk map and the "Still for a while" check-in (branch `feat/maptracker`)
 
 A new **Walk** page for the family: the senior's walk, live, on a 3D map they can explore, plus a

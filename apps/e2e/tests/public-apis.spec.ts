@@ -46,8 +46,13 @@ test('Home shows the forecast for the chosen area and remembers it', async ({ pa
   await expect(card).toContainText('An indoor activity may be easier today.');
   await expect(card).toContainText('9.30 am to 11.30 am');
 
+  // The sky behind the card follows the forecast: a storm, then a partly cloudy day.
+  await expect(card).toHaveAttribute('data-scene', /^storm-(day|night)$/);
+  await expect(card.locator('.sky canvas')).toHaveCount(1);
+
   await card.getByLabel('Area').selectOption('Bedok');
   await expect(card.getByTestId('weather-forecast')).toHaveText('Partly cloudy');
+  await expect(card).toHaveAttribute('data-scene', 'partly-day');
 
   await page.reload();
   await expect(page.getByLabel('Area')).toHaveValue('Bedok');
@@ -60,6 +65,8 @@ test('Home still works when the forecast cannot be reached', async ({ page }) =>
   await expect(page.getByTestId('weather-card')).toContainText(
     'The weather forecast could not be loaded right now.',
   );
+  // No forecast, no sky: the card keeps its plain look.
+  await expect(page.getByTestId('weather-card')).not.toHaveAttribute('data-scene', /.+/);
   // The Care+ API's own data is unaffected.
   await expect(page.getByRole('heading', { name: 'The last two weeks' })).toBeVisible();
 });
@@ -88,4 +95,16 @@ test('the calendar still works when the holidays cannot be reached', async ({ pa
     'The public holidays could not be loaded.',
   );
   await expect(page.getByRole('heading', { name: 'Calendar', level: 1 })).toBeVisible();
+});
+
+test('the weather sky stands still for readers who ask for less motion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.route(FORECAST, (route) => route.fulfill({ json: forecastBody }));
+  await page.goto('/');
+  const card = page.getByTestId('weather-card');
+  await expect(card).toHaveAttribute('data-scene', /^storm-/);
+  const moving = await card
+    .locator('.sky-cloud')
+    .evaluateAll((clouds) => clouds.filter((c) => getComputedStyle(c).animationName !== 'none'));
+  expect(moving).toHaveLength(0);
 });

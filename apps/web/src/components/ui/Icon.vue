@@ -95,6 +95,7 @@ const ICONS = {
     '<rect x="6" y="2.5" width="12" height="4" rx="1"/><path d="M7 6.5h10V19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"/><path d="M12 10.5v6M9 13.5h6"/>',
   stethoscope: STETHOSCOPE,
   walk: WALK,
+  cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6-1.4A4.6 4.6 0 0 0 7 18.5z"/>',
   map: '<path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6z"/><path d="M9 4v14M15 6v14"/>',
   layers:
     '<path d="M12 3 2.5 8 12 13l9.5-5z"/><path d="M2.5 12.5 12 17.5l9.5-5M2.5 16.5 12 21.5l9.5-5"/>',
