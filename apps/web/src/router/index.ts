@@ -42,6 +42,16 @@ const routes: RouteRecordRaw[] = [
         name: 'group-start',
         component: () => import('@/views/GroupStartView.vue'),
       },
+      // PROTOTYPE (issue #18), throwaway, dev builds only.
+      ...(import.meta.env.DEV
+        ? [
+            {
+              path: 'groups/prototype',
+              name: 'groups-prototype',
+              component: () => import('@/views/prototype/GroupsPrototypeView.vue'),
+            },
+          ]
+        : []),
       { path: 'senior', name: 'senior', component: () => import('@/views/SeniorView.vue') },
       { path: 'walk', name: 'walk', component: () => import('@/views/WalkView.vue') },
       { path: 'calendar', name: 'calendar', component: () => import('@/views/CalendarView.vue') },
