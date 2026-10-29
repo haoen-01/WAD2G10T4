@@ -87,7 +87,7 @@ OK?" first, and only the senior can allow it. It asks a person to get in touch; 
 alert.
 _Avoid_: fall alert, emergency alert
 
-**Task.** A one-off, daily or weekly reminder for the senior, shared by the senior and their care
+**Task.** A one-off, daily or weekly reminder for the senior, shared by the senior and their family
 group.
 
 ## Backend only (no screen)

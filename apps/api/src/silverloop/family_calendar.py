@@ -23,7 +23,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from silverloop import family_activity
@@ -40,7 +40,7 @@ from silverloop.db_models import (
     PersonRow,
 )
 from silverloop.family_activity import ORIGIN_DEMO_SEED, UnknownCursorError, record
-from silverloop.family_groups import FamilyGroupError
+from silverloop.family_groups import FamilyGroupError, senior_name_of
 from silverloop.models import (
     Appointment,
     AppointmentKind,
@@ -204,131 +204,154 @@ class FamilyCalendarStore:
 
     # ── Reading ──────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _check_range(lo: date, hi: date) -> None:
+        if hi < lo or (hi - lo).days > MAX_RANGE_DAYS:
+            raise FamilyGroupError(422, f"Ask for at most {MAX_RANGE_DAYS} days at a time.")
+
     def calendar(
         self, person_id: str, viewer_sub: str | None, lo: date, hi: date
     ) -> FamilyCalendar:
-        if hi < lo or (hi - lo).days > MAX_RANGE_DAYS:
-            raise FamilyGroupError(422, f"Ask for at most {MAX_RANGE_DAYS} days at a time.")
+        """The calendar of the senior `person_id`: their family group's, or an empty one when they
+        have no group yet. Who may read it is checked by the route."""
+        self._check_range(lo, hi)
         with self.sessions() as session:
             person = session.get(PersonRow, person_id)
             if person is None:
                 raise FamilyGroupError(404, "Person not found")
             group = session.scalar(select(CareGroupRow).where(CareGroupRow.person_id == person_id))
-            empty = FamilyCalendar(
-                person_id=person_id,
-                senior_name=person.display_name,
-                group_id=None,
-                from_date=lo,
-                to_date=hi,
-                members=[],
-                appointments=[],
-                availability=[],
-                assignments=[],
-            )
             if group is None:
-                return empty
+                return FamilyCalendar(
+                    person_id=person_id,
+                    senior_name=person.display_name,
+                    group_id=None,
+                    from_date=lo,
+                    to_date=hi,
+                    members=[],
+                    appointments=[],
+                    availability=[],
+                    assignments=[],
+                )
+            return self._group_calendar(session, group, viewer_sub, lo, hi)
 
-            member_rows = session.execute(
-                select(GroupMemberRow, AccountRow)
-                .outerjoin(AccountRow, AccountRow.sub == GroupMemberRow.sub)
-                .where(
-                    GroupMemberRow.group_id == group.group_id,
-                    GroupMemberRow.status == MemberStatus.ACTIVE.value,
-                )
-                .order_by(GroupMemberRow.created_at, GroupMemberRow.member_id)
-            ).all()
-            members = [
-                CalendarMember(
-                    member_id=member.member_id,
-                    display_name=account.display_name if account else "Family member",
-                    relationship=member.relationship,
-                    colour=index % AVATAR_COLOURS,
-                    is_me=viewer_sub is not None and member.sub == viewer_sub,
-                )
-                for index, (member, account) in enumerate(member_rows)
-            ]
-            active_ids = {member.member_id for member in members}
+    def group_calendar(self, sub: str, group_id: str, lo: date, hi: date) -> FamilyCalendar:
+        """The family group's calendar, whether or not its senior is linked yet. Active members
+        only; anyone else gets 404."""
+        self._check_range(lo, hi)
+        with self.sessions() as session:
+            self._active_member(session, sub, group_id)
+            group = session.get(CareGroupRow, group_id)
+            if group is None:  # pragma: no cover - membership implies the group
+                raise FamilyGroupError(404, "Group not found")
+            return self._group_calendar(session, group, sub, lo, hi)
 
-            appointment_rows = session.scalars(
-                select(AppointmentRow).where(AppointmentRow.group_id == group.group_id)
-            ).all()
-            days: set[str] = set()
-            occurrences: list[AppointmentOccurrence] = []
-            for row in appointment_rows:
-                for day in occurrence_dates(row, lo, hi):
-                    key = occurrence_id(row.appointment_id, day)
-                    days.add(key)
-                    occurrences.append(
-                        AppointmentOccurrence(
-                            occurrence_id=key,
-                            appointment_id=row.appointment_id,
-                            title=row.title,
-                            kind=AppointmentKind(row.kind),
-                            date=day,
-                            start=row.start_time,
-                            end=row.end_time,
-                            location=row.location,
-                            notes=row.notes,
-                            repeat=RepeatRule(row.repeat),
-                        )
-                    )
-            occurrences.sort(key=lambda o: (o.date, o.start, o.title))
+    @staticmethod
+    def _group_calendar(
+        session: Session, group: CareGroupRow, viewer_sub: str | None, lo: date, hi: date
+    ) -> FamilyCalendar:
+        # Until the senior is linked there is no person: the typed name, and nothing about them.
+        person = session.get(PersonRow, group.person_id) if group.person_id is not None else None
+        member_rows = session.execute(
+            select(GroupMemberRow, AccountRow)
+            .outerjoin(AccountRow, AccountRow.sub == GroupMemberRow.sub)
+            .where(
+                GroupMemberRow.group_id == group.group_id,
+                GroupMemberRow.status == MemberStatus.ACTIVE.value,
+            )
+            .order_by(GroupMemberRow.created_at, GroupMemberRow.member_id)
+        ).all()
+        members = [
+            CalendarMember(
+                member_id=member.member_id,
+                display_name=account.display_name if account else "Family member",
+                relationship=member.relationship,
+                colour=index % AVATAR_COLOURS,
+                is_me=viewer_sub is not None and member.sub == viewer_sub,
+            )
+            for index, (member, account) in enumerate(member_rows)
+        ]
+        active_ids = {member.member_id for member in members}
 
-            availability: list[AvailabilityEntryOut] = []
-            for entry in session.scalars(
-                select(AvailabilityEntryRow)
-                .where(
-                    AvailabilityEntryRow.group_id == group.group_id,
-                    AvailabilityEntryRow.on_date >= lo,
-                    AvailabilityEntryRow.on_date <= hi,
-                )
-                .order_by(AvailabilityEntryRow.created_at, AvailabilityEntryRow.entry_id)
-            ):
-                key = (
-                    occurrence_id(entry.appointment_id, entry.on_date)
-                    if entry.appointment_id
-                    else None
-                )
-                # An answer for a day the appointment no longer has (it was moved) is left out.
-                if entry.member_id not in active_ids or (key is not None and key not in days):
-                    continue
-                availability.append(
-                    AvailabilityEntryOut(
-                        entry_id=entry.entry_id,
-                        member_id=entry.member_id,
-                        date=entry.on_date,
-                        start=entry.start_time,
-                        end=entry.end_time,
-                        status=AvailabilityStatus(entry.status),
+        appointment_rows = session.scalars(
+            select(AppointmentRow).where(AppointmentRow.group_id == group.group_id)
+        ).all()
+        days: set[str] = set()
+        occurrences: list[AppointmentOccurrence] = []
+        for row in appointment_rows:
+            for day in occurrence_dates(row, lo, hi):
+                key = occurrence_id(row.appointment_id, day)
+                days.add(key)
+                occurrences.append(
+                    AppointmentOccurrence(
                         occurrence_id=key,
+                        appointment_id=row.appointment_id,
+                        title=row.title,
+                        kind=AppointmentKind(row.kind),
+                        date=day,
+                        start=row.start_time,
+                        end=row.end_time,
+                        location=row.location,
+                        notes=row.notes,
+                        repeat=RepeatRule(row.repeat),
                     )
                 )
+        occurrences.sort(key=lambda o: (o.date, o.start, o.title))
 
-            assignments = [
-                HelperAssignment(
-                    occurrence_id=occurrence_id(row.appointment_id, row.on_date),
-                    member_id=row.member_id,
+        availability: list[AvailabilityEntryOut] = []
+        for entry in session.scalars(
+            select(AvailabilityEntryRow)
+            .where(
+                AvailabilityEntryRow.group_id == group.group_id,
+                AvailabilityEntryRow.on_date >= lo,
+                AvailabilityEntryRow.on_date <= hi,
+            )
+            .order_by(AvailabilityEntryRow.created_at, AvailabilityEntryRow.entry_id)
+        ):
+            key = (
+                occurrence_id(entry.appointment_id, entry.on_date) if entry.appointment_id else None
+            )
+            # An answer for a day the appointment no longer has (it was moved) is left out.
+            if entry.member_id not in active_ids or (key is not None and key not in days):
+                continue
+            availability.append(
+                AvailabilityEntryOut(
+                    entry_id=entry.entry_id,
+                    member_id=entry.member_id,
+                    date=entry.on_date,
+                    start=entry.start_time,
+                    end=entry.end_time,
+                    status=AvailabilityStatus(entry.status),
+                    occurrence_id=key,
                 )
-                for row in session.scalars(
-                    select(HelperAssignmentRow)
-                    .where(
-                        HelperAssignmentRow.group_id == group.group_id,
-                        HelperAssignmentRow.on_date >= lo,
-                        HelperAssignmentRow.on_date <= hi,
-                    )
-                    .order_by(HelperAssignmentRow.created_at, HelperAssignmentRow.assignment_id)
+            )
+
+        assignments = [
+            HelperAssignment(
+                occurrence_id=occurrence_id(row.appointment_id, row.on_date),
+                member_id=row.member_id,
+            )
+            for row in session.scalars(
+                select(HelperAssignmentRow)
+                .where(
+                    HelperAssignmentRow.group_id == group.group_id,
+                    HelperAssignmentRow.on_date >= lo,
+                    HelperAssignmentRow.on_date <= hi,
                 )
-                if row.member_id in active_ids
-                and occurrence_id(row.appointment_id, row.on_date) in days
-            ]
-        return empty.model_copy(
-            update={
-                "group_id": group.group_id,
-                "members": members,
-                "appointments": occurrences,
-                "availability": availability,
-                "assignments": assignments,
-            }
+                .order_by(HelperAssignmentRow.created_at, HelperAssignmentRow.assignment_id)
+            )
+            if row.member_id in active_ids
+            and occurrence_id(row.appointment_id, row.on_date) in days
+        ]
+        return FamilyCalendar(
+            person_id=group.person_id,
+            senior_name=senior_name_of(group, person),
+            group_id=group.group_id,
+            from_date=lo,
+            to_date=hi,
+            members=members,
+            appointments=occurrences,
+            availability=availability,
+            assignments=assignments,
         )
 
     # ── Appointments ─────────────────────────────────────────────────────────
@@ -758,8 +781,56 @@ class FamilyCalendarStore:
 
         `members` maps each demo account to its relationship, owner first. Anyone else who joined
         the demo group is removed, with their answers, so every demo (and e2e test) starts alike.
+        Groups a demo account created that have no senior linked are removed too, and a demo
+        account leaves any other unlinked group it joined: left behind, one would be the demo
+        family's first group once their memberships are re-dated below.
         """
         with self.sessions.begin() as session:
+            unlinked = list(
+                session.scalars(
+                    select(CareGroupRow.group_id).where(
+                        CareGroupRow.person_id.is_(None),
+                        CareGroupRow.created_by.in_(list(members)),
+                    )
+                )
+            )
+            if unlinked:
+                # Children first, in the same order as below, then the groups themselves.
+                for table in (
+                    AppointmentNoteRow,
+                    FamilyActivityRow,
+                    HelperAssignmentRow,
+                    AvailabilityEntryRow,
+                    AppointmentRow,
+                    FamilyPinRow,
+                    GroupMemberRow,
+                ):
+                    session.execute(delete(table).where(table.group_id.in_(unlinked)))
+                session.execute(delete(CareGroupRow).where(CareGroupRow.group_id.in_(unlinked)))
+            # A demo account that joined someone else's unlinked group leaves it (the group
+            # stays), with what pointed at its membership there, so the demo group is its only one.
+            joined = list(
+                session.scalars(
+                    select(GroupMemberRow.member_id)
+                    .join(CareGroupRow, CareGroupRow.group_id == GroupMemberRow.group_id)
+                    .where(
+                        CareGroupRow.person_id.is_(None),
+                        GroupMemberRow.sub.in_(list(members)),
+                    )
+                )
+            )
+            if joined:
+                session.execute(
+                    delete(FamilyActivityRow).where(
+                        or_(
+                            FamilyActivityRow.actor_member_id.in_(joined),
+                            FamilyActivityRow.subject_member_id.in_(joined),
+                        )
+                    )
+                )
+                for table in (AppointmentNoteRow, HelperAssignmentRow, AvailabilityEntryRow):
+                    session.execute(delete(table).where(table.member_id.in_(joined)))
+                session.execute(delete(GroupMemberRow).where(GroupMemberRow.member_id.in_(joined)))
             group = session.scalar(select(CareGroupRow).where(CareGroupRow.person_id == person_id))
             if group is None:
                 return

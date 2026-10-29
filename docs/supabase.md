@@ -177,6 +177,14 @@ way (`if not exists`, RLS on, guarded `deny_browser_access` policy). It is liste
 only **after** `202610240023`; it moves the marker to `d8e2b6a4c917` only from exactly
 `c4a7e1b93d58`.
 
+`202610290025_unlinked_groups.sql` (Alembic `f3a9c1e7b254`) lets a family group exist before its
+senior is linked (ADR 0010): it adds `care_groups.senior_name`, `linked_at` and `linked_by`
+(`add column if not exists`), backfills them for existing groups from `people.display_name`,
+`created_at` and `created_by`, sets `senior_name` not null and drops not null from `person_id`
+(still unique) and `linked_via`. No new table, so no RLS change. Safe to run twice and over a
+schema the API already upgraded. **It has not been applied to the live project.** Apply it only
+**after** `202610240024`; it moves the marker to `f3a9c1e7b254` only from exactly `d8e2b6a4c917`.
+
 ## Schema ownership
 
 Three things can define this schema, and they have drifted from each other three times. The split is:

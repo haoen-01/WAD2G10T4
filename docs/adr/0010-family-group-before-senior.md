@@ -1,6 +1,6 @@
 # 0010. A family group can exist before its senior is linked
 
-Status: Accepted (2026-10-26). Not yet implemented.
+Status: Accepted (2026-10-26). Implemented in the API (migration f3a9c1e7b254); screens pending.
 
 A family member now creates the family group on their own and invites the rest of the family with a
 Join PIN; the senior is linked later, when they show their Senior-link PIN to an active member. We
