@@ -21,6 +21,39 @@ function isoDay(offset: number): string {
   return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
 }
 
+/** True once the month on screen has finished sliding in (a press mid-slide lands beside its day). */
+async function monthSettled(page: Page) {
+  await expect(
+    page.locator('tbody[class*="-enter-active"], tbody[class*="-leave-active"]'),
+  ).toHaveCount(0);
+}
+
+/**
+ * The first `count` days an appointment can go on, read from the calendar on screen rather than
+ * worked out here: days in the month shown that are today or later, as the page drew them from what
+ * the API returned. In the last days of a month there may be too few left, so it turns to the next
+ * month, as a person would, and waits for that month to finish sliding in.
+ */
+async function bookableDays(page: Page, count: number): Promise<string[]> {
+  const inMonth = page.locator('.cal-cell:not(.outside) .cal-day');
+  const open = page.locator('.cal-cell:not(.outside) .cal-day:not(.past)');
+  const isos = (cells: Locator) =>
+    cells.evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.iso ?? ''));
+
+  await expect(inMonth.first()).toBeVisible();
+  await monthSettled(page);
+  let days = await isos(open);
+  if (days.length < count) {
+    const shown = await inMonth.first().getAttribute('data-iso');
+    await page.getByRole('button', { name: 'Next month' }).click();
+    await expect(inMonth.first()).not.toHaveAttribute('data-iso', shown ?? '');
+    await monthSettled(page);
+    days = await isos(open);
+  }
+  expect(days.length, 'days left to book on the calendar').toBeGreaterThanOrEqual(count);
+  return days.slice(0, count);
+}
+
 /** The open appointment's details panel. */
 const details = (page: Page, title: RegExp) =>
   page.locator('article').filter({ has: page.getByRole('heading', { level: 2, name: title }) });
@@ -207,27 +240,31 @@ test('adding an appointment shades the calendar by who is free, and a day can be
 }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/calendar');
+  const [day] = await bookableDays(page, 1);
   await page.getByTestId('add-appointment').click();
   // The demo family is free on some days and not others, so some days are shaded.
   await expect(page.locator('.cal-day.heat').first()).toBeVisible();
 
-  await page.locator(`[data-iso="${isoDay(3)}"]`).click();
-  await expect(page.getByLabel('Date', { exact: true })).toHaveValue(isoDay(3));
+  await page.locator(`[data-iso="${day}"]`).click();
+  await expect(page.getByLabel('Date', { exact: true })).toHaveValue(day);
   await expect(page.getByTestId('free-then')).toBeVisible();
 });
 
 test('a one-off appointment can be dragged to another day, and edited', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/calendar');
+  // Two days in the month on screen, so adding the appointment does not turn the month.
+  const [fromDay, toDay] = await bookableDays(page, 2);
   await page.getByTestId('add-appointment').click();
   await page.getByTestId('add-title').fill('Haircut');
-  await page.getByLabel('Date', { exact: true }).fill(isoDay(5));
+  await page.getByLabel('Date', { exact: true }).fill(fromDay);
   await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Added Haircut' })).toBeVisible();
+  await monthSettled(page);
 
   const chip = page.locator('[data-appt]').filter({ hasText: 'Haircut' });
   const from = await chip.boundingBox();
-  const to = await page.locator(`[data-iso="${isoDay(6)}"]`).boundingBox();
+  const to = await page.locator(`[data-iso="${toDay}"]`).boundingBox();
   if (!from || !to) throw new Error('calendar not on screen');
   await page.mouse.move(from.x + 5, from.y + 5);
   await page.mouse.down();
@@ -235,10 +272,10 @@ test('a one-off appointment can be dragged to another day, and edited', async ({
   await page.mouse.up();
   await expect(page.getByRole('status').filter({ hasText: 'Moved to' })).toBeVisible();
   await expect(
-    page.locator(`[data-iso="${isoDay(6)}"] [data-appt]`).filter({ hasText: 'Haircut' }),
+    page.locator(`[data-iso="${toDay}"] [data-appt]`).filter({ hasText: 'Haircut' }),
   ).toBeVisible();
 
-  await page.locator(`[data-iso="${isoDay(6)}"]`).click();
+  await page.locator(`[data-iso="${toDay}"]`).click();
   await page.getByRole('button', { name: /Haircut/ }).click();
   await page.getByTestId('edit-appointment').click();
   await page.getByTestId('add-title').fill('Haircut and shave');
