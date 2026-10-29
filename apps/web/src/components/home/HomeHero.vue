@@ -7,6 +7,7 @@ import StatusWhyPanel from '@/components/home/StatusWhyPanel.vue';
 import WatchStatus from '@/components/home/WatchStatus.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import LoopRing from '@/components/ui/LoopRing.vue';
+import WalkLink from '@/components/walk/WalkLink.vue';
 import { GENTLE_NUDGE_PERCENT, compareWords, formatSteps, percentOfUsual } from '@/lib/activity';
 import { formatIsoDay } from '@/lib/format-date';
 import { attentionBadge, decisionBadge } from '@/lib/labels';
@@ -18,7 +19,7 @@ import { attentionBadge, decisionBadge } from '@/lib/labels';
  */
 export default defineComponent({
   name: 'HomeHero',
-  components: { LoopRing, NumberTicker, StatusBadge, StatusWhyPanel, WatchStatus },
+  components: { LoopRing, NumberTicker, StatusBadge, StatusWhyPanel, WalkLink, WatchStatus },
 
   props: {
     person: { type: Object as PropType<PersonState | null>, default: null },
@@ -88,6 +89,7 @@ export default defineComponent({
         :elder="elder"
         :now="now"
       />
+      <WalkLink class="mt-2" />
 
       <div v-if="person" class="d-flex flex-wrap align-items-center gap-2 mt-2">
         <StatusBadge v-bind="attentionBadge(person.attention_band)" />

@@ -34,8 +34,16 @@ describe('homeFor', () => {
 });
 
 describe('isPathInView', () => {
-  it('lets the family open Home, Calendar and Family, but not the senior screen', () => {
-    for (const path of ['/', '/calendar', '/calendar/', '/family', '/Family', '/groups/start']) {
+  it('lets the family open Home, Walk, Calendar and Family, but not the senior screen', () => {
+    for (const path of [
+      '/',
+      '/walk',
+      '/calendar',
+      '/calendar/',
+      '/family',
+      '/Family',
+      '/groups/start',
+    ]) {
       assert.equal(isPathInView('family', path), true, path);
     }
     assert.equal(isPathInView('family', '/senior'), false);
@@ -44,7 +52,7 @@ describe('isPathInView', () => {
   it('lets the senior open only their own screen', () => {
     assert.equal(isPathInView('senior', '/senior'), true);
     assert.equal(isPathInView('senior', '/senior/anything'), true);
-    for (const path of ['/', '/calendar', '/family', '/groups/start']) {
+    for (const path of ['/', '/walk', '/calendar', '/family', '/groups/start']) {
       assert.equal(isPathInView('senior', path), false, path);
     }
   });
@@ -58,7 +66,7 @@ describe('isPathInView', () => {
 
 describe('isViewPath', () => {
   it('is true for every screen of either view and false for anything else', () => {
-    for (const path of ['/', '/calendar', '/family', '/senior']) {
+    for (const path of ['/', '/walk', '/calendar', '/family', '/senior']) {
       assert.equal(isViewPath(path), true, path);
     }
     for (const path of ['/login', '/nowhere']) assert.equal(isViewPath(path), false, path);

@@ -12,10 +12,12 @@ import type { IconName } from '@/components/ui/Icon.vue';
  * - `pill` (the family, wide screens): a pill in the middle of the header row.
  *   Both slide one highlight behind the current link.
  * - `bar` (the senior): the plain links inside the top bar, unchanged.
+ * `dots` puts a sun-coloured dot on a link (keyed by its path); the value is read out after its label.
  */
 const props = defineProps<{
   links: { to: string; label: string; exact: boolean; icon: IconName }[];
   variant: 'tabs' | 'pill' | 'bar';
+  dots?: Record<string, string>;
 }>();
 
 const route = useRoute();
@@ -73,6 +75,9 @@ watch(
         >
           <span class="mainnav-icon"><Icon :name="link.icon" /></span>
           <span class="mainnav-label">{{ link.label }}</span>
+          <span v-if="dots?.[link.to]" class="mainnav-dot" :data-testid="`${link.to.slice(1)}-dot`"
+            ><span class="visually-hidden"> {{ dots[link.to] }}</span></span
+          >
         </RouterLink>
       </li>
       <li v-if="variant !== 'bar'" class="mainnav-indicator" aria-hidden="true" />
@@ -100,6 +105,18 @@ watch(
   transition:
     background-color var(--sl-dur-base) ease,
     color var(--sl-dur-base) ease;
+}
+
+/* Something is waiting on this link: a sun-coloured dot (its words are read out too). */
+.mainnav-dot {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.45rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--sl-mist);
+  border-radius: 50%;
+  background: var(--sl-sun);
 }
 
 /* ===== bar (the senior): the links sit in the top bar ===== */
@@ -258,6 +275,12 @@ watch(
 
 .mainnav--tabs .mainnav-label {
   margin-top: 0.1rem;
+}
+
+/* On the tab bar the dot sits at the icon's top-right corner. */
+.mainnav--tabs .mainnav-dot {
+  top: 0.3rem;
+  right: calc(50% - 1.1rem);
 }
 
 /* The pill is 4rem wide and 2rem tall, centred on the current tab, level with the icons. */
