@@ -1,5 +1,5 @@
 /**
- * The two views of Care+: the family's (Home, Calendar, Family) and the senior's own (one screen,
+ * The two views of Care+: the family's (Home, Walk, Calendar, Family) and the senior's own (one screen,
  * `/senior`). Which one someone gets follows from how they signed in. Pure and import-free so
  * `lib/view-mode.test.ts` can pin it under Node's type stripping.
  *
@@ -15,7 +15,7 @@ export const VIEW_MODES: readonly ViewMode[] = ['family', 'senior'];
 export const VIEW_PATHS: Record<ViewMode, readonly string[]> = {
   // `/groups/start` (or `/groups`): join or create a family group. Reached from the Family page;
   // the guard also sends a family member there until they are in a group.
-  family: ['/', '/calendar', '/family', '/groups'],
+  family: ['/', '/walk', '/calendar', '/family', '/groups'],
   senior: ['/senior'],
 };
 
