@@ -147,11 +147,13 @@ export type {
   GroupMember,
   GroupRole,
   JoinGroupRequest,
+  LinkSeniorRequest,
   MemberStatus,
   MeResponse,
   MyGroup,
   OnboardRequest,
   PinResponse,
+  SeniorNameRequest,
   // Family calendar
   Appointment as CalendarAppointment,
   AppointmentKind,

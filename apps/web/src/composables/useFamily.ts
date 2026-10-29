@@ -20,6 +20,7 @@ import {
   volunteerFor,
 } from '@/lib/family';
 import type { Appointment, AvailabilityStatus, FamilyState, MemberStatus } from '@/lib/family';
+import { calendarSourceFor } from '@/lib/family-group';
 import { DEMO_PERSON_ID } from '@/lib/labels';
 import { paintChanges } from '@/lib/planner';
 import type { SlotStatus } from '@/lib/planner';
@@ -29,7 +30,8 @@ import * as api from '@/services/careApi';
  * The family calendar, shared by Home, Calendar, Family and the senior's own screen (a module
  * singleton, like `useAuth`, so they all read and change the same thing).
  *
- * The API stores it (`GET /v1/people/{id}/calendar`). Each screen that uses it reads it again when
+ * The API stores it (`GET /v1/groups/{id}/calendar` for a family member, the senior's own
+ * `GET /v1/people/{id}/calendar` for the senior). Each screen that uses it reads it again when
  * it opens, and again when the family member picks another senior. A change shows at once (using
  * the same rules as the API, in `lib/family.ts`), is sent to the API, and the calendar is read back
  * once the changes in flight are saved, so the screen ends up showing exactly what is stored. A
@@ -68,11 +70,16 @@ const loading = ref(false);
 const loaded = ref(false);
 const error = ref<string | null>(null);
 
-/** Whose calendar to show: the senior's own, else the senior the family member has picked. */
-async function resolvePerson(): Promise<string> {
+/**
+ * Whose calendar to show: the senior's own, else the family group the family member has picked
+ * (read by group, so it works before the group's senior is linked).
+ */
+async function readCalendar(): Promise<FamilyCalendar> {
   const me = await loadMe().catch(() => null);
-  if (me?.role === 'senior' && me.person_id) return me.person_id;
-  return currentGroup.value?.person_id ?? DEMO_PERSON_ID;
+  const source = calendarSourceFor(me, currentGroup.value, DEMO_PERSON_ID);
+  return source.kind === 'group'
+    ? api.getGroupCalendar(source.groupId)
+    : api.getCalendar(source.personId);
 }
 
 function applyCalendar(calendar: FamilyCalendar): void {
@@ -91,7 +98,7 @@ function refresh(): Promise<void> {
   reading ??= (async () => {
     loading.value = true;
     try {
-      applyCalendar(await api.getCalendar(await resolvePerson()));
+      applyCalendar(await readCalendar());
       error.value = null;
       loaded.value = true;
     } catch (caught) {

@@ -1230,7 +1230,7 @@ export type CareGroup = {
     /**
      * Person Id
      */
-    person_id: string;
+    person_id: string | null;
     /**
      * Senior Name
      */
@@ -1718,16 +1718,23 @@ export type CoordinatorPersonRow = {
 
 /**
  * CreateGroupRequest
+ *
+ * `senior_name` alone creates a group with no senior linked yet; `senior_pin` (the PIN on the
+ * senior's screen) creates it linked, and the senior's own account name wins. At least one.
  */
 export type CreateGroupRequest = {
-    /**
-     * Senior Pin
-     */
-    senior_pin: string;
     /**
      * Relationship
      */
     relationship: string;
+    /**
+     * Senior Name
+     */
+    senior_name?: string | null;
+    /**
+     * Senior Pin
+     */
+    senior_pin?: string | null;
 };
 
 /**
@@ -2134,7 +2141,7 @@ export type FamilyActivityEntry = {
  *
  * What a feed entry records. Closed: the browser words each one itself.
  */
-export type FamilyActivityKind = 'group_created' | 'member_approved' | 'member_declined' | 'appointment_added' | 'appointment_changed' | 'appointment_removed' | 'helper_joined' | 'helper_stepped_back' | 'availability_updated' | 'check_in' | 'note_added';
+export type FamilyActivityKind = 'group_created' | 'member_approved' | 'member_declined' | 'appointment_added' | 'appointment_changed' | 'appointment_removed' | 'helper_joined' | 'helper_stepped_back' | 'availability_updated' | 'check_in' | 'note_added' | 'senior_linked' | 'senior_renamed';
 
 /**
  * FamilyActivityPage
@@ -2159,7 +2166,7 @@ export type FamilyCalendar = {
     /**
      * Person Id
      */
-    person_id: string;
+    person_id: string | null;
     /**
      * Senior Name
      */
@@ -2610,6 +2617,16 @@ export type JoinGroupRequest = {
 export type LikedAspect = 'people' | 'location' | 'activity' | 'timing';
 
 /**
+ * LinkSeniorRequest
+ */
+export type LinkSeniorRequest = {
+    /**
+     * Senior Pin
+     */
+    senior_pin: string;
+};
+
+/**
  * MeResponse
  *
  * Who is signed in, and what they still have to do before using the app.
@@ -2679,7 +2696,7 @@ export type MyGroup = {
     /**
      * Person Id
      */
-    person_id: string;
+    person_id: string | null;
     /**
      * Senior Name
      */
@@ -5085,6 +5102,16 @@ export type SeniorHomePreview = {
      * Disclosure
      */
     disclosure: string;
+};
+
+/**
+ * SeniorNameRequest
+ */
+export type SeniorNameRequest = {
+    /**
+     * Senior Name
+     */
+    senior_name: string;
 };
 
 /**
@@ -9727,6 +9754,114 @@ export type GetGroupV1GroupsGroupIdGetResponses = {
 
 export type GetGroupV1GroupsGroupIdGetResponse = GetGroupV1GroupsGroupIdGetResponses[keyof GetGroupV1GroupsGroupIdGetResponses];
 
+export type LinkSeniorV1GroupsGroupIdLinkSeniorPostData = {
+    body: LinkSeniorRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/link-senior';
+};
+
+export type LinkSeniorV1GroupsGroupIdLinkSeniorPostErrors = {
+    /**
+     * Bad Request
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Conflict
+     */
+    409: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Too Many Requests
+     */
+    429: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type LinkSeniorV1GroupsGroupIdLinkSeniorPostError = LinkSeniorV1GroupsGroupIdLinkSeniorPostErrors[keyof LinkSeniorV1GroupsGroupIdLinkSeniorPostErrors];
+
+export type LinkSeniorV1GroupsGroupIdLinkSeniorPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: CareGroup;
+};
+
+export type LinkSeniorV1GroupsGroupIdLinkSeniorPostResponse = LinkSeniorV1GroupsGroupIdLinkSeniorPostResponses[keyof LinkSeniorV1GroupsGroupIdLinkSeniorPostResponses];
+
+export type RenameSeniorV1GroupsGroupIdSeniorNamePutData = {
+    body: SeniorNameRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/senior-name';
+};
+
+export type RenameSeniorV1GroupsGroupIdSeniorNamePutErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Conflict
+     */
+    409: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type RenameSeniorV1GroupsGroupIdSeniorNamePutError = RenameSeniorV1GroupsGroupIdSeniorNamePutErrors[keyof RenameSeniorV1GroupsGroupIdSeniorNamePutErrors];
+
+export type RenameSeniorV1GroupsGroupIdSeniorNamePutResponses = {
+    /**
+     * Successful Response
+     */
+    200: CareGroup;
+};
+
+export type RenameSeniorV1GroupsGroupIdSeniorNamePutResponse = RenameSeniorV1GroupsGroupIdSeniorNamePutResponses[keyof RenameSeniorV1GroupsGroupIdSeniorNamePutResponses];
+
 export type JoinPinV1GroupsGroupIdJoinPinPostData = {
     body?: never;
     path: {
@@ -9935,6 +10070,61 @@ export type PersonCalendarV1PeoplePersonIdCalendarGetResponses = {
 };
 
 export type PersonCalendarV1PeoplePersonIdCalendarGetResponse = PersonCalendarV1PeoplePersonIdCalendarGetResponses[keyof PersonCalendarV1PeoplePersonIdCalendarGetResponses];
+
+export type GroupCalendarV1GroupsGroupIdCalendarGetData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: {
+        /**
+         * From Date
+         */
+        from_date?: string | null;
+        /**
+         * To Date
+         */
+        to_date?: string | null;
+    };
+    url: '/v1/groups/{group_id}/calendar';
+};
+
+export type GroupCalendarV1GroupsGroupIdCalendarGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type GroupCalendarV1GroupsGroupIdCalendarGetError = GroupCalendarV1GroupsGroupIdCalendarGetErrors[keyof GroupCalendarV1GroupsGroupIdCalendarGetErrors];
+
+export type GroupCalendarV1GroupsGroupIdCalendarGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FamilyCalendar;
+};
+
+export type GroupCalendarV1GroupsGroupIdCalendarGetResponse = GroupCalendarV1GroupsGroupIdCalendarGetResponses[keyof GroupCalendarV1GroupsGroupIdCalendarGetResponses];
 
 export type CreateAppointmentV1GroupsGroupIdAppointmentsPostData = {
     body: AppointmentRequest;

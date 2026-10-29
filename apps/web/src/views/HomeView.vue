@@ -24,6 +24,7 @@ import { showToast } from '@/composables/useToast';
 import { addDays } from '@/lib/calendar';
 import { needingHelp, upcomingWithin } from '@/lib/coverage';
 import type { Appointment, FamilyMember } from '@/lib/family';
+import { homeSeniorOf, taskOwnerOf } from '@/lib/family-group';
 import { DEMO_PERSON_ID } from '@/lib/labels';
 import { greetingFor, visitWhen } from '@/lib/today';
 import { getPersonMetrics, getPersonState, getWearable } from '@/services/careApi';
@@ -38,6 +39,10 @@ const wearable = ref<WearableStatus | null>(null);
 const wearableFailed = ref(false);
 async function loadWearable() {
   wearableFailed.value = false;
+  if (!personId.value) {
+    wearable.value = null;
+    return;
+  }
   try {
     wearable.value = await getWearable(personId.value);
   } catch {
@@ -52,14 +57,18 @@ const history = ref<DailyMetric[] | null>(null);
 const historyFailed = ref(false);
 
 // The senior this family member cares for (the one picked in the navbar, if more than one).
-const personId = ref(DEMO_PERSON_ID);
+// Null while that group has no senior linked: then nothing about any senior is read.
+const personId = ref<string | null>(DEMO_PERSON_ID);
+// Tasks are kept under the senior once linked, else under the group (lib/family-group.ts).
+const taskOwner = computed(() => taskOwnerOf(currentGroup.value, DEMO_PERSON_ID));
 
 async function load() {
   await run(async () => {
     await loadMe().catch(() => null);
-    personId.value = currentGroup.value?.person_id ?? DEMO_PERSON_ID;
-    person.value = await getPersonState(personId.value);
+    personId.value = homeSeniorOf(currentGroup.value, DEMO_PERSON_ID);
+    person.value = personId.value ? await getPersonState(personId.value) : null;
   });
+  if (!person.value) history.value = null;
   void loadWearable();
   loading.value = false;
   if (person.value) void loadHistory();
@@ -67,6 +76,7 @@ async function load() {
 
 async function loadHistory() {
   historyFailed.value = false;
+  if (!personId.value) return;
   try {
     history.value = await getPersonMetrics(personId.value, 14);
   } catch {
@@ -118,7 +128,7 @@ function goWith(appointment: Appointment) {
 const tasks = useTasks();
 const weekTasks = computed(() =>
   tasks.tasksByDay(
-    personId.value,
+    taskOwner.value,
     Array.from({ length: 7 }, (_, offset) => addDays(today, offset)),
   ),
 );
@@ -144,7 +154,7 @@ const weekTasks = computed(() =>
       v-if="!loading"
       id="home-timeline"
       class="mb-4"
-      :person-id="personId"
+      :person-id="taskOwner"
       :elder="elder"
     />
 
@@ -187,9 +197,9 @@ const weekTasks = computed(() =>
         <WeatherCard />
         <TaskPanel
           id="home-tasks"
-          :key="personId"
+          :key="taskOwner"
           class="flex-grow-1"
-          :person-id="personId"
+          :person-id="taskOwner"
           :can-manage="true"
         />
       </div>

@@ -57,7 +57,7 @@ function submitJoin() {
 
 function submitCreate() {
   void create.run(async () => {
-    const group = await createGroup(seniorPin.value, createRelationship.value);
+    const group = await createGroup(createRelationship.value, { seniorPin: seniorPin.value });
     await loadMe(true);
     showToast(`${group.senior_name}’s family group is ready.`);
     await router.replace('/family');

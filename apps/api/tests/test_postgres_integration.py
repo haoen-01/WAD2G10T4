@@ -619,7 +619,7 @@ def test_the_dimension_preference_run_scope_mirror_replays_twice_over_an_alembic
             assert "ix_activity_dimension_preferences_run_id" in indexes
 
             version = session.scalar(text("select version_num from public.alembic_version"))
-            assert version == "d8e2b6a4c917"
+            assert version == "f3a9c1e7b254"
 
             # A decline_reason row is never standing: the mirror's backfill must catch it even
             # though Alembic's own backfill already ran before this row ever existed.
@@ -848,5 +848,94 @@ def test_postgres_deleting_an_appointment_and_the_demo_reset_clear_notes_first()
             with repository.sessions() as session:
                 texts = list(session.scalars(select(AppointmentNoteRow.text)))
             assert texts == ["I'll bring her NRIC and health booklet, they're in the blue folder."]
+    finally:
+        repository.close()
+
+
+def test_the_unlinked_groups_mirror_replays_twice_over_an_alembic_schema() -> None:
+    """`202610290025_unlinked_groups.sql`, hand-applied over a schema Alembic already migrated,
+    and again. It adds no table, so there is no new RLS posture: what is specific to it is the
+    columns, the backfill and the two dropped NOT NULLs."""
+    database_url = dedicated_postgres_test_url()
+    upgrade_database(database_url)
+    mirror = (
+        Path(__file__).resolve().parents[3]
+        / "infra"
+        / "supabase"
+        / "migrations"
+        / "202610290025_unlinked_groups.sql"
+    )
+    sql = mirror.read_text()
+
+    repository = SqlAlchemyRepository(database_url)
+    try:
+        for _ in range(2):
+            with repository.sessions.begin() as session:
+                _execute_plpgsql(session, sql)
+
+        with repository.sessions() as session:
+            nullable = dict(
+                session.execute(
+                    text(
+                        "select column_name, is_nullable from information_schema.columns "
+                        "where table_schema = 'public' and table_name = 'care_groups'"
+                    )
+                ).all()
+            )
+            assert nullable["person_id"] == "YES"
+            assert nullable["linked_via"] == "YES"
+            assert nullable["senior_name"] == "NO"
+            assert {"linked_at", "linked_by"} <= set(nullable)
+            version = session.scalar(text("select version_num from public.alembic_version"))
+            assert version == expected_database_revision()
+    finally:
+        repository.close()
+
+
+def test_postgres_demo_reset_removes_unlinked_demo_groups_children_first() -> None:
+    """With foreign keys enforced: a group a demo account created with no senior linked, holding
+    an appointment, a note, availability, a helper, a PIN and feed entries, is removed whole by
+    the demo reset."""
+    database_url = dedicated_postgres_test_url()
+    upgrade_database(database_url)
+    repository = SqlAlchemyRepository(database_url)
+    try:
+        repository.reset()
+        groups = FamilyGroups(repository.sessions, repository)
+        calendar = FamilyCalendarStore(repository.sessions)
+        demo_members = {sub: relationship for sub, (_, relationship) in DEMO_FAMILY.items()}
+        groups.ensure_demo_group()
+        calendar.reset_demo(DEMO_PERSON_ID, date.today(), demo_members)
+
+        unlinked = groups.create_group(DEMO_FAMILY_SUB, "Daughter", senior_name="Mr Ong")
+        day = date.today() + timedelta(days=2)
+        appointment = calendar.create_appointment(
+            DEMO_FAMILY_SUB,
+            unlinked.group_id,
+            AppointmentRequest(
+                title="Haircut", kind="errand", date=day, start="09:00", end="10:00"
+            ),
+        )
+        calendar.add_note(
+            DEMO_FAMILY_SUB,
+            unlinked.group_id,
+            appointment.appointment_id,
+            AppointmentNoteRequest(date=day, text="ask for a short trim"),
+        )
+        calendar.volunteer(
+            DEMO_FAMILY_SUB, unlinked.group_id, f"{appointment.appointment_id}@{day.isoformat()}"
+        )
+        groups.create_join_pin(DEMO_FAMILY_SUB, unlinked.group_id)
+
+        calendar.reset_demo(DEMO_PERSON_ID, date.today(), demo_members)
+        with repository.sessions() as session:
+            left = session.scalar(
+                text("select count(*) from care_groups where group_id = :g").bindparams(
+                    g=unlinked.group_id
+                )
+            )
+        assert left == 0
+        first = groups.me(DEMO_FAMILY_SUB, None, None).groups[0]
+        assert first.person_id == DEMO_PERSON_ID
     finally:
         repository.close()

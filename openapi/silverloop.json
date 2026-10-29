@@ -4314,7 +4314,7 @@
           "family"
         ],
         "summary": "Link Pin",
-        "description": "A senior's 15-minute, single-use PIN. Giving it to a family member lets them create the\nsenior's family group; asking again replaces the previous one.",
+        "description": "A senior's 10-minute, single-use PIN. Giving it to a family member lets them link the\nsenior to their family group; asking again replaces the previous one.",
         "operationId": "link_pin_v1_me_link_pin_post",
         "responses": {
           "200": {
@@ -4357,7 +4357,7 @@
           "family"
         ],
         "summary": "Create Group",
-        "description": "Create a senior's family group with the PIN on the senior's screen. The caller becomes\nits owner. A senior can only have one group.",
+        "description": "Create a family group; the caller becomes its owner. With only `senior_name` the group\nstarts with no senior linked (`person_id` is null) until an active member enters the\nsenior's PIN (`link-senior`). With `senior_pin` the senior is linked at once and their own\naccount name is shown. A senior can only have one group.",
         "operationId": "create_group_v1_groups_post",
         "requestBody": {
           "content": {
@@ -4558,6 +4558,165 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/link-senior": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Link Senior",
+        "description": "Link the senior to this group with the PIN on their screen; showing it is their\nagreement. Active members only. Refused (409) when the group already has a senior or the\nsenior already has a group; a refusal leaves the PIN usable.",
+        "operationId": "link_senior_v1_groups__group_id__link_senior_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkSeniorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareGroup"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/senior-name": {
+      "put": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Rename Senior",
+        "description": "Fix the senior's name while no senior is linked. Once linked the name comes from the\nsenior's own account (409). Active members only.",
+        "operationId": "rename_senior_v1_groups__group_id__senior_name_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeniorNameRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareGroup"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -4808,6 +4967,100 @@
             "schema": {
               "type": "string",
               "title": "Person Id"
+            }
+          },
+          {
+            "name": "from_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Date"
+            }
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyCalendar"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/calendar": {
+      "get": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Group Calendar",
+        "description": "The family group's calendar, as the senior's calendar above, also before its senior is\nlinked (then `person_id` is null). Active members only; the senior reads their own.",
+        "operationId": "group_calendar_v1_groups__group_id__calendar_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
             }
           },
           {
@@ -8123,7 +8376,14 @@
             "title": "Group Id"
           },
           "person_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Person Id"
           },
           "senior_name": {
@@ -8851,24 +9111,44 @@
       },
       "CreateGroupRequest": {
         "properties": {
-          "senior_pin": {
-            "type": "string",
-            "pattern": "^[0-9]{6}$",
-            "title": "Senior Pin"
-          },
           "relationship": {
             "type": "string",
             "maxLength": 40,
             "minLength": 1,
             "title": "Relationship"
+          },
+          "senior_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Senior Name"
+          },
+          "senior_pin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Senior Pin"
           }
         },
         "type": "object",
         "required": [
-          "senior_pin",
           "relationship"
         ],
-        "title": "CreateGroupRequest"
+        "title": "CreateGroupRequest",
+        "description": "`senior_name` alone creates a group with no senior linked yet; `senior_pin` (the PIN on the\nsenior's screen) creates it linked, and the senior's own account name wins. At least one."
       },
       "CurrentUser": {
         "properties": {
@@ -9602,7 +9882,9 @@
           "helper_stepped_back",
           "availability_updated",
           "check_in",
-          "note_added"
+          "note_added",
+          "senior_linked",
+          "senior_renamed"
         ],
         "title": "FamilyActivityKind",
         "description": "What a feed entry records. Closed: the browser words each one itself."
@@ -9639,7 +9921,14 @@
       "FamilyCalendar": {
         "properties": {
           "person_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Person Id"
           },
           "senior_name": {
@@ -10282,6 +10571,20 @@
         "title": "LikedAspect",
         "description": "What made it good, when the person chooses to say.\n\nThese map onto `PreferenceDimension`, which is the point: \"the people\" is evidence about\ncompany, \"the location\" about distance, \"the timing\" about time of day. It is the only place\nin the product where a person tells us what worked rather than only what did not."
       },
+      "LinkSeniorRequest": {
+        "properties": {
+          "senior_pin": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "title": "Senior Pin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "senior_pin"
+        ],
+        "title": "LinkSeniorRequest"
+      },
       "MeResponse": {
         "properties": {
           "sub": {
@@ -10410,7 +10713,14 @@
             "title": "Group Id"
           },
           "person_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Person Id"
           },
           "senior_name": {
@@ -14797,6 +15107,21 @@
         ],
         "title": "SeniorHomePreview",
         "description": "One persona's senior home content for an evaluator.\n\nRead-only; not the senior's own screen."
+      },
+      "SeniorNameRequest": {
+        "properties": {
+          "senior_name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Senior Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "senior_name"
+        ],
+        "title": "SeniorNameRequest"
       },
       "ServerErrorBody": {
         "properties": {

@@ -233,13 +233,16 @@ the senior's care group. **member** means an active member of that group.
 | GET    | `/v1/me`                                                     | signed in | Who is signed in, the seniors they care for, whether onboarded |
 | POST   | `/v1/me/onboard`                                             | signed in | Choose `senior` or `family`, once                              |
 | POST   | `/v1/me/link-pin`                                            | senior    | Show a single-use senior-link PIN (10 minutes)                 |
-| POST   | `/v1/groups`                                                 | family    | Create the senior's care group with their link PIN             |
+| POST   | `/v1/groups`                                                 | family    | Create a family group with `senior_name` or `senior_pin`       |
 | POST   | `/v1/groups/join`                                            | family    | Ask to join with a join PIN; waits as `pending`                |
 | GET    | `/v1/groups/{group_id}`                                      | member    | The group and its members, including pending ones              |
 | POST   | `/v1/groups/{group_id}/join-pin`                             | member    | A new 7-day join PIN, replacing the old one                    |
 | POST   | `/v1/groups/{group_id}/members/{member_id}/approve`          | member    | Let a pending member in                                        |
 | POST   | `/v1/groups/{group_id}/members/{member_id}/decline`          | member    | Turn a pending request down                                    |
+| POST   | `/v1/groups/{group_id}/link-senior`                          | member    | Link the senior with their PIN (400/404/409/429)               |
+| PUT    | `/v1/groups/{group_id}/senior-name`                          | member    | Fix the typed name while unlinked (409 once linked)            |
 | GET    | `/v1/people/{person_id}/calendar`                            | reader    | Appointments, family availability and helpers for a date range |
+| GET    | `/v1/groups/{group_id}/calendar`                             | member    | The same for the group, also before its senior is linked       |
 | POST   | `/v1/groups/{group_id}/appointments`                         | member    | Add an appointment, once or repeating                          |
 | PUT    | `/v1/groups/{group_id}/appointments/{appointment_id}`        | member    | Change an appointment (every day of it, if it repeats)         |
 | POST   | `/v1/groups/{group_id}/appointments/{appointment_id}/delete` | member    | Remove an appointment with its answers and helpers             |
@@ -254,6 +257,18 @@ the senior's care group. **member** means an active member of that group.
 | POST   | `/v1/groups/{group_id}/appointments/{appointment_id}/notes`  | member    | Add a note to one day of an appointment                        |
 | POST   | `/v1/groups/{group_id}/notes/{note_id}/delete`               | member    | Remove one of your own notes                                   |
 | GET    | `/v1/people/{person_id}/wearable`                            | reader    | Simulated watch status: connected, last sync, battery          |
+
+A family group can exist before its senior is linked (ADR 0010). `POST /v1/groups` takes
+`{relationship, senior_name?, senior_pin?}`, at least one of the two (else 422): with only
+`senior_name` the group has no senior; with `senior_pin` the senior is linked at once and their
+own account name wins. Until linked, `person_id` is null on `MyGroup`, `CareGroup` and the group's
+`FamilyCalendar`, and `senior_name` is the typed name; once linked it is the senior's account name.
+`link-senior` (`{senior_pin}`) checks membership before the PIN (pending or non-member: 404), so it
+cannot be used to try PINs; a wrong or expired PIN is 400 and counts toward the lockout (429). It is
+409 when the group already has a senior or the senior already has a group (the other group is not
+named); a refusal leaves the PIN usable. `senior-name` (`{senior_name}`, 1-80 characters) is 409
+once linked. `GET /v1/groups/{group_id}/calendar` is for active members (a senior gets 403, anyone
+else 404). Linking and renaming add `senior_linked` and `senior_renamed` feed entries.
 
 A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN entry. PINs are stored
 as SHA-256 hashes. With `AUTH_ENABLED=false`, API startup and `POST /v1/demo/reset` (for Mdm Lim)
@@ -270,7 +285,7 @@ group, is 404); the senior never does.
 Entries carry structured fields only, the browser writes the sentence: `kind` (`group_created`,
 `member_approved`, `member_declined`, `appointment_added`, `appointment_changed`,
 `appointment_removed`, `helper_joined`, `helper_stepped_back`, `availability_updated`, `check_in`,
-`note_added`),
+`note_added`, `senior_linked`, `senior_renamed`),
 `actor_name`, `is_me`, `subject_name` (`member_approved` only), the appointment's title and kind as
 they were at the time, `on_date`, and `occurrence_id`. `occurrence_id` is worked out on read and is
 null once the appointment is gone or no longer has that day. Appointment entries (added, changed,

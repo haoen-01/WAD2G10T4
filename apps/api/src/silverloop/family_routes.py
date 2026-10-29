@@ -31,12 +31,14 @@ from silverloop.models import (
     FamilyActivityPage,
     FamilyCalendar,
     JoinGroupRequest,
+    LinkSeniorRequest,
     MeResponse,
     MyGroup,
     OccurrenceAnswerRequest,
     OccurrenceRequest,
     OnboardRequest,
     PinResponse,
+    SeniorNameRequest,
     WearableStatus,
 )
 from silverloop.wearable_status import simulated_wearable
@@ -130,8 +132,8 @@ def register_family_routes(application: FastAPI) -> None:
         responses={401: {}, 403: {}},
     )
     def link_pin(request: Request, current_user: Senior) -> PinResponse:
-        """A senior's 15-minute, single-use PIN. Giving it to a family member lets them create the
-        senior's family group; asking again replaces the previous one."""
+        """A senior's 10-minute, single-use PIN. Giving it to a family member lets them link the
+        senior to their family group; asking again replaces the previous one."""
         family = _family(request)
         person_id = current_user.person_id or ""
         return _call(lambda: family.create_link_pin(current_user.sub, person_id))
@@ -144,11 +146,18 @@ def register_family_routes(application: FastAPI) -> None:
         responses={400: {}, 401: {}, 403: {}, 409: {}, 429: {}},
     )
     def create_group(request: Request, body: CreateGroupRequest, current_user: Family) -> CareGroup:
-        """Create a senior's family group with the PIN on the senior's screen. The caller becomes
-        its owner. A senior can only have one group."""
+        """Create a family group; the caller becomes its owner. With only `senior_name` the group
+        starts with no senior linked (`person_id` is null) until an active member enters the
+        senior's PIN (`link-senior`). With `senior_pin` the senior is linked at once and their own
+        account name is shown. A senior can only have one group."""
         family = _family(request)
         return _call(
-            lambda: family.create_group(current_user.sub, body.senior_pin, body.relationship)
+            lambda: family.create_group(
+                current_user.sub,
+                body.relationship,
+                senior_name=body.senior_name,
+                senior_pin=body.senior_pin,
+            )
         )
 
     @application.post(
@@ -173,6 +182,35 @@ def register_family_routes(application: FastAPI) -> None:
         """The group and its members, including people waiting for approval. Active members only."""
         family = _family(request)
         return _call(lambda: family.group(current_user.sub, group_id))
+
+    @application.post(
+        "/v1/groups/{group_id}/link-senior",
+        response_model=CareGroup,
+        tags=["family"],
+        responses={400: {}, 401: {}, 403: {}, 404: {}, 409: {}, 429: {}},
+    )
+    def link_senior(
+        request: Request, group_id: str, body: LinkSeniorRequest, current_user: Family
+    ) -> CareGroup:
+        """Link the senior to this group with the PIN on their screen; showing it is their
+        agreement. Active members only. Refused (409) when the group already has a senior or the
+        senior already has a group; a refusal leaves the PIN usable."""
+        family = _family(request)
+        return _call(lambda: family.link_senior(current_user.sub, group_id, body.senior_pin))
+
+    @application.put(
+        "/v1/groups/{group_id}/senior-name",
+        response_model=CareGroup,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 409: {}, 422: {}},
+    )
+    def rename_senior(
+        request: Request, group_id: str, body: SeniorNameRequest, current_user: Family
+    ) -> CareGroup:
+        """Fix the senior's name while no senior is linked. Once linked the name comes from the
+        senior's own account (409). Active members only."""
+        family = _family(request)
+        return _call(lambda: family.rename_senior(current_user.sub, group_id, body.senior_name))
 
     @application.post(
         "/v1/groups/{group_id}/join-pin",
@@ -234,6 +272,27 @@ def register_family_routes(application: FastAPI) -> None:
         hi = to_date or today + timedelta(days=183)
         store = _calendar(request)
         return _call(lambda: store.calendar(person_id, current_user.sub, lo, hi))
+
+    @application.get(
+        "/v1/groups/{group_id}/calendar",
+        response_model=FamilyCalendar,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def group_calendar(
+        request: Request,
+        group_id: str,
+        current_user: Family,
+        from_date: Annotated[date | None, Query()] = None,
+        to_date: Annotated[date | None, Query()] = None,
+    ) -> FamilyCalendar:
+        """The family group's calendar, as the senior's calendar above, also before its senior is
+        linked (then `person_id` is null). Active members only; the senior reads their own."""
+        today = _today()
+        lo = from_date or today - timedelta(days=60)
+        hi = to_date or today + timedelta(days=183)
+        store = _calendar(request)
+        return _call(lambda: store.group_calendar(current_user.sub, group_id, lo, hi))
 
     @application.post(
         "/v1/groups/{group_id}/appointments",

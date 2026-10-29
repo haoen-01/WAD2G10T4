@@ -393,7 +393,9 @@ left alone ("write-once"), or updated in place:
 - **Review setting.** `review_threshold_proposals` and `review_threshold_decisions` (the
   coordinator's review setting; no current screen).
 - **Accounts and family.** `accounts` (one per signed-up user, `senior` or `family`);
-  `care_groups` and `group_members` (one group per senior; members are `pending` until approved);
+  `care_groups` (at most one family group per senior; `person_id` is null until the senior is
+  linked; `senior_name` is the typed name, `linked_at` / `linked_by` record the link) and
+  `group_members` (members are `pending` until approved);
   `family_pins` (hashed senior-link and join PINs, with expiry) and `pin_attempts` (wrong-PIN
   lockout); `appointments`, `availability_entries` and `helper_assignments` (the shared calendar);
   `family_activity` (the family feed: append-only, no FK to appointments, cleared only by the demo
