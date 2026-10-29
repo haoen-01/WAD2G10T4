@@ -110,7 +110,7 @@ test('the senior screen never asks for the family feed', async ({ page }) => {
   await page.getByTestId('choose-senior').click();
   await page.getByTestId('continue-senior').click();
   await expect(page).toHaveURL(/\/senior$/);
-  await expect(page.getByRole('heading', { name: 'Your activity' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My steps' })).toBeVisible();
   await expect(page.getByTestId('steps-today')).not.toBeEmpty();
   await page.waitForLoadState('networkidle');
   expect(asked).toEqual([]);
