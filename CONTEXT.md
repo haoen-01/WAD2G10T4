@@ -76,10 +76,16 @@ see it; the senior does not.
 **Check-in.** A family member telling the group they called, visited or messaged the senior, with an
 optional note. Care+ sends nothing and contacts no one.
 
-**Location share.** The senior's latest approximate area and the time it was shared, which their
-family group sees as a rough circle on a map. The senior turns it on and off themselves; it keeps no
-history and raises no alerts.
-_Avoid_: tracking, live location
+**Location share.** The senior's walk as their family group sees it on a map: where they are now and
+the trail walked so far today. The senior turns it on and off themselves, and turning it off forgets
+what was shared.
+_Avoid_: tracking
+
+**Still for a while check-in.** A prompt to the family group when the senior, sharing their walk, has
+stayed in one spot away from home longer than the family's limit. The senior is always asked "Are you
+OK?" first, and only the senior can allow it. It asks a person to get in touch; it is not a safety
+alert.
+_Avoid_: fall alert, emergency alert
 
 **Task.** A one-off, daily or weekly reminder for the senior, shared by the senior and their care
 group.
