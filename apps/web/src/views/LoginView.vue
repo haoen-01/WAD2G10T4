@@ -10,6 +10,7 @@ import { useAuth } from '@/composables/useAuth';
 import { useViewMode } from '@/composables/useViewMode';
 import { AUTH_ENABLED } from '@/lib/config';
 import { safeNextPath } from '@/lib/route-guard';
+import { signInEmail } from '@/lib/sign-in-email';
 import { getSupabase } from '@/lib/supabase';
 import { homeFor, isPathInView, parseViewMode, viewForRole, type ViewMode } from '@/lib/view-mode';
 import { getMe } from '@/services/careApi';
@@ -43,7 +44,7 @@ const copy = computed(() => COPY[audience.value]);
 function describeAuthError(authError: AuthError | null): string {
   const reason = authError?.message ?? '';
   if (/invalid login credentials/i.test(reason)) {
-    return "That email or password doesn't match. Please check and try again.";
+    return "That email, username or password doesn't match. Please check and try again.";
   }
   if (/email not confirmed/i.test(reason)) {
     return 'Please confirm your email address first — check your inbox for the confirmation link.';
@@ -88,6 +89,12 @@ function checkCaps(event: KeyboardEvent) {
 
 async function handleSubmit(): Promise<void> {
   error.value = null;
+  // `required` lets a value of only spaces through, and that would reach Supabase with no email.
+  const signInAs = signInEmail(email.value);
+  if (!signInAs) {
+    error.value = 'Please enter your email or username.';
+    return;
+  }
   loading.value = true;
   try {
     const supabase = getSupabase();
@@ -97,7 +104,7 @@ async function handleSubmit(): Promise<void> {
     }
 
     const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.value,
+      email: signInAs,
       password: password.value,
     });
 
@@ -190,14 +197,17 @@ async function handleSubmit(): Promise<void> {
 
       <form v-else class="sl-panel d-grid gap-4" @submit.prevent="handleSubmit">
         <div>
-          <label :for="emailId" class="form-label">Email</label>
+          <label :for="emailId" class="form-label">Email or username</label>
           <input
             :id="emailId"
             v-model="email"
             class="form-control form-control-lg"
-            type="email"
+            type="text"
+            inputmode="email"
+            autocapitalize="none"
+            spellcheck="false"
             required
-            autocomplete="email"
+            autocomplete="username"
           />
         </div>
         <div>

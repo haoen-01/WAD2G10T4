@@ -305,6 +305,44 @@ readiness and audit counters. Its output contains backend/revision/counter metad
 connection string. Each run appends labelled synthetic evidence; do not point it at a production
 database containing real participant data.
 
+## Demo logins
+
+The admin setup script creates the shared demo accounts in Supabase Auth:
+
+```bash
+cd apps/api
+uv run --env-file ../../.env python -m silverloop.setup_demo_accounts
+```
+
+It needs `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `DATABASE_URL`, and the schema must already be
+migrated. It refuses to run with `APP_ENV=production` unless `--allow-production` is passed. It asks
+for each password at a hidden prompt, or reads `SENIOR_PASSWORD`-style variables (`SARAH_PASSWORD`,
+`JOHN_PASSWORD`, `EMILY_PASSWORD`, `WEIMING_PASSWORD`, `AISHA_PASSWORD`, and so on) if they are set.
+Leaving a prompt empty skips that account. Re-running updates the accounts and their passwords; it
+never adds a second one.
+
+| Username        | Account                |
+| --------------- | ---------------------- |
+| `senior`        | Mdm Lim, the senior    |
+| `coordinator`   | Coordinator            |
+| `demo-operator` | Demo operator          |
+| `sarah`         | Family member Sarah    |
+| `john`          | Family member John     |
+| `emily`         | Family member Emily    |
+| `weiming`       | Family member Wei Ming |
+| `aisha`         | Family member Aisha    |
+
+Supabase password sign-in needs an email, so each account has a hidden `@silverloop.demo` address.
+The sign-in form adds that domain when the typed value has no `@`; real accounts keep signing in and
+signing up with their own email.
+
+The senior, coordinator and demo-operator accounts carry their role in Supabase `app_metadata`. The
+family accounts are set up as a family member who signed up would be: no role in `app_metadata`,
+and a row in `accounts` holding the role and display name. The script creates no family groups.
+
+**Passwords are shared privately in the team's group chat, never in this repository, an issue or a
+Claude session.** The script does not print them.
+
 ## Operational checks
 
 After applying any later migration:
