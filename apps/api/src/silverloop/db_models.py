@@ -987,7 +987,8 @@ class AuditEventRow(Base):
 class AccountRow(Base):
     """The role a self-registered Supabase user chose at sign-up (`senior` or `family`).
 
-    Accounts provisioned with a role in Supabase `app_metadata` (the demo accounts) need no row.
+    Accounts provisioned with a role in Supabase `app_metadata` (the demo senior, coordinator and
+    demo operator) need no row. The demo family accounts have one, written by the setup script.
     """
 
     __tablename__ = "accounts"
