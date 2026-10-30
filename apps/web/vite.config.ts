@@ -15,6 +15,13 @@ export default defineConfig({
   // deps up front stops the mid-test "optimized dependencies changed, reloading" flake.
   cacheDir: `node_modules/.vite/${port}`,
   optimizeDeps: {
-    include: ['vue', 'vue-router', '@supabase/supabase-js', 'motion-v', '@vueuse/core'],
+    include: [
+      'vue',
+      'vue-router',
+      '@supabase/supabase-js',
+      'motion-v',
+      '@vueuse/core',
+      'maplibre-gl',
+    ],
   },
 });

@@ -54,7 +54,13 @@ test.describe('on a phone', () => {
   }) => {
     // The calendar, as Home is too short on a phone to scroll.
     await page.goto('/calendar');
-    await expect(menu(page).getByRole('link')).toHaveText(['Home', 'My day', 'Calendar', 'Family']);
+    await expect(menu(page).getByRole('link')).toHaveText([
+      'Home',
+      'My day',
+      'Walk',
+      'Calendar',
+      'Family',
+    ]);
 
     // At the bottom of the page the bar is still on screen, flush with the bottom edge.
     await scrollToBottom(page);
@@ -155,7 +161,13 @@ test.describe('on a wide screen', () => {
     await page.goto('/calendar');
     const header = page.getByRole('banner');
     const nav = header.getByRole('navigation', { name: 'Main' });
-    await expect(nav.getByRole('link')).toHaveText(['Home', 'My day', 'Calendar', 'Family']);
+    await expect(nav.getByRole('link')).toHaveText([
+      'Home',
+      'My day',
+      'Walk',
+      'Calendar',
+      'Family',
+    ]);
     await expect(nav.getByRole('link', { name: 'Calendar' })).toHaveAttribute(
       'aria-current',
       'page',

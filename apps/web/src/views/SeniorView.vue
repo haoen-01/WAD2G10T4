@@ -10,6 +10,8 @@ import StepsHero from '@/components/senior/StepsHero.vue';
 import SuggestionCard from '@/components/senior/SuggestionCard.vue';
 import { adjacentTab, readTab, saveTab } from '@/components/senior/senior-view.js';
 import Icon from '@/components/ui/Icon.vue';
+import ShareWalkCard from '@/components/walk/ShareWalkCard.vue';
+import StillnessPrompt from '@/components/walk/StillnessPrompt.vue';
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue';
 import { useAction } from '@/composables/useAction';
 import { useFamily } from '@/composables/useFamily';
@@ -120,6 +122,10 @@ async function seeCalendar() {
         <h1 class="senior-title">{{ greetingFor(now.getHours()) }}, {{ person.display_name }}</h1>
       </header>
 
+      <!-- Asked first, whichever tab is open: "Are you OK?" before the family is told she has been
+           still a long time. -->
+      <StillnessPrompt class="mb-4" />
+
       <nav
         class="senior-tabs nav nav-pills nav-fill rounded-4 p-2 mb-4 shadow-sm"
         role="tablist"
@@ -172,6 +178,7 @@ async function seeCalendar() {
           :busy="busy"
           @reply="reply"
         />
+        <ShareWalkCard id="my-walks" class="mt-4" />
       </section>
       <section
         v-show="activeTab === 'calendar'"

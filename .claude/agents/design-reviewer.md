@@ -60,8 +60,9 @@ top of the report and review from code alone. Never claim to have seen a screen 
   and focus return.
 - **Honest content.** Synthetic figures carry the _Sample_ label; live figures carry _Live_.
   Nothing on screen diagnoses, predicts disease, detects falls, gives medication advice, or treats
-  heart rate or SpO2 as a medical signal. Location share is never called tracking and never shows a
-  trail or a live-following map.
+  heart rate or SpO2 as a medical signal. Location share is never called tracking, shows nothing
+  until the senior turns it on, and the "Still for a while" check-in always asks the senior first
+  and never reads as a safety or fall alert (ADR 0011).
 - **Words.** Use the glossary in `CONTEXT.md`: family group (not care group), helper, asked helper,
   check-in, task, location share. Plain, warm, short sentences written from the user's side; errors
   say what happened and what to do; no system jargon (no "intervention", "occurrence", "payload").

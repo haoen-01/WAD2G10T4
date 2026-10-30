@@ -43,6 +43,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/GroupStartView.vue'),
       },
       { path: 'senior', name: 'senior', component: () => import('@/views/SeniorView.vue') },
+      { path: 'walk', name: 'walk', component: () => import('@/views/WalkView.vue') },
       { path: 'calendar', name: 'calendar', component: () => import('@/views/CalendarView.vue') },
       { path: 'family', name: 'family', component: () => import('@/views/FamilyView.vue') },
       // The Care Team screens were removed. Old bookmarks and shared links land on the calendar.
