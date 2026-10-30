@@ -43,6 +43,7 @@ describe('isPathInView', () => {
       '/family',
       '/Family',
       '/groups/start',
+      '/watch',
     ]) {
       assert.equal(isPathInView('family', path), true, path);
     }
@@ -52,7 +53,7 @@ describe('isPathInView', () => {
   it('lets the senior open only their own screen', () => {
     assert.equal(isPathInView('senior', '/senior'), true);
     assert.equal(isPathInView('senior', '/senior/anything'), true);
-    for (const path of ['/', '/walk', '/calendar', '/family', '/groups/start']) {
+    for (const path of ['/', '/walk', '/calendar', '/family', '/groups/start', '/watch']) {
       assert.equal(isPathInView('senior', path), false, path);
     }
   });
