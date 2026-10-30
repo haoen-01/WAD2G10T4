@@ -8,7 +8,7 @@
     "pnpm": ">=11 <12"
   },
   "scripts": {
-    "setup": "./scripts/bootstrap.sh",
+    "setup": "bash scripts/bootstrap.sh",
     "dev": "nx run-many -t dev --projects=web,api --parallel=2",
     "dev:web": "nx run web:dev",
     "dev:api": "nx run api:dev",
@@ -31,7 +31,7 @@
     "demo:supabase-smoke": "nx run api:supabase-smoke",
     "demo:offline": "node scripts/demo-offline.mjs",
     "affected": "nx affected -t lint,typecheck,test",
-    "verify": "./scripts/verify.sh"
+    "verify": "bash scripts/verify.sh"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",

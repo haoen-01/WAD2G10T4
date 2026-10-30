@@ -4,7 +4,7 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_dir"
 
-./scripts/generate-contract.sh
+bash scripts/generate-contract.sh
 
 if ! git diff --exit-code -- openapi/silverloop.json libs/api-client/src/generated; then
   echo "Generated API contract is stale. Run: pnpm client:generate" >&2
