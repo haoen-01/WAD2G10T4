@@ -12,18 +12,18 @@
   },
   "dependencies": {
     "@silverloop/api-client": "workspace:*",
-    "@supabase/supabase-js": "^2.112.3",
-    "@vueuse/core": "14.4.0",
-    "axios": "1.12.2",
+    "@supabase/supabase-js": "^2.118.0",
+    "@vueuse/core": "15.0.0",
+    "axios": "1.20.0",
     "bootstrap": "5.3.8",
-    "motion-v": "2.6.0",
-    "vue": "3.5.43",
-    "vue-router": "4.6.4"
+    "motion-v": "2.8.0",
+    "vue": "3.5.44",
+    "vue-router": "5.4.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "6.0.9",
-    "typescript": "5.9.3",
-    "vite": "8.3.0",
-    "vue-tsc": "3.3.11"
+    "@vitejs/plugin-vue": "6.0.10",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vue-tsc": "3.3.13"
   }
 }
