@@ -13,6 +13,23 @@ Open <http://127.0.0.1:3000>. The home page should say **Backend connected**. Ev
 synthetic data for one demo person, Mdm Lim. To start again at any point, run `pnpm demo:reset` in
 a terminal (or send `POST /v1/demo/reset` from the API docs used below).
 
+### The signed-in demo on shared Supabase
+
+The offline demo above needs nothing else. For the signed-in app, run this on the morning of the
+demo and before each rehearsal, because appointments are dated from the day it runs:
+
+```bash
+pnpm demo:story
+```
+
+Mdm Lim then has "Chair Mobility & Balance" waiting, with the earlier nudge answered "Maybe later".
+`sarah` lands on Mdm Lim's group with `john` and `emily`, and also has Mr Tan's made-up group with
+`weiming` and `aisha`. It needs the logins from `setup_demo_accounts`; see
+[Demo story](supabase.md#demo-story) for what it does and when it refuses to finish.
+
+Rehearse the waiting suggestion with **Maybe later** or **Show me more**. Answering **Not today**
+ranks a different suggestion first from then on, and the command will then stop with an error.
+
 ## Act 1: a day goes by (about 60 s)
 
 There is no Simulator screen any more; a day is advanced straight through the API, which is exactly

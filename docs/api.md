@@ -281,8 +281,10 @@ it current. Joining, being approved, linking a senior and renaming do not. With 
 the demo reset clears it for the demo group's members.
 
 A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN entry. PINs are stored
-as SHA-256 hashes. With `AUTH_ENABLED=false`, API startup and `POST /v1/demo/reset` (for Mdm Lim)
-put Mdm Lim's demo family and schedule back to their starting state, relative to today.
+as SHA-256 hashes. With `AUTH_ENABLED=false`, `POST /v1/demo/reset` (for Mdm Lim) puts Mdm Lim's demo
+family and schedule back to their starting state, relative to today, and API startup does the same
+when the database is SQLite. With sign-in on, `pnpm demo:story` sets up the real logins instead (see
+`docs/supabase.md`).
 
 ### The family feed
 

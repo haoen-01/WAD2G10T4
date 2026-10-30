@@ -138,6 +138,15 @@ SENIOR_HOME_PREVIEW_DISCLOSURE = (
 )
 
 
+def resets_demo_family_on_start(config: Settings, repository: object) -> bool:
+    """Only a local SQLite run with sign-in off starts with the demo family put back. On a server
+    database that reset would wipe the family data on every start, whoever it belongs to."""
+    engine = getattr(repository, "engine", None)
+    return (
+        not config.auth_enabled and engine is not None and engine.url.get_backend_name() == "sqlite"
+    )
+
+
 def create_app(
     repository: SilverLoopRepository | None = None,
     *,
@@ -184,7 +193,7 @@ def create_app(
             # `/ready`'s `tables_without_rls` rather than by refusing to start.
             apply_rls_posture(config.database_url)
         persistent_repository.ensure_active_run()
-        if not config.auth_enabled and family_groups is not None:
+        if family_groups is not None and resets_demo_family_on_start(config, persistent_repository):
             # Sign-in off: a demo family member already in Mdm Lim's group (family_groups.py).
             family_groups.ensure_demo_group()
             reset_demo_family(application)

@@ -27,6 +27,7 @@
     "client:check": "nx run api-client:check",
     "seed": "nx run api:seed",
     "demo:reset": "nx run api:demo-reset",
+    "demo:story": "nx run api:demo-story",
     "demo:smoke": "nx run api:demo-smoke",
     "demo:supabase-smoke": "nx run api:supabase-smoke",
     "demo:offline": "node scripts/demo-offline.mjs",

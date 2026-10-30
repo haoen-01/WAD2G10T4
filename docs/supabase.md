@@ -287,7 +287,8 @@ above. Keep the database password in the deployment secret store and never expos
 transaction pooler only where the hosting environment requires serverless connections.
 
 On startup FastAPI runs `alembic upgrade head`, then `apply_rls_posture` (see above), then seeds a
-deterministic scenario only when no active run exists. The remote schema is currently marked at Alembic revision `c9d3e8f2a1b5`.
+deterministic scenario only when no active run exists. Start-up never touches the family data here:
+the demo family is put back on start only with sign-in off on SQLite. The remote schema is currently marked at Alembic revision `c9d3e8f2a1b5`.
 
 Standard `pnpm dev` and direct FastAPI lifespan startup reject SQLite when
 `CAREPLUS_RUNTIME_PROFILE=shared`. The runtime also rejects the committed placeholder before it
@@ -342,6 +343,57 @@ and a row in `accounts` holding the role and display name. The script creates no
 
 **Passwords are shared privately in the team's group chat, never in this repository, an issue or a
 Claude session.** The script does not print them.
+
+## Demo story
+
+With sign-in on, the logins above belong to no family group. This command gives them the demo's
+starting state, using synthetic data only:
+
+```bash
+pnpm demo:story
+```
+
+Nx loads the repository's `.env` into the command's environment, which is where `SUPABASE_URL`,
+`SUPABASE_SECRET_KEY`, `DATABASE_URL` and `AUTH_ENABLED` come from. The same run without Nx is:
+
+```bash
+cd apps/api
+uv run --env-file ../../.env python -m silverloop.demo_story
+```
+
+Run it on the morning of the demo and before each rehearsal, because the appointments are dated from
+that day. It only reads Supabase Auth, and sets no password or role. It writes nothing and exits
+non-zero if `APP_ENV=production`, if `AUTH_ENABLED=false`, or if any of `sarah`, `john`, `emily`,
+`weiming`, `aisha` or `senior` is missing (run `setup_demo_accounts` first).
+
+What it does, in order:
+
+1. Starts a new run for Mdm Lim and plays two `activity_declines` days through the real `advance`,
+   with the LLM off whatever the environment says. Day 1's "Five-minute movement option" is answered
+   "Maybe later"; day 2's "Chair Mobility & Balance" stays waiting. A new run has active consent.
+2. Puts Mdm Lim's family group back to its seeded schedule and feed, with Sarah (owner), John and
+   Emily, and creates the unlinked group for the made-up Mr Tan with Sarah (owner), Wei Ming and
+   Aisha. Sarah lands on Mdm Lim's group.
+3. Reads the end state back and exits non-zero if it is wrong.
+
+Re-running gives the same end state. Extra members of both groups are removed, and so are other
+unlinked groups created by the demo accounts. Groups created by anyone else are left exactly as they
+are, so a demo login that joined one keeps its place there, and the command reports that login's
+extra group as an error for it to leave.
+
+The Mdm Lim steps commit one at a time and the group writes are one transaction, so a failure leaves
+either a newer unfinished run for Mdm Lim with the groups unchanged, or no group change at all.
+Running it again repairs both.
+
+**When it cannot finish.** Reset keeps what Mdm Lim said. A muted suggestion stays muted, and her
+earlier answers keep shaping the ranking, because outcomes are append-only. So a mute, or a "Not
+today" on either suggestion in an earlier rehearsal, means a different suggestion is offered, and
+the command exits non-zero instead of printing success. Lift a mute with
+`POST /v1/people/mdm-lim/preferences/{candidate_key}` signed in as `senior`. An earlier "Not today"
+cannot be undone by this command; rehearse with "Maybe later" or "Show me more".
+
+The Join PIN in Mr Tan's group lasts 7 days. Any active member gets a fresh one from the group's
+Family page (`POST /v1/groups/{id}/join-pin`). The command does not print the PIN.
 
 ## Operational checks
 
