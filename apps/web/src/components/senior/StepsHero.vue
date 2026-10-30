@@ -1,12 +1,12 @@
-<script setup>
+<script setup lang="ts">
+import type { DailyMetric, PersonState } from '@silverloop/api-client';
 import { computed, useId } from 'vue';
 import SeniorWeekChart from '@/components/senior/SeniorWeekChart.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { formatIsoDay } from '@/lib/format-date';
-import { stepProgress, stepWords } from './senior-view.js';
-const props = defineProps({
-  person: { type: Object, required: true },
-  week: { type: Array, default: null },
+import { stepProgress, stepWords } from '@/lib/senior-view';
+const props = withDefaults(defineProps<{ person: PersonState; week?: DailyMetric[] | null }>(), {
+  week: null,
 });
 const id = useId();
 const steps = computed(() => Math.round(props.person.signal.current_steps).toLocaleString('en-SG'));

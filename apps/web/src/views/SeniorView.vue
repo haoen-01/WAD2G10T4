@@ -1,4 +1,5 @@
-<script setup>
+<script setup lang="ts">
+import type { DailyMetric, Intervention, OutcomeKind, PersonState } from '@silverloop/api-client';
 import { nextTick, onMounted, ref } from 'vue';
 import ErrorAlert from '@/components/ErrorAlert.vue';
 import SeniorCalendar from '@/components/calendar/SeniorCalendar.vue';
@@ -8,8 +9,8 @@ import MyFamily from '@/components/senior/MyFamily.vue';
 import UpcomingEvents from '@/components/senior/UpcomingEvents.vue';
 import StepsHero from '@/components/senior/StepsHero.vue';
 import SuggestionCard from '@/components/senior/SuggestionCard.vue';
-import { adjacentTab, readTab, saveTab } from '@/components/senior/senior-view.js';
 import Icon from '@/components/ui/Icon.vue';
+import type { IconName } from '@/components/ui/Icon.vue';
 import ShareWalkCard from '@/components/walk/ShareWalkCard.vue';
 import StillnessPrompt from '@/components/walk/StillnessPrompt.vue';
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue';
@@ -20,6 +21,8 @@ import { useNow } from '@/composables/useNow';
 import { AUTH_ENABLED } from '@/lib/config';
 import { formatIsoDay } from '@/lib/format-date';
 import { DEMO_PERSON_ID } from '@/lib/labels';
+import { adjacentTab, readTab, saveTab } from '@/lib/senior-view';
+import type { SeniorTab } from '@/lib/senior-view';
 import { greetingFor } from '@/lib/today';
 import {
   getInterventions,
@@ -30,9 +33,9 @@ import {
 const { busy, error, run } = useAction();
 const family = useFamily();
 const now = useNow();
-const person = ref(null);
-const suggestion = ref(null);
-const thanks = ref(null);
+const person = ref<PersonState | null>(null);
+const suggestion = ref<Intervention | null>(null);
+const thanks = ref<string | null>(null);
 const loading = ref(true);
 // Whose day this is: the signed-in senior's own record. The demo (sign-in off) is always Mdm Lim.
 const personId = ref(DEMO_PERSON_ID);
@@ -57,7 +60,7 @@ async function load() {
   if (person.value) void loadWeek();
 }
 // The last week of readings is extra detail: if it fails, the rest of the screen still shows.
-const week = ref(null);
+const week = ref<DailyMetric[] | null>(null);
 async function loadWeek() {
   try {
     week.value = await getPersonMetrics(personId.value, 7);
@@ -65,7 +68,7 @@ async function loadWeek() {
     week.value = null;
   }
 }
-function reply(outcome, message) {
+function reply(outcome: OutcomeKind, message: string) {
   const current = suggestion.value;
   if (!current) return;
   return run(async () => {
@@ -76,18 +79,18 @@ function reply(outcome, message) {
 }
 onMounted(load);
 const { today } = family;
-const activeTab = ref('today');
+const activeTab = ref<SeniorTab>('today');
 try {
   activeTab.value = readTab(localStorage);
 } catch {
   /* Storage access itself may be blocked. */
 }
-const tabs = [
+const tabs: { id: SeniorTab; label: string; icon: IconName }[] = [
   { id: 'today', label: 'Today', icon: 'home' },
   { id: 'calendar', label: 'Calendar', icon: 'calendar' },
   { id: 'family', label: 'Family', icon: 'users' },
 ];
-function selectTab(tab) {
+function selectTab(tab: SeniorTab) {
   activeTab.value = tab;
   try {
     saveTab(localStorage, tab);
@@ -95,7 +98,7 @@ function selectTab(tab) {
     /* Storage access itself may be blocked. */
   }
 }
-async function navigateTabs(event) {
+async function navigateTabs(event: KeyboardEvent) {
   const next = adjacentTab(activeTab.value, event.key);
   if (!next) return;
   event.preventDefault();
@@ -165,7 +168,7 @@ async function seeCalendar() {
             />
           </div>
           <div class="col-lg-7">
-            <SeniorTaskList :key="personId" :person-id="personId" class="h-100" />
+            <SeniorTaskList class="h-100" />
           </div>
         </div>
         <p v-if="thanks" class="thanks mt-4" role="status" data-testid="thanks">

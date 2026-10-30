@@ -87,8 +87,9 @@ OK?" first, and only the senior can allow it. It asks a person to get in touch; 
 alert.
 _Avoid_: fall alert, emergency alert
 
-**Task.** A one-off, daily or weekly reminder for the senior, shared by the senior and their family
-group.
+**Task.** A one-off, daily or weekly reminder for the senior, kept by their family group. The family
+adds and changes tasks; the senior and the family tick each day done. A medicine task is a label
+the family writes, never advice.
 
 ## Backend only (no screen)
 

@@ -7,8 +7,8 @@ import {
   deleteTask,
   emptyStore,
   occursOn,
-  parseStore,
   setCompleted,
+  storeFromList,
   tasksByDay,
   tasksOn,
   updateTask,
@@ -136,23 +136,42 @@ describe('checking a task', () => {
   });
 });
 
-describe('reading stored tasks', () => {
-  it('reads back what was saved', () => {
-    const store = setCompleted(addTask(emptyStore(), input(), 'a'), 'a', '2026-10-15', true);
-    assert.deepEqual(parseStore(JSON.stringify(store)), store);
+describe("reading the API's list", () => {
+  it('turns the ticks into the days each task was ticked off', () => {
+    const store = storeFromList({
+      tasks: [{ ...input({ repeat: 'daily' }), task_id: 'a' }],
+      ticks: [
+        { task_id: 'a', day: '2026-10-15' },
+        { task_id: 'a', day: '2026-10-16' },
+      ],
+    });
+    assert.deepEqual(store.completions, { a: ['2026-10-15', '2026-10-16'] });
+    assert.equal(tasksOn(store, '2026-10-16')[0].completed, true);
+    assert.equal(tasksOn(store, '2026-10-17')[0].completed, false);
   });
 
-  it('keeps the medicine tag, and reads an older task without one as a to-do', () => {
-    const store = addTask(emptyStore(), input({ kind: 'medicine' }), 'a');
-    assert.equal(parseStore(JSON.stringify(store)).schedules[0].kind, 'medicine');
-    const old = { schedules: [{ ...input(), task_id: 'b' }], completions: {} };
-    assert.equal(parseStore(JSON.stringify(old)).schedules[0].kind, 'task');
-  });
-
-  it('drops anything unreadable instead of failing', () => {
-    assert.deepEqual(parseStore(null), emptyStore());
-    assert.deepEqual(parseStore('not json'), emptyStore());
-    const odd = parseStore(JSON.stringify({ schedules: [{ task_id: 'x' }, 5], completions: 3 }));
-    assert.deepEqual(odd, emptyStore());
+  it('keeps the medicine tag and fills in what the API may leave out', () => {
+    const store = storeFromList({
+      tasks: [
+        {
+          task_id: 'a',
+          title: 'Tablet',
+          kind: 'medicine',
+          start_date: '2026-10-15',
+          time: '08:00',
+        },
+      ],
+      ticks: [],
+    });
+    assert.deepEqual(store.schedules[0], {
+      task_id: 'a',
+      title: 'Tablet',
+      kind: 'medicine',
+      start_date: '2026-10-15',
+      time: '08:00',
+      repeat: 'none',
+      repeat_until: null,
+      notes: '',
+    });
   });
 });

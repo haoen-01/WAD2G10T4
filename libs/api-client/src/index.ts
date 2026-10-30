@@ -175,6 +175,14 @@ export type {
   OccurrenceAnswerRequest,
   OccurrenceRequest,
   RepeatRule,
+  // Tasks
+  Task,
+  TaskDayRequest,
+  TaskKind,
+  TaskList,
+  TaskRepeat,
+  TaskRequest,
+  TaskTick,
   // The senior's watch
   WearableStatus,
   FollowUpWindow,

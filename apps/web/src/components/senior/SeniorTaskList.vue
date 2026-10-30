@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, useId } from 'vue';
-import TaskForm from '@/components/home/TaskForm.vue';
+import { computed, ref, useId } from 'vue';
 import Icon from '@/components/ui/Icon.vue';
 import { useTasks } from '@/composables/useTasks';
 import { useNow } from '@/composables/useNow';
 import { todayIso } from '@/lib/calendar';
 import { formatClockTime } from '@/lib/format-date';
-import type { TaskInput, TaskOccurrence } from '@/lib/tasks';
-import { nextSeniorTask, sortSeniorTasks } from './senior-view.js';
-const props = defineProps<{ personId: string }>();
+import { nextSeniorTask, sortSeniorTasks } from '@/lib/senior-view';
+import type { TaskOccurrence } from '@/lib/tasks';
+/**
+ * The senior's own list of today's tasks. The senior ticks them done; their family adds and
+ * changes them (`useTasks`, kept by the family group in the API).
+ */
 const id = useId();
 const tasks = useTasks();
 const now = useNow();
@@ -17,9 +19,7 @@ const clock = computed(
   () =>
     `${String(now.value.getHours()).padStart(2, '0')}:${String(now.value.getMinutes()).padStart(2, '0')}`,
 );
-const dayTasks = computed<TaskOccurrence[]>(() =>
-  sortSeniorTasks(tasks.tasksOn(props.personId, today.value)),
-);
+const dayTasks = computed<TaskOccurrence[]>(() => sortSeniorTasks(tasks.tasksOn(today.value)));
 const nextId = computed(() => nextSeniorTask(dayTasks.value, clock.value));
 const done = computed(() => dayTasks.value.filter((task) => task.completed).length);
 const rows = computed(() =>
@@ -30,31 +30,12 @@ const rows = computed(() =>
     tickLabel: task.completed ? `Mark ${task.title} not done` : `Mark ${task.title} done`,
   })),
 );
-const dialog = ref<HTMLDialogElement | null>(null);
-const addButton = ref<HTMLButtonElement | null>(null);
-const formOpen = ref(false);
 const notice = ref('');
-function toggle(task: TaskOccurrence) {
-  tasks.setCompleted(props.personId, task.task_id, today.value, !task.completed);
-  notice.value = `${task.title} marked ${task.completed ? 'not done' : 'done'}.`;
+async function toggle(task: TaskOccurrence) {
+  notice.value = '';
+  const saved = await tasks.setCompleted(task.task_id, today.value, !task.completed);
+  if (saved) notice.value = `${task.title} marked ${task.completed ? 'not done' : 'done'}.`;
 }
-async function openForm() {
-  formOpen.value = true;
-  await nextTick();
-  dialog.value?.showModal();
-  dialog.value?.querySelector('input')?.focus();
-}
-function closeForm() {
-  dialog.value?.close();
-  formOpen.value = false;
-  addButton.value?.focus();
-}
-function save(input: TaskInput) {
-  tasks.add(props.personId, input);
-  notice.value = input.start_date === today.value ? 'Task added.' : 'Task added to your calendar.';
-  closeForm();
-}
-onBeforeUnmount(() => dialog.value?.close());
 </script>
 
 <template>
@@ -70,17 +51,12 @@ onBeforeUnmount(() => dialog.value?.close());
         </h2>
         <p class="fs-5 mb-0 text-body-secondary">{{ done }} of {{ rows.length }} done</p>
       </div>
-      <button
-        ref="addButton"
-        type="button"
-        class="btn btn-primary btn-lg"
-        data-testid="add-task"
-        @click="openForm"
-      >
-        Add task
-      </button>
     </div>
-    <p v-if="!rows.length" class="fs-5">No tasks for today.</p>
+    <p v-if="tasks.error.value && !tasks.loaded.value" class="fs-5" role="alert">
+      Your tasks could not be loaded. Please try again soon.
+    </p>
+    <p v-else-if="!tasks.loaded.value" class="fs-5 text-body-secondary">Loading your tasks…</p>
+    <p v-else-if="!rows.length" class="fs-5">No tasks for today.</p>
     <ul v-else class="list-unstyled d-grid gap-3 mb-0">
       <li
         v-for="task in rows"
@@ -116,29 +92,6 @@ onBeforeUnmount(() => dialog.value?.close());
       </li>
     </ul>
     <p class="fs-5 mt-3 mb-0" role="status">{{ notice }}</p>
-    <Teleport to="body">
-      <dialog
-        ref="dialog"
-        class="modal senior-task-modal"
-        :aria-labelledby="`${id}-modal-title`"
-        @cancel.prevent="closeForm"
-        @click.self="closeForm"
-      >
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-          <div class="modal-content rounded-4 shadow-sm">
-            <div class="modal-header">
-              <h2 :id="`${id}-modal-title`" class="modal-title fs-3">Add a task</h2>
-              <button type="button" class="btn btn-outline-secondary" @click="closeForm">
-                Close
-              </button>
-            </div>
-            <div class="modal-body p-4">
-              <TaskForm v-if="formOpen" :day="today" @save="save" @cancel="closeForm" />
-            </div>
-          </div>
-        </div>
-      </dialog>
-    </Teleport>
   </section>
 </template>
 
@@ -188,35 +141,6 @@ onBeforeUnmount(() => dialog.value?.close());
 button:focus-visible {
   outline: 3px solid var(--sl-blue-deep);
   outline-offset: 3px;
-}
-.senior-task-modal {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  max-width: none;
-  height: 100%;
-  max-height: none;
-  background: transparent;
-  color: var(--sl-ink);
-}
-.senior-task-modal[open] {
-  display: block;
-}
-.senior-task-modal::backdrop {
-  background: color-mix(in srgb, var(--sl-ink) 50%, transparent);
-}
-.senior-task-modal .modal-dialog {
-  pointer-events: auto;
-}
-.senior-task-modal :deep(.btn),
-.senior-tasks > div > .btn {
-  min-height: 48px;
-}
-.senior-task-modal :deep(.form-control),
-.senior-task-modal :deep(.form-select) {
-  min-height: 48px;
-  font-size: 1.125rem;
 }
 @media (max-width: 575.98px) {
   .task-row {

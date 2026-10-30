@@ -14,12 +14,13 @@ import { minutesOf, nextTask, untilWords } from '@/lib/today';
 
 /**
  * "Today's tasks": medicine and reminders that tick off, a ring for how many are done and a line
- * for what is next. Family members can add, edit and delete them (Home); the senior ticks them off.
- * Tasks are kept in this browser (`useTasks`) and also show on the calendar.
+ * for what is next. Family members in the group add, edit and delete them; anyone ticks them off.
+ * Tasks are kept by the family group in the API (`useTasks`) and also show on the calendar.
  */
-const props = defineProps<{ personId: string; canManage: boolean }>();
+const props = defineProps<{ canManage: boolean }>();
 const id = useId();
 const tasks = useTasks();
+const canManage = computed(() => props.canManage && tasks.canManage());
 const now = useNow();
 // The same "today" as the calendar, so a task ticked off here is the one shown there.
 const today = todayIso;
@@ -30,8 +31,7 @@ const notice = ref('');
 const savedDay = ref<string | null>(null);
 /** The open form: `'new'`, a task being edited, or nothing. */
 const editing = ref<TaskSchedule | 'new' | null>(null);
-// Kept in this browser, so there is nothing to wait for: these are always ready.
-const dayTasks = computed(() => tasks.tasksOn(props.personId, day.value));
+const dayTasks = computed(() => tasks.tasksOn(day.value));
 const doneCount = computed(() => dayTasks.value.filter((task) => task.completed).length);
 
 // "Next": only for today, the earliest one not done that is still to come (or overdue).
@@ -47,7 +47,7 @@ const nextWhen = computed(() => {
   return untilWords(timeToMinutes(next.value.task.time) - minutesOf(now.value));
 });
 
-watch([() => props.personId, day], () => {
+watch(day, () => {
   editing.value = null;
   notice.value = '';
   savedDay.value = null;
@@ -64,20 +64,20 @@ function done(message: string, onDay: string | null = null) {
   notice.value = message;
   savedDay.value = onDay;
 }
-function save(input: TaskInput) {
+async function save(input: TaskInput) {
   const task = editing.value;
-  if (task && task !== 'new') tasks.update(props.personId, task.task_id, input);
-  else tasks.add(props.personId, input);
-  done(task === 'new' ? 'Added to the calendar.' : 'Saved.', input.start_date);
+  const saved =
+    task && task !== 'new' ? await tasks.update(task.task_id, input) : await tasks.add(input);
+  // Not saved: the form stays open with what was typed, and a message says why.
+  if (saved) done(task === 'new' ? 'Added to the calendar.' : 'Saved.', input.start_date);
 }
 function toggle(task: TaskOccurrence) {
-  tasks.setCompleted(props.personId, task.task_id, day.value, !task.completed);
+  void tasks.setCompleted(task.task_id, day.value, !task.completed);
   notice.value = '';
 }
-function remove() {
+async function remove() {
   const task = editing.value;
-  if (task && task !== 'new') tasks.remove(props.personId, task.task_id);
-  done('Deleted.');
+  if (task && task !== 'new' && (await tasks.remove(task.task_id))) done('Deleted.');
 }
 </script>
 
@@ -165,7 +165,18 @@ function remove() {
       </span>
     </p>
 
-    <p v-if="!dayTasks.length" class="text-body-secondary mb-0">No tasks.</p>
+    <p
+      v-if="tasks.error.value && !tasks.loaded.value"
+      class="text-body-secondary mb-0"
+      role="alert"
+    >
+      Tasks could not be loaded.
+      <button type="button" class="btn btn-link p-0 align-baseline" @click="tasks.refresh()">
+        Try again
+      </button>
+    </p>
+    <p v-else-if="!tasks.loaded.value" class="text-body-secondary mb-0">Loading tasks…</p>
+    <p v-else-if="!dayTasks.length" class="text-body-secondary mb-0">No tasks.</p>
     <ul v-else class="tasks">
       <li
         v-for="task in dayTasks"

@@ -1,4 +1,5 @@
-<script setup>
+<script setup lang="ts">
+import type { DailyMetric } from '@silverloop/api-client';
 import { computed, ref, useId, watch } from 'vue';
 import { percentOfUsual } from '@/lib/activity';
 import { formatIsoDay, parseIsoDay, WEEKDAYS_SHORT } from '@/lib/format-date';
@@ -7,12 +8,9 @@ import { formatIsoDay, parseIsoDay, WEEKDAYS_SHORT } from '@/lib/format-date';
  * focusing or tapping one lifts it and shows a small tooltip, and choosing one fills in the box
  * below. Every date is the reading's own day, written "Tue 18 Aug". Describes the numbers only.
  */
-const props = defineProps({
-  days: { type: Array, required: true },
-  usual: { type: Number, required: true },
-});
+const props = defineProps<{ days: DailyMetric[]; usual: number }>();
 const id = useId();
-const selected = ref(null);
+const selected = ref<string | null>(null);
 watch(
   () => props.days,
   (days) => {
@@ -21,17 +19,17 @@ watch(
   { immediate: true },
 );
 // The bar whose tooltip shows: the one under the pointer, else the one with focus or just tapped.
-const hovered = ref(null);
-const focused = ref(null);
+const hovered = ref<string | null>(null);
+const focused = ref<string | null>(null);
 const tipDay = computed(() => hovered.value ?? focused.value);
 /** "Tue 18 Aug" (or "Tuesday 18 August" when `long`): the reading's own day. */
-function dayWords(iso, long = false) {
+function dayWords(iso: string, long = false) {
   return formatIsoDay(iso, long ? { style: 'long' } : {}).replace(',', '');
 }
-function stepWords(steps) {
+function stepWords(steps: number) {
   return `${Math.round(steps).toLocaleString('en-SG')} steps`;
 }
-function usualWords(steps) {
+function usualWords(steps: number) {
   const percent = percentOfUsual(steps, props.usual);
   return percent === null ? '' : `${percent}% of your usual day`;
 }
@@ -70,13 +68,13 @@ const chosenText = computed(() => {
   const ofUsual = usualWords(chosen.value.steps);
   return `${stepWords(chosen.value.steps)}${ofUsual ? ` (${ofUsual})` : ''} and ${chosen.value.active_minutes} active minutes.`;
 });
-function choose(day) {
+function choose(day: string) {
   selected.value = day;
   focused.value = day;
 }
 // Arrow keys move between bars, as in any row of options.
-const buttons = ref([]);
-function onKey(event, index) {
+const buttons = ref<HTMLButtonElement[]>([]);
+function onKey(event: KeyboardEvent, index: number) {
   const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
   if (!step) return;
   event.preventDefault();

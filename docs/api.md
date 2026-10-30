@@ -256,6 +256,13 @@ the senior's care group. **member** means an active member of that group.
 | GET    | `/v1/groups/{group_id}/appointments/{appointment_id}/notes`  | member    | The family's notes on one day of an appointment (`date`)       |
 | POST   | `/v1/groups/{group_id}/appointments/{appointment_id}/notes`  | member    | Add a note to one day of an appointment                        |
 | POST   | `/v1/groups/{group_id}/notes/{note_id}/delete`               | member    | Remove one of your own notes                                   |
+| GET    | `/v1/groups/{group_id}/tasks`                                | member    | The group's tasks and days ticked off, also before linking     |
+| GET    | `/v1/people/{person_id}/tasks`                               | reader    | The senior's tasks and days ticked off                         |
+| POST   | `/v1/groups/{group_id}/tasks`                                | member    | Add a task (once, daily or weekly)                             |
+| PUT    | `/v1/groups/{group_id}/tasks/{task_id}`                      | member    | Change a task (every day of it); ticks stay                    |
+| POST   | `/v1/groups/{group_id}/tasks/{task_id}/delete`               | member    | Remove a task and its ticks                                    |
+| PUT    | `/v1/groups/{group_id}/tasks/{task_id}/days/{day}`           | member    | Tick one day done or not (`{done}`): today or a past day       |
+| PUT    | `/v1/people/{person_id}/tasks/{task_id}/days/{day}`          | reader    | The senior ticks one of today's tasks done or not (`{done}`)   |
 | GET    | `/v1/people/{person_id}/wearable`                            | reader    | Simulated watch status: connected, last sync, battery          |
 
 A family group can exist before its senior is linked (ADR 0010). `POST /v1/groups` takes
@@ -331,6 +338,24 @@ use notes (anyone else, a pending member or an unknown group is 404; a signed-in
 Adding a note records a `note_added` feed entry in the same transaction, with the appointment's
 title and kind and the note's day, and never the note's text. Deleting a note keeps that entry.
 Deleting an appointment deletes its notes. The text goes to no log, audit event or the agent.
+
+### Tasks
+
+A task is a one-off, daily or weekly reminder for the senior, kept by the family group
+(`silverloop.family_tasks`; behaviour in `docs/tasks.md`). `TaskRequest` is `{title, kind:
+task|medicine, start_date, time (HH:MM), repeat: none|daily|weekly, repeat_until?, notes?}`;
+`repeat_until` before `start_date` is 422, and a one-off task's `repeat_until` is dropped. Weekly is
+every seven days from `start_date`. The two reads return a `TaskList`: `{person_id, group_id,
+from_date, to_date, tasks, ticks}`, where each `Task` adds `task_id`, `added_by_name`, `created_at`
+and `updated_at`, and each `TaskTick` is `{task_id, day, done_by_name, done_at}` within the range
+(default two months back and six ahead, at most 400 days). The client works out each day.
+
+Adding, changing and deleting are for active members only: a signed-in senior gets 403, anyone
+else (a pending member, an outsider, an unknown group) 404. The person routes use the same check as
+the calendar: the senior reads their own, an active member the senior of their group, anyone else 404. Ticking is idempotent (204). A future day, or a day the task is not on, is 422; through
+`/v1/people/...` only today can be ticked (422 otherwise). Editing keeps every tick; a tick that is
+no longer one of the task's days is kept but not returned. Deleting removes the task and its ticks.
+Tasks write nothing to the family activity feed, and nothing in `advance` reads them.
 
 ## The follow-through loop (no screen)
 

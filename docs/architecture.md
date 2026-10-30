@@ -28,9 +28,8 @@ evidence.
   `@supabase/supabase-js`, and every domain read and write is an Axios call in
   `services/careApi.ts`, typed with the generated client's types. Home's weather card and the
   calendar's public holidays call data.gov.sg and Nager.Date directly (`services/publicApis.ts`).
-  Calendar and Family screens use the family API. The exception is tasks (Home, Senior, and shown
-  on the Calendar): the API has no such concept yet, so they are kept in the browser's
-  `localStorage` (`composables/useTasks.ts`, rules in `lib/tasks.ts`; see `docs/tasks.md`).
+  Calendar and Family screens use the family API, and so do tasks (Home, Senior, and shown on the
+  Calendar: `composables/useTasks.ts`, rules in `lib/tasks.ts`; see `docs/tasks.md`).
 - The family screens are an app-style shell: a bottom tab bar on phones and a header pill on
   desktop (`components/ui/MainNav.vue`, CSS only). Home shows the family activity feed and
   check-ins (`composables/useFamilyActivity.ts`: one polling store per app, 30 s and on focus,

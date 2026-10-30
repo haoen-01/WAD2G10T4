@@ -3951,6 +3951,74 @@ class AppointmentNote(BaseModel):
     created_at: datetime
 
 
+# ── Tasks ────────────────────────────────────────────────────────────────────
+#
+# A shared reminder list for the senior, kept by their family group. Never read by `advance`, the
+# policy, review cases or outreach: a missed tick triggers nothing.
+
+
+class TaskKind(StrEnum):
+    # A label the family writes; Care+ never suggests a medicine, dose or time.
+    TASK = "task"
+    MEDICINE = "medicine"
+
+
+class TaskRepeat(StrEnum):
+    NONE = "none"
+    DAILY = "daily"
+    WEEKLY = "weekly"  # every seven days from `start_date`
+
+
+class TaskRequest(BaseModel):
+    """A new or changed task. A repeating one is stored once and happens on every day it repeats,
+    until `repeat_until` (inclusive) or forever."""
+
+    title: str = Field(min_length=1, max_length=120)
+    kind: TaskKind = TaskKind.TASK
+    start_date: date
+    time: ClockTime
+    repeat: TaskRepeat = TaskRepeat.NONE
+    repeat_until: date | None = None
+    notes: str = Field(default="", max_length=1000)
+
+    @model_validator(mode="after")
+    def _check_dates(self) -> TaskRequest:
+        if self.repeat_until is not None and self.repeat_until < self.start_date:
+            raise ValueError("A repeat cannot end before the first day.")
+        return self
+
+
+class Task(TaskRequest):
+    task_id: str
+    # The display name of whoever added it, or None when their account is gone.
+    added_by_name: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TaskTick(BaseModel):
+    """One day of a task ticked done."""
+
+    task_id: str
+    day: date
+    done_by_name: str | None
+    done_at: datetime
+
+
+class TaskList(BaseModel):
+    # None for a family group whose senior is not linked yet.
+    person_id: str | None
+    group_id: str | None
+    from_date: date
+    to_date: date
+    tasks: list[Task]
+    ticks: list[TaskTick]
+
+
+class TaskDayRequest(BaseModel):
+    done: bool
+
+
 # ── The senior's watch ───────────────────────────────────────────────────────
 
 

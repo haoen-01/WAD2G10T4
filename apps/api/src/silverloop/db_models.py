@@ -1157,6 +1157,39 @@ class AppointmentNoteRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+# Owned by `silverloop.family_tasks`. Like an appointment, a repeating task is ONE row; its days are
+# worked out when read. A tick is one day of it ticked done; un-ticking deletes the row.
+
+
+class TaskRow(Base):
+    __tablename__ = "tasks"
+
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("care_groups.group_id"), index=True)
+    title: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(16))  # task | medicine
+    start_date: Mapped[date] = mapped_column(Date)
+    time: Mapped[str] = mapped_column(String(5))
+    repeat: Mapped[str] = mapped_column(String(8))  # none | daily | weekly
+    repeat_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class TaskTickRow(Base):
+    __tablename__ = "task_ticks"
+    __table_args__ = (UniqueConstraint("task_id", "day", name="uq_task_ticks_task_day"),)
+
+    tick_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("care_groups.group_id"), index=True)
+    task_id: Mapped[str] = mapped_column(ForeignKey("tasks.task_id"), index=True)
+    day: Mapped[date] = mapped_column(Date)
+    done_by: Mapped[str] = mapped_column(String(128))
+    done_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class FamilyActivityRow(Base):
     """One thing a family member did in the group, for the family's activity feed. Append-only:
     nothing updates or deletes a row except the demo reset. Written only by

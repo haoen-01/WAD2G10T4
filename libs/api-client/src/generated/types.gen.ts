@@ -5338,6 +5338,155 @@ export type StatedContextExplanation = {
 };
 
 /**
+ * Task
+ */
+export type Task = {
+    /**
+     * Title
+     */
+    title: string;
+    kind?: TaskKind;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * Time
+     */
+    time: string;
+    repeat?: TaskRepeat;
+    /**
+     * Repeat Until
+     */
+    repeat_until?: string | null;
+    /**
+     * Notes
+     */
+    notes?: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Added By Name
+     */
+    added_by_name: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * TaskDayRequest
+ */
+export type TaskDayRequest = {
+    /**
+     * Done
+     */
+    done: boolean;
+};
+
+/**
+ * TaskKind
+ */
+export type TaskKind = 'task' | 'medicine';
+
+/**
+ * TaskList
+ */
+export type TaskList = {
+    /**
+     * Person Id
+     */
+    person_id: string | null;
+    /**
+     * Group Id
+     */
+    group_id: string | null;
+    /**
+     * From Date
+     */
+    from_date: string;
+    /**
+     * To Date
+     */
+    to_date: string;
+    /**
+     * Tasks
+     */
+    tasks: Array<Task>;
+    /**
+     * Ticks
+     */
+    ticks: Array<TaskTick>;
+};
+
+/**
+ * TaskRepeat
+ */
+export type TaskRepeat = 'none' | 'daily' | 'weekly';
+
+/**
+ * TaskRequest
+ *
+ * A new or changed task. A repeating one is stored once and happens on every day it repeats,
+ * until `repeat_until` (inclusive) or forever.
+ */
+export type TaskRequest = {
+    /**
+     * Title
+     */
+    title: string;
+    kind?: TaskKind;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * Time
+     */
+    time: string;
+    repeat?: TaskRepeat;
+    /**
+     * Repeat Until
+     */
+    repeat_until?: string | null;
+    /**
+     * Notes
+     */
+    notes?: string;
+};
+
+/**
+ * TaskTick
+ *
+ * One day of a task ticked done.
+ */
+export type TaskTick = {
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Day
+     */
+    day: string;
+    /**
+     * Done By Name
+     */
+    done_by_name: string | null;
+    /**
+     * Done At
+     */
+    done_at: string;
+};
+
+/**
  * ThresholdReference
  */
 export type ThresholdReference = {
@@ -10767,6 +10916,370 @@ export type DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses =
 };
 
 export type DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponse = DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses[keyof DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses];
+
+export type GroupTasksV1GroupsGroupIdTasksGetData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: {
+        /**
+         * From Date
+         */
+        from_date?: string | null;
+        /**
+         * To Date
+         */
+        to_date?: string | null;
+    };
+    url: '/v1/groups/{group_id}/tasks';
+};
+
+export type GroupTasksV1GroupsGroupIdTasksGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type GroupTasksV1GroupsGroupIdTasksGetError = GroupTasksV1GroupsGroupIdTasksGetErrors[keyof GroupTasksV1GroupsGroupIdTasksGetErrors];
+
+export type GroupTasksV1GroupsGroupIdTasksGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskList;
+};
+
+export type GroupTasksV1GroupsGroupIdTasksGetResponse = GroupTasksV1GroupsGroupIdTasksGetResponses[keyof GroupTasksV1GroupsGroupIdTasksGetResponses];
+
+export type CreateTaskV1GroupsGroupIdTasksPostData = {
+    body: TaskRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/tasks';
+};
+
+export type CreateTaskV1GroupsGroupIdTasksPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type CreateTaskV1GroupsGroupIdTasksPostError = CreateTaskV1GroupsGroupIdTasksPostErrors[keyof CreateTaskV1GroupsGroupIdTasksPostErrors];
+
+export type CreateTaskV1GroupsGroupIdTasksPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: Task;
+};
+
+export type CreateTaskV1GroupsGroupIdTasksPostResponse = CreateTaskV1GroupsGroupIdTasksPostResponses[keyof CreateTaskV1GroupsGroupIdTasksPostResponses];
+
+export type PersonTasksV1PeoplePersonIdTasksGetData = {
+    body?: never;
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: {
+        /**
+         * From Date
+         */
+        from_date?: string | null;
+        /**
+         * To Date
+         */
+        to_date?: string | null;
+    };
+    url: '/v1/people/{person_id}/tasks';
+};
+
+export type PersonTasksV1PeoplePersonIdTasksGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type PersonTasksV1PeoplePersonIdTasksGetError = PersonTasksV1PeoplePersonIdTasksGetErrors[keyof PersonTasksV1PeoplePersonIdTasksGetErrors];
+
+export type PersonTasksV1PeoplePersonIdTasksGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskList;
+};
+
+export type PersonTasksV1PeoplePersonIdTasksGetResponse = PersonTasksV1PeoplePersonIdTasksGetResponses[keyof PersonTasksV1PeoplePersonIdTasksGetResponses];
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutData = {
+    body: TaskRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/tasks/{task_id}';
+};
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutError = UpdateTaskV1GroupsGroupIdTasksTaskIdPutErrors[keyof UpdateTaskV1GroupsGroupIdTasksTaskIdPutErrors];
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponse = UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponses[keyof UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponses];
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/tasks/{task_id}/delete';
+};
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostError = DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostErrors[keyof DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostErrors];
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponse = DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponses[keyof DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponses];
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutData = {
+    body: TaskDayRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Day
+         */
+        day: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/tasks/{task_id}/days/{day}';
+};
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutError = SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutErrors[keyof SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutErrors];
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponse = SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponses[keyof SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponses];
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutData = {
+    body: TaskDayRequest;
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Day
+         */
+        day: string;
+    };
+    query?: never;
+    url: '/v1/people/{person_id}/tasks/{task_id}/days/{day}';
+};
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutError = SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutErrors[keyof SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutErrors];
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponse = SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponses[keyof SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponses];
 
 export type PersonWearableV1PeoplePersonIdWearableGetData = {
     body?: never;

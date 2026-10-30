@@ -1,4 +1,5 @@
-<script setup>
+<script setup lang="ts">
+import type { PinResponse } from '@silverloop/api-client';
 import { ref, useId } from 'vue';
 import PinDisplay from '@/components/family/PinDisplay.vue';
 import Icon from '@/components/ui/Icon.vue';
@@ -6,7 +7,7 @@ import { useAction } from '@/composables/useAction';
 import { getSeniorLinkPin } from '@/services/careApi';
 const id = useId();
 const open = ref(false);
-const code = ref(null);
+const code = ref<PinResponse | null>(null);
 const { busy, error, run } = useAction();
 function showCode() {
   void run(async () => {
