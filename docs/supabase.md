@@ -185,6 +185,12 @@ senior is linked (ADR 0010): it adds `care_groups.senior_name`, `linked_at` and 
 schema the API already upgraded. **It has not been applied to the live project.** Apply it only
 **after** `202610240024`; it moves the marker to `f3a9c1e7b254` only from exactly `d8e2b6a4c917`.
 
+`202610300026_group_member_last_opened.sql` (Alembic `c1e5a8f2d640`) adds the nullable
+`group_members.last_opened_at` (`add column if not exists`); existing rows stay NULL. No new table,
+so no RLS change. Safe to run twice and over a schema the API already upgraded. **It has not been
+applied to the live project.** Apply it only **after** `202610290025`; it moves the marker to
+`c1e5a8f2d640` only from exactly `f3a9c1e7b254`.
+
 ## Schema ownership
 
 Three things can define this schema, and they have drifted from each other three times. The split is:

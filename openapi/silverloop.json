@@ -4562,6 +4562,63 @@
         }
       }
     },
+    "/v1/groups/{group_id}/open": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Open Group",
+        "description": "Make this the caller's current group, as `last_opened` on `GET /v1/me` reports. Active\nmembers only: anyone else, a senior included, gets 404, so `SignedIn` rather than\n`Family`, whose 403 would answer a senior differently. Adds nothing to the family feed.",
+        "operationId": "open_group_v1_groups__group_id__open_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/groups/{group_id}/link-senior": {
       "post": {
         "tags": [
@@ -10732,6 +10789,14 @@
           },
           "my_status": {
             "$ref": "#/components/schemas/MemberStatus"
+          },
+          "member_count": {
+            "type": "integer",
+            "title": "Member Count"
+          },
+          "last_opened": {
+            "type": "boolean",
+            "title": "Last Opened"
           }
         },
         "type": "object",
@@ -10740,7 +10805,9 @@
           "person_id",
           "senior_name",
           "my_role",
-          "my_status"
+          "my_status",
+          "member_count",
+          "last_opened"
         ],
         "title": "MyGroup"
       },

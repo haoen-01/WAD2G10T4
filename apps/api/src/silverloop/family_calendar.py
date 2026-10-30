@@ -23,7 +23,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from silverloop import family_activity
@@ -851,6 +851,12 @@ class FamilyCalendarStore:
                     GroupMemberRow.group_id == group_id,
                     GroupMemberRow.sub.not_in(list(members)),
                 )
+            )
+            # Nobody has a current group when a demo starts.
+            session.execute(
+                update(GroupMemberRow)
+                .where(GroupMemberRow.group_id == group_id)
+                .values(last_opened_at=None)
             )
             # Created one microsecond apart so the members keep this order (and their colours).
             base = _utcnow()

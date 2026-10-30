@@ -236,6 +236,7 @@ the senior's care group. **member** means an active member of that group.
 | POST   | `/v1/groups`                                                 | family    | Create a family group with `senior_name` or `senior_pin`       |
 | POST   | `/v1/groups/join`                                            | family    | Ask to join with a join PIN; waits as `pending`                |
 | GET    | `/v1/groups/{group_id}`                                      | member    | The group and its members, including pending ones              |
+| POST   | `/v1/groups/{group_id}/open`                                 | member    | Make this your current group (204, anyone else 404)            |
 | POST   | `/v1/groups/{group_id}/join-pin`                             | member    | A new 7-day join PIN, replacing the old one                    |
 | POST   | `/v1/groups/{group_id}/members/{member_id}/approve`          | member    | Let a pending member in                                        |
 | POST   | `/v1/groups/{group_id}/members/{member_id}/decline`          | member    | Turn a pending request down                                    |
@@ -269,6 +270,15 @@ cannot be used to try PINs; a wrong or expired PIN is 400 and counts toward the 
 named); a refusal leaves the PIN usable. `senior-name` (`{senior_name}`, 1-80 characters) is 409
 once linked. `GET /v1/groups/{group_id}/calendar` is for active members (a senior gets 403, anyone
 else 404). Linking and renaming add `senior_linked` and `senior_renamed` feed entries.
+
+Each `MyGroup` also carries `member_count` (active members only; pending ones do not count) and
+`last_opened`, true on at most one group: the caller's active membership with the latest
+`last_opened_at`. A pending group is never true, and none is true if no active group has been
+opened; an exact tie goes to the greatest `group_id`. `POST /v1/groups/{group_id}/open` sets that
+time for the caller and returns 204 with no body; a pending member, a non-member, a senior and an
+unknown group all get 404, and it adds no feed entry. Creating a group (by name or by PIN) also makes
+it current. Joining, being approved, linking a senior and renaming do not. With `AUTH_ENABLED=false`,
+the demo reset clears it for the demo group's members.
 
 A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN entry. PINs are stored
 as SHA-256 hashes. With `AUTH_ENABLED=false`, API startup and `POST /v1/demo/reset` (for Mdm Lim)

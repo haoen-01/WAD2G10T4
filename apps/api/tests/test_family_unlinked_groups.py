@@ -158,6 +158,8 @@ def test_me_lists_a_group_with_no_senior_linked(client: TestClient) -> None:  # 
             "senior_name": "Mdm Tan",
             "my_role": "owner",
             "my_status": "active",
+            "member_count": 1,
+            "last_opened": True,
         }
     ]
 
@@ -512,6 +514,8 @@ def test_joining_approving_and_declining_work_on_an_unlinked_group(
         "senior_name": "Mdm Tan",
         "my_role": "member",
         "my_status": "pending",
+        "member_count": 1,
+        "last_opened": False,
     }
     group = client.get(f"/v1/groups/{group_id}", headers=_headers(OWNER)).json()
     pending = next(m for m in group["members"] if m["status"] == "pending")

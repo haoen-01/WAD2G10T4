@@ -2703,6 +2703,14 @@ export type MyGroup = {
     senior_name: string;
     my_role: GroupRole;
     my_status: MemberStatus;
+    /**
+     * Member Count
+     */
+    member_count: number;
+    /**
+     * Last Opened
+     */
+    last_opened: boolean;
 };
 
 /**
@@ -9753,6 +9761,48 @@ export type GetGroupV1GroupsGroupIdGetResponses = {
 };
 
 export type GetGroupV1GroupsGroupIdGetResponse = GetGroupV1GroupsGroupIdGetResponses[keyof GetGroupV1GroupsGroupIdGetResponses];
+
+export type OpenGroupV1GroupsGroupIdOpenPostData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/open';
+};
+
+export type OpenGroupV1GroupsGroupIdOpenPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type OpenGroupV1GroupsGroupIdOpenPostError = OpenGroupV1GroupsGroupIdOpenPostErrors[keyof OpenGroupV1GroupsGroupIdOpenPostErrors];
+
+export type OpenGroupV1GroupsGroupIdOpenPostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type OpenGroupV1GroupsGroupIdOpenPostResponse = OpenGroupV1GroupsGroupIdOpenPostResponses[keyof OpenGroupV1GroupsGroupIdOpenPostResponses];
 
 export type LinkSeniorV1GroupsGroupIdLinkSeniorPostData = {
     body: LinkSeniorRequest;
