@@ -3642,6 +3642,10 @@ class MyGroup(BaseModel):
     senior_name: str
     my_role: GroupRole
     my_status: MemberStatus
+    # Active members only; someone waiting for approval does not count.
+    member_count: int
+    # True on at most one group: the active membership this account opened most recently.
+    last_opened: bool
 
 
 class MeResponse(BaseModel):

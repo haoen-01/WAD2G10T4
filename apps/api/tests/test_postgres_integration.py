@@ -5,10 +5,12 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
+from alembic.config import Config
 from sqlalchemy import select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 
+from alembic import command
 from silverloop.db_models import AppointmentNoteRow, Base, DecisionEvidenceRow
 from silverloop.family_calendar import FamilyCalendarStore
 from silverloop.family_groups import DEMO_FAMILY, DEMO_FAMILY_SUB, FamilyGroups
@@ -619,7 +621,7 @@ def test_the_dimension_preference_run_scope_mirror_replays_twice_over_an_alembic
             assert "ix_activity_dimension_preferences_run_id" in indexes
 
             version = session.scalar(text("select version_num from public.alembic_version"))
-            assert version == "f3a9c1e7b254"
+            assert version == "c1e5a8f2d640"
 
             # A decline_reason row is never standing: the mirror's backfill must catch it even
             # though Alembic's own backfill already ran before this row ever existed.
@@ -890,6 +892,86 @@ def test_the_unlinked_groups_mirror_replays_twice_over_an_alembic_schema() -> No
             assert version == expected_database_revision()
     finally:
         repository.close()
+
+
+def test_the_last_opened_mirror_replays_twice_over_an_alembic_schema() -> None:
+    """`202610300026_group_member_last_opened.sql`, hand-applied over a schema Alembic already
+    migrated, and again: one nullable, timezone-aware column, no new RLS posture."""
+    database_url = dedicated_postgres_test_url()
+    upgrade_database(database_url)
+    mirror = (
+        Path(__file__).resolve().parents[3]
+        / "infra"
+        / "supabase"
+        / "migrations"
+        / "202610300026_group_member_last_opened.sql"
+    )
+    sql = mirror.read_text()
+
+    repository = SqlAlchemyRepository(database_url)
+    try:
+        for _ in range(2):
+            with repository.sessions.begin() as session:
+                _execute_plpgsql(session, sql)
+
+        with repository.sessions() as session:
+            column = session.execute(
+                text(
+                    "select data_type, is_nullable from information_schema.columns "
+                    "where table_schema = 'public' and table_name = 'group_members' "
+                    "and column_name = 'last_opened_at'"
+                )
+            ).one()
+            assert tuple(column) == ("timestamp with time zone", "YES")
+            version = session.scalar(text("select version_num from public.alembic_version"))
+            assert version == expected_database_revision()
+    finally:
+        repository.close()
+
+
+def test_the_last_opened_mirror_adds_the_column_to_a_schema_stopped_before_it() -> None:
+    """The replay above runs over a schema that already has the column, so both statements are
+    no-ops there. Here the schema stops at `f3a9c1e7b254`, as a Supabase database that has not had
+    this change yet, and the mirror alone must add the column and move the version marker. Going
+    down from head rather than up to the revision, because the database may already be at head."""
+    database_url = dedicated_postgres_test_url()
+    upgrade_database(database_url)
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    config.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "alembic"))
+    config.set_main_option("sqlalchemy.url", _sync_database_url(database_url).replace("%", "%%"))
+    config.attributes["database_url_configured"] = True
+    mirror = (
+        Path(__file__).resolve().parents[3]
+        / "infra"
+        / "supabase"
+        / "migrations"
+        / "202610300026_group_member_last_opened.sql"
+    )
+    column_query = text(
+        "select data_type, is_nullable from information_schema.columns "
+        "where table_schema = 'public' and table_name = 'group_members' "
+        "and column_name = 'last_opened_at'"
+    )
+    version_query = text("select version_num from public.alembic_version")
+
+    command.downgrade(config, "f3a9c1e7b254")
+    repository = SqlAlchemyRepository(database_url)
+    try:
+        with repository.sessions() as session:
+            assert session.execute(column_query).first() is None
+            assert session.scalar(version_query) == "f3a9c1e7b254"
+
+        with repository.sessions.begin() as session:
+            _execute_plpgsql(session, mirror.read_text())
+
+        with repository.sessions() as session:
+            column = session.execute(column_query).one()
+            assert tuple(column) == ("timestamp with time zone", "YES")
+            assert session.scalar(version_query) == "c1e5a8f2d640"
+    finally:
+        repository.close()
+        # The other tests in this file expect head.
+        upgrade_database(database_url)
 
 
 def test_postgres_demo_reset_removes_unlinked_demo_groups_children_first() -> None:

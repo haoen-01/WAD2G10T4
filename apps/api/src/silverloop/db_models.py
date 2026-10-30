@@ -1032,6 +1032,8 @@ class GroupMemberRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     approved_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When this member last opened this group; the latest active one is their current group.
+    last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class FamilyPinRow(Base):

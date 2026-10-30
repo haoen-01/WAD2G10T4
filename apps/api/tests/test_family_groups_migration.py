@@ -1,6 +1,7 @@
 """The family-group tables (Alembic `a4f6c2e81d37`), the family calendar (`b9d3e5f71a26`), the
-family activity feed (`c4a7e1b93d58`), appointment notes (`d8e2b6a4c917`) and groups with no senior
-linked yet (`f3a9c1e7b254`), stepped through the real Alembic chain."""
+family activity feed (`c4a7e1b93d58`), appointment notes (`d8e2b6a4c917`), groups with no senior
+linked yet (`f3a9c1e7b254`) and each member's last opened group (`c1e5a8f2d640`), stepped through
+the real Alembic chain."""
 
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ _CALENDAR_REVISION = "b9d3e5f71a26"
 _ACTIVITY_REVISION = "c4a7e1b93d58"
 _NOTES_REVISION = "d8e2b6a4c917"
 _UNLINKED_REVISION = "f3a9c1e7b254"
+_LAST_OPENED_REVISION = "c1e5a8f2d640"
 _API_ROOT = Path(__file__).resolve().parents[1]
 _TABLES = {"accounts", "care_groups", "group_members", "family_pins", "pin_attempts"}
 _CALENDAR_TABLES = {"appointments", "availability_entries", "helper_assignments"}
@@ -45,8 +47,8 @@ def _tables(database_url: str) -> set[str]:
         engine.dispose()
 
 
-def test_the_unlinked_groups_revision_is_the_repository_head() -> None:
-    assert expected_database_revision() == _UNLINKED_REVISION
+def test_the_last_opened_revision_is_the_repository_head() -> None:
+    assert expected_database_revision() == _LAST_OPENED_REVISION
 
 
 def test_upgrade_creates_the_family_tables_and_downgrade_removes_them(tmp_path: Path) -> None:
@@ -187,3 +189,50 @@ def test_after_the_upgrade_a_senior_still_has_one_group_but_many_groups_can_have
     # The old schema cannot hold a group with no senior, so the downgrade says so.
     with pytest.raises(RuntimeError, match="no senior linked"):
         command.downgrade(config, _NOTES_REVISION)
+
+
+def _group_member_columns(database_url: str) -> dict[str, dict]:
+    engine = create_engine(_sync_database_url(database_url))
+    try:
+        return {c["name"]: c for c in inspect(engine).get_columns("group_members")}
+    finally:
+        engine.dispose()
+
+
+def test_last_opened_upgrades_with_existing_members_empty_and_downgrades_keeping_them(
+    tmp_path: Path,
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'last_opened.db'}"
+    config = _alembic_config(database_url)
+    command.upgrade(config, _NOTES_REVISION)
+    _seed_linked_group(database_url)
+    command.upgrade(config, _UNLINKED_REVISION)
+    assert "last_opened_at" not in _group_member_columns(database_url)
+    engine = create_engine(_sync_database_url(database_url))
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO group_members (member_id, group_id, sub, relationship, role, "
+                    "status, created_at) VALUES ('mem_old', 'grp_old', 'family-old', 'Son', "
+                    "'owner', 'active', :at)"
+                ),
+                {"at": _CREATED},
+            )
+
+        command.upgrade(config, _LAST_OPENED_REVISION)
+        column = _group_member_columns(database_url)["last_opened_at"]
+        assert column["nullable"] is True
+        with engine.connect() as connection:
+            opened = connection.execute(
+                text("SELECT last_opened_at FROM group_members WHERE member_id = 'mem_old'")
+            ).scalar_one()
+        assert opened is None
+
+        command.downgrade(config, _UNLINKED_REVISION)
+        assert "last_opened_at" not in _group_member_columns(database_url)
+        with engine.connect() as connection:
+            members = connection.execute(text("SELECT member_id FROM group_members")).scalars()
+            assert list(members) == ["mem_old"]
+    finally:
+        engine.dispose()
