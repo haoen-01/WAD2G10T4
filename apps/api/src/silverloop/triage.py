@@ -545,9 +545,7 @@ def _classify(state: PersonState, context: CareContext) -> _Triage:
 
     if _sensitive_tripwire(state):
         if gate == PolicyGate.RAIN_CONTEXT:
-            headline = (
-                "Quieter than usual, but it rained. Care+ is watching before anyone acts."
-            )
+            headline = "Quieter than usual, but it rained. Care+ is watching before anyone acts."
         elif gate == PolicyGate.STATED_EXPLANATION:
             # Deliberately indistinguishable from any other hold: "they explained why" would tell
             # the coordinator what the senior told Care+.

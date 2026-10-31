@@ -9,17 +9,20 @@ import type {
   CalendarAppointment,
   CareGroup,
   CheckInRequest,
+  CreateGroupRequest,
   DailyMetric,
   DeclineReason,
   FamilyActivityEntry,
   FamilyActivityPage,
   FamilyCalendar,
   Intervention,
+  LinkSeniorRequest,
   MeResponse,
   MyGroup,
   OutcomeKind,
   PersonState,
   PinResponse,
+  SeniorNameRequest,
   WearableStatus,
 } from '@silverloop/api-client';
 
@@ -80,18 +83,26 @@ export async function onboard(role: AccountRole, displayName: string): Promise<M
   return response.data;
 }
 
-/** Senior only: a 15-minute, single-use PIN that lets a family member create their group. */
+/** Senior only: a 10-minute, single-use PIN that lets a family member link them to a group. */
 export async function getSeniorLinkPin(): Promise<PinResponse> {
   const response = await http.post<PinResponse>('/v1/me/link-pin');
   return response.data;
 }
 
-/** Create a senior's family group with the PIN on the senior's screen. */
-export async function createGroup(seniorPin: string, relationship: string): Promise<CareGroup> {
-  const response = await http.post<CareGroup>('/v1/groups', {
-    senior_pin: seniorPin,
+/**
+ * Create a family group. With only the senior's name it starts with no senior linked; with the PIN
+ * on the senior's screen the senior is linked at once. At least one of the two.
+ */
+export async function createGroup(
+  relationship: string,
+  senior: { seniorName?: string; seniorPin?: string },
+): Promise<CareGroup> {
+  const body: CreateGroupRequest = {
     relationship,
-  });
+    senior_name: senior.seniorName ?? null,
+    senior_pin: senior.seniorPin ?? null,
+  };
+  const response = await http.post<CareGroup>('/v1/groups', body);
   return response.data;
 }
 
@@ -122,11 +133,31 @@ export async function declineMember(groupId: string, memberId: string): Promise<
   return response.data;
 }
 
+/** Link the senior to a group that has none yet, with the PIN on the senior's screen. */
+export async function linkSenior(groupId: string, seniorPin: string): Promise<CareGroup> {
+  const body: LinkSeniorRequest = { senior_pin: seniorPin };
+  const response = await http.post<CareGroup>(`/v1/groups/${groupId}/link-senior`, body);
+  return response.data;
+}
+
+/** Fix the senior's name while they are not linked yet (afterwards it comes from their account). */
+export async function renameSenior(groupId: string, seniorName: string): Promise<CareGroup> {
+  const body: SeniorNameRequest = { senior_name: seniorName };
+  const response = await http.put<CareGroup>(`/v1/groups/${groupId}/senior-name`, body);
+  return response.data;
+}
+
 // ── Family calendar ──────────────────────────────────────────────────────────
 
 /** The senior's appointments (each day of a repeating one), the family's availability and helpers. */
 export async function getCalendar(personId: string): Promise<FamilyCalendar> {
   const response = await http.get<FamilyCalendar>(`/v1/people/${personId}/calendar`);
+  return response.data;
+}
+
+/** The family group's calendar, also before its senior is linked (`person_id` is then null). */
+export async function getGroupCalendar(groupId: string): Promise<FamilyCalendar> {
+  const response = await http.get<FamilyCalendar>(`/v1/groups/${groupId}/calendar`);
   return response.data;
 }
 

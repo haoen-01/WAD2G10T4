@@ -1,14 +1,18 @@
 """Family groups: family members caring for one senior, joined with 6-digit PINs.
 
-The flow:
+The flow (ADR 0010):
 
 1. Someone signs up and chooses `senior` or `family` (`onboard`). A senior gets their own person
    record with synthetic activity data, labelled synthetic, since no real device is connected.
-2. The senior shows a **senior-link PIN** on their own screen (`create_link_pin`). It lasts 10
-   minutes and works once. A family member entering it creates the senior's group and becomes its
-   owner (`create_group`). Showing the PIN is the senior's agreement to be linked, which is why a
-   group can only be created this way.
-3. Any active member can show a **join PIN** (`create_join_pin`, 7 days, reusable). Someone who
+2. A family member creates the family group with the senior's name and becomes its owner
+   (`create_group`). Until the senior is linked the group has no `person_id` and sees nothing
+   about the senior; members, the join PIN and the shared calendar already work.
+3. The senior shows a **senior-link PIN** on their own screen (`create_link_pin`). It lasts 10
+   minutes and works once. An active member entering it links the senior to their group
+   (`link_senior`), or creates the group already linked (`create_group` with the PIN). Showing the
+   PIN is the senior's agreement to be linked, which is why a senior can only be linked this way.
+   A senior belongs to one family group.
+4. Any active member can show a **join PIN** (`create_join_pin`, 7 days, reusable). Someone who
    enters it waits as `pending` until an active member approves them (`approve` / `decline`).
 
 A 6-digit PIN has only a million values, so it is never the only protection: PINs expire, a wrong
@@ -26,7 +30,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -53,6 +57,8 @@ from silverloop.models import (
     PinResponse,
 )
 from silverloop.repository import SilverLoopRepository
+
+SENIOR_NAME_MAX = 80
 
 SENIOR_LINK = "senior_link"
 GROUP_JOIN = "group_join"
@@ -103,6 +109,29 @@ def _id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:16]}"
 
 
+def senior_name_of(group: CareGroupRow, person: PersonRow | None) -> str:
+    """The name responses show: the senior's own account name once linked, else the typed one."""
+    return person.display_name if person is not None else group.senior_name
+
+
+def _current_group_id(memberships: list[GroupMemberRow]) -> str | None:
+    """The active membership opened most recently, or None if none has been opened. A pending
+    membership never counts, whatever it holds. The group id settles an exact tie."""
+    opened = [
+        (_aware(member.last_opened_at), member.group_id)
+        for member in memberships
+        if member.status == MemberStatus.ACTIVE.value and member.last_opened_at is not None
+    ]
+    return max(opened)[1] if opened else None
+
+
+_ALREADY_HAS_GROUP = (
+    "This senior already has a family group. Ask one of its members for the join PIN."
+)
+_ALREADY_LINKED = "This family group already has a senior."
+_BAD_PIN = "That PIN is not right, or it has expired."
+
+
 class FamilyGroups:
     def __init__(self, sessions: sessionmaker[Session], repository: SilverLoopRepository) -> None:
         self.sessions = sessions
@@ -143,21 +172,42 @@ class FamilyGroups:
             self.repository.upsert_person_link(sub, person_id, "self_onboarding")
         return self.me(sub, AuthRole(role.value), person_id)
 
+    def provision_family_account(self, sub: str, display_name: str) -> None:
+        """Admin setup only (`setup_demo_accounts`): the row `onboard` writes for a family member,
+        so the account never sees the onboarding prompt. Running it again updates that row."""
+        with self.sessions.begin() as session:
+            account = session.get(AccountRow, sub)
+            if account is None:
+                session.add(
+                    AccountRow(
+                        sub=sub,
+                        role=AccountRole.FAMILY.value,
+                        display_name=display_name,
+                        created_at=_utcnow(),
+                    )
+                )
+            else:
+                account.role = AccountRole.FAMILY.value
+                account.display_name = display_name
+
     def me(self, sub: str, role: AuthRole | None, person_id: str | None) -> MeResponse:
         with self.sessions() as session:
             account = session.get(AccountRow, sub)
             rows = session.execute(
                 select(GroupMemberRow, CareGroupRow, PersonRow)
                 .join(CareGroupRow, CareGroupRow.group_id == GroupMemberRow.group_id)
-                .join(PersonRow, PersonRow.person_id == CareGroupRow.person_id)
+                # Outer: a group with no senior linked yet is listed too.
+                .outerjoin(PersonRow, PersonRow.person_id == CareGroupRow.person_id)
                 .where(GroupMemberRow.sub == sub)
                 .order_by(GroupMemberRow.created_at)
             ).all()
+            counts = self._active_member_counts(session, [group.group_id for _, group, _ in rows])
             display_name = account.display_name if account else None
             if display_name is None and person_id is not None:
                 person = session.get(PersonRow, person_id)
                 display_name = person.display_name if person else None
         resolved = role or (AuthRole(account.role) if account else None)
+        current_group_id = _current_group_id([member for member, _, _ in rows])
         return MeResponse(
             sub=sub,
             role=resolved,
@@ -168,13 +218,28 @@ class FamilyGroups:
                 MyGroup(
                     group_id=group.group_id,
                     person_id=group.person_id,
-                    senior_name=person.display_name,
+                    senior_name=senior_name_of(group, person),
                     my_role=GroupRole(member.role),
                     my_status=MemberStatus(member.status),
+                    member_count=counts.get(group.group_id, 0),
+                    last_opened=group.group_id == current_group_id,
                 )
                 for member, group, person in rows
             ],
         )
+
+    def _active_member_counts(self, session: Session, group_ids: list[str]) -> dict[str, int]:
+        if not group_ids:
+            return {}
+        rows = session.execute(
+            select(GroupMemberRow.group_id, func.count())
+            .where(
+                GroupMemberRow.group_id.in_(group_ids),
+                GroupMemberRow.status == MemberStatus.ACTIVE.value,
+            )
+            .group_by(GroupMemberRow.group_id)
+        ).all()
+        return {group_id: count for group_id, count in rows}
 
     # ── PINs ──────────────────────────────────────────────────────────────────
 
@@ -281,30 +346,49 @@ class FamilyGroups:
 
     # ── Groups ────────────────────────────────────────────────────────────────
 
-    def create_group(self, sub: str, senior_pin: str, relationship: str) -> CareGroup:
-        pin_row = self._redeem_pin(sub, SENIOR_LINK, senior_pin)
-        person_id = pin_row.person_id
-        if person_id is None:  # pragma: no cover - a senior-link PIN always names a person
-            raise FamilyGroupError(400, "That PIN is not right, or it has expired.")
+    def create_group(
+        self,
+        sub: str,
+        relationship: str,
+        *,
+        senior_name: str | None = None,
+        senior_pin: str | None = None,
+    ) -> CareGroup:
+        """A new family group owned by the caller. With `senior_pin` (the PIN on the senior's
+        screen) the senior is linked at once and their own account name wins; with only
+        `senior_name` the group starts with no senior linked."""
+        pin_row = self._redeem_pin(sub, SENIOR_LINK, senior_pin) if senior_pin is not None else None
+        person_id = pin_row.person_id if pin_row is not None else None
+        if pin_row is not None and person_id is None:  # pragma: no cover - always names a person
+            raise FamilyGroupError(400, _BAD_PIN)
+        typed = (senior_name or "").strip()[:SENIOR_NAME_MAX]
+        if pin_row is None and not typed:  # the request model already refuses this
+            raise FamilyGroupError(422, "Enter the senior's name, or the PIN on their screen.")
         now = _utcnow()
         group_id = _id("grp")
         try:
             with self.sessions.begin() as session:
-                if session.scalar(select(CareGroupRow).where(CareGroupRow.person_id == person_id)):
-                    raise FamilyGroupError(
-                        409,
-                        "This senior already has a family group. Ask one of its members for the "
-                        "join PIN.",
-                    )
-                stored = session.get(FamilyPinRow, pin_row.pin_id)
-                if stored is None or stored.used_at is not None:
-                    raise FamilyGroupError(400, "That PIN is not right, or it has expired.")
-                stored.used_at = now
+                if pin_row is not None:
+                    if session.scalar(
+                        select(CareGroupRow).where(CareGroupRow.person_id == person_id)
+                    ):
+                        raise FamilyGroupError(409, _ALREADY_HAS_GROUP)
+                    stored = session.get(FamilyPinRow, pin_row.pin_id)
+                    if stored is None or stored.used_at is not None:
+                        raise FamilyGroupError(400, _BAD_PIN)
+                    stored.used_at = now
+                    person = session.get(PersonRow, person_id)
+                    if person is not None:
+                        # Only the read-through name is ever shown; this keeps the column honest.
+                        typed = person.display_name[:SENIOR_NAME_MAX]
                 session.add(
                     CareGroupRow(
                         group_id=group_id,
                         person_id=person_id,
-                        linked_via="senior_link_pin",
+                        senior_name=typed,
+                        linked_via="senior_link_pin" if person_id is not None else None,
+                        linked_at=now if person_id is not None else None,
+                        linked_by=sub if person_id is not None else None,
                         created_by=sub,
                         created_at=now,
                     )
@@ -322,6 +406,7 @@ class FamilyGroups:
                         created_at=now,
                         approved_by=sub,
                         approved_at=now,
+                        last_opened_at=now,  # a new group becomes the creator's current one
                     )
                 )
                 session.flush()  # the member row first: the feed entry points at it
@@ -335,6 +420,91 @@ class FamilyGroups:
         except IntegrityError as exc:
             # Two family members redeeming PINs for the same senior at once.
             raise FamilyGroupError(409, "This senior already has a family group.") from exc
+        return self.group(sub, group_id)
+
+    def link_senior(self, sub: str, group_id: str, senior_pin: str) -> CareGroup:
+        """Link the senior whose PIN this is to a group that has none yet. Any active member may.
+
+        Membership is checked before the PIN is looked at, so someone outside the group cannot use
+        this to try PINs. A wrong PIN counts toward the lockout (`_redeem_pin` commits the attempt
+        on its own). Every refusal after that is raised inside the one transaction, so the PIN is
+        only used up when the link is made."""
+        with self.sessions() as session:
+            self._require_active_member(session, sub, group_id)
+        pin_row = self._redeem_pin(sub, SENIOR_LINK, senior_pin)
+        person_id = pin_row.person_id
+        if person_id is None:  # pragma: no cover - a senior-link PIN always names a person
+            raise FamilyGroupError(400, _BAD_PIN)
+        now = _utcnow()
+        try:
+            with self.sessions.begin() as session:
+                member = self._require_active_member(session, sub, group_id)
+                # Never says which group: that is not the caller's to know.
+                if session.scalar(
+                    select(CareGroupRow.group_id).where(CareGroupRow.person_id == person_id)
+                ):
+                    raise FamilyGroupError(409, _ALREADY_HAS_GROUP)
+                linked = session.execute(
+                    update(CareGroupRow)
+                    .where(CareGroupRow.group_id == group_id, CareGroupRow.person_id.is_(None))
+                    .values(
+                        person_id=person_id,
+                        linked_via="senior_link_pin",
+                        linked_at=now,
+                        linked_by=sub,
+                    )
+                ).rowcount
+                if linked != 1:
+                    raise FamilyGroupError(409, _ALREADY_LINKED)
+                used = session.execute(
+                    update(FamilyPinRow)
+                    .where(FamilyPinRow.pin_id == pin_row.pin_id, FamilyPinRow.used_at.is_(None))
+                    .values(used_at=now)
+                ).rowcount
+                if used != 1:
+                    raise FamilyGroupError(400, _BAD_PIN)
+                record(
+                    session,
+                    group_id=group_id,
+                    actor_member_id=member.member_id,
+                    kind=FamilyActivityKind.SENIOR_LINKED,
+                    at=now,
+                )
+        except IntegrityError as exc:
+            # Two groups linking the same senior at once: the unique `person_id` lets one win.
+            raise FamilyGroupError(409, _ALREADY_HAS_GROUP) from exc
+        return self.group(sub, group_id)
+
+    def rename_senior(self, sub: str, group_id: str, senior_name: str) -> CareGroup:
+        """Fix the typed name while no senior is linked. Once linked the name is the senior's own,
+        so changing it here is refused."""
+        name = senior_name.strip()[:SENIOR_NAME_MAX]
+        if not name:  # the request model already refuses this
+            raise FamilyGroupError(422, "Please enter the senior's name.")
+        with self.sessions.begin() as session:
+            member = self._require_active_member(session, sub, group_id)
+            group = session.get(CareGroupRow, group_id)
+            if group is None:  # pragma: no cover - membership implies the group
+                raise FamilyGroupError(404, "Group not found")
+            if group.person_id is not None:
+                person = session.get(PersonRow, group.person_id)
+                raise FamilyGroupError(
+                    409, f"The name now comes from {senior_name_of(group, person)}'s own account."
+                )
+            if group.senior_name != name:
+                renamed = session.execute(
+                    update(CareGroupRow)
+                    .where(CareGroupRow.group_id == group_id, CareGroupRow.person_id.is_(None))
+                    .values(senior_name=name)
+                ).rowcount
+                if renamed != 1:  # linked since it was read
+                    raise FamilyGroupError(409, "The name now comes from the senior's own account.")
+                record(
+                    session,
+                    group_id=group_id,
+                    actor_member_id=member.member_id,
+                    kind=FamilyActivityKind.SENIOR_RENAMED,
+                )
         return self.group(sub, group_id)
 
     def join_group(self, sub: str, pin: str, relationship: str) -> MyGroup:
@@ -363,16 +533,28 @@ class FamilyGroups:
                     )
                 )
                 group = session.get(CareGroupRow, group_id)
-                person = session.get(PersonRow, group.person_id) if group else None
+                person = (
+                    session.get(PersonRow, group.person_id)
+                    if group is not None and group.person_id is not None
+                    else None
+                )
+                member_count = self._active_member_counts(session, [group_id]).get(group_id, 0)
         except IntegrityError as exc:
             raise FamilyGroupError(409, "You have already joined this group.") from exc
         return MyGroup(
             group_id=group_id,
-            person_id=group.person_id if group else "",
-            senior_name=person.display_name if person else "",
+            person_id=group.person_id if group else None,
+            senior_name=senior_name_of(group, person) if group else "",
             my_role=GroupRole.MEMBER,
             my_status=MemberStatus.PENDING,
+            member_count=member_count,
+            last_opened=False,  # a pending group is never current
         )
+
+    def open_group(self, sub: str, group_id: str) -> None:
+        """Make this group the caller's current one. Not an activity feed event."""
+        with self.sessions.begin() as session:
+            self._require_active_member(session, sub, group_id).last_opened_at = _utcnow()
 
     def _require_active_member(self, session: Session, sub: str, group_id: str) -> GroupMemberRow:
         """The caller's membership. 404, not 403, for anyone who is not an active member: whether
@@ -394,7 +576,9 @@ class FamilyGroups:
             group = session.get(CareGroupRow, group_id)
             if group is None:  # pragma: no cover - membership implies the group
                 raise FamilyGroupError(404, "Group not found")
-            person = session.get(PersonRow, group.person_id)
+            person = (
+                session.get(PersonRow, group.person_id) if group.person_id is not None else None
+            )
             rows = session.execute(
                 select(GroupMemberRow, AccountRow)
                 .outerjoin(AccountRow, AccountRow.sub == GroupMemberRow.sub)
@@ -404,7 +588,7 @@ class FamilyGroups:
         return CareGroup(
             group_id=group.group_id,
             person_id=group.person_id,
-            senior_name=person.display_name if person else "",
+            senior_name=senior_name_of(group, person),
             members=[
                 GroupMember(
                     member_id=member.member_id,
@@ -490,13 +674,17 @@ class FamilyGroups:
                 session.scalar(select(CareGroupRow).where(CareGroupRow.person_id == DEMO_PERSON_ID))
                 is None
             ):
+                now = _utcnow()
                 session.add(
                     CareGroupRow(
                         group_id=_id("grp"),
                         person_id=DEMO_PERSON_ID,
+                        senior_name=person.display_name[:SENIOR_NAME_MAX],
                         linked_via="demo_seed",
+                        linked_at=now,
+                        linked_by=DEMO_FAMILY_SUB,
                         created_by=DEMO_FAMILY_SUB,
-                        created_at=_utcnow(),
+                        created_at=now,
                     )
                 )
         self.repository.upsert_person_link(DEMO_SENIOR_SUB, DEMO_PERSON_ID, "demo_seed")

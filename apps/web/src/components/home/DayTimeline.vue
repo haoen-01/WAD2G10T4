@@ -571,8 +571,7 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
     </p>
 
     <p class="sl-note mt-2 mb-0">
-      <template v-if="isToday && syncedLabel">
-        Updated {{ syncedLabel }}.</template>
+      <template v-if="isToday && syncedLabel"> Updated {{ syncedLabel }}.</template>
     </p>
   </section>
 </template>

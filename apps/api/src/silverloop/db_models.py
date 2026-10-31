@@ -987,7 +987,8 @@ class AuditEventRow(Base):
 class AccountRow(Base):
     """The role a self-registered Supabase user chose at sign-up (`senior` or `family`).
 
-    Accounts provisioned with a role in Supabase `app_metadata` (the demo accounts) need no row.
+    Accounts provisioned with a role in Supabase `app_metadata` (the demo senior, coordinator and
+    demo operator) need no row. The demo family accounts have one, written by the setup script.
     """
 
     __tablename__ = "accounts"
@@ -999,14 +1000,22 @@ class AccountRow(Base):
 
 
 class CareGroupRow(Base):
-    """One senior's family group. At most one per senior (`person_id` is unique)."""
+    """One senior's family group. At most one per senior (`person_id` is unique). `person_id` is
+    NULL until the senior is linked with their senior-link PIN; until then the group sees nothing
+    about the senior."""
 
     __tablename__ = "care_groups"
 
     group_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    person_id: Mapped[str] = mapped_column(ForeignKey("people.person_id"), unique=True)
-    # How the senior agreed to the link: always `senior_link_pin` for now.
-    linked_via: Mapped[str] = mapped_column(String(32))
+    person_id: Mapped[str | None] = mapped_column(
+        ForeignKey("people.person_id"), unique=True, nullable=True
+    )
+    # The name the creator typed. Once linked, responses show the senior's own account name.
+    senior_name: Mapped[str] = mapped_column(String(80))
+    # How the senior agreed to the link (`senior_link_pin`, or `demo_seed`); NULL until linked.
+    linked_via: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    linked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    linked_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_by: Mapped[str] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -1024,6 +1033,8 @@ class GroupMemberRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     approved_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When this member last opened this group; the latest active one is their current group.
+    last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class FamilyPinRow(Base):

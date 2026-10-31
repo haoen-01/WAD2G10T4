@@ -7,7 +7,9 @@ profiles start with no tasks; the app generates no medical advice or medication 
 ## Storage
 
 The API has no tasks yet, so tasks are kept **in this browser only** (`localStorage`, key
-`careplus.tasks.v1.<person_id>`). Another browser or device has its own list, and clearing site
+`careplus.tasks.v1.<person_id>`, or `careplus.tasks.v1.<group_id>` for a family group whose senior
+is not linked yet). Tasks added before the senior is linked do not carry over once they are (until
+Tasks move into the API). Another browser or device has its own list, and clearing site
 data removes it. Other tabs of the same browser pick up changes straight away. If storage is
 blocked (some private windows), tasks last until the page is closed.
 

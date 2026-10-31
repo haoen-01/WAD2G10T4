@@ -21,6 +21,7 @@ import { addDays, monthGrid, monthOf, shiftMonth } from '@/lib/calendar';
 import { coverageOf, stillNeedsHelper, upcomingWithin } from '@/lib/coverage';
 import { KIND_LABELS } from '@/lib/family';
 import type { Appointment, AppointmentKind, AvailabilityStatus, FamilyMember } from '@/lib/family';
+import { taskOwnerOf } from '@/lib/family-group';
 import { formatIsoDay, parseIsoDay } from '@/lib/format-date';
 import { DEMO_PERSON_ID } from '@/lib/labels';
 import { freeMembers, heatFor } from '@/lib/planner';
@@ -89,7 +90,10 @@ const dayList = computed(() => byDay.value[selectedDay.value] ?? []);
 // ---- Tasks from the Tasks panel (kept in this browser), shown beside the appointments ----
 // They need nobody to go along, so "Only those still needing someone" hides them.
 const tasks = useTasks();
-const taskPerson = computed(() => family.personId.value ?? DEMO_PERSON_ID);
+// Keyed by the senior once linked, else by the group, so a new group starts with no tasks.
+const taskPerson = computed(() =>
+  taskOwnerOf({ group_id: groupId.value, person_id: family.personId.value }, DEMO_PERSON_ID),
+);
 const tasksByDay = computed<Record<string, TaskOccurrence[]>>(() =>
   onlyOpen.value
     ? {}
