@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 
+import AssistantDock from '@/components/assistant/AssistantDock.vue';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import DisplayControls from '@/components/ui/DisplayControls.vue';
@@ -64,6 +65,9 @@ async function leaveDemo() {
 }
 
 const signedIn = computed(() => (AUTH_ENABLED ? !!currentUser.value : !!mode.value));
+// Kaki, the Care+ assistant: on every screen once someone is in (senior or family), never on the
+// sign-in screens.
+const showAssistant = computed(() => signedIn.value && !!mode.value && !isLoginPath(route.path));
 const ready = computed(() => !AUTH_ENABLED || !loading.value);
 
 /*
@@ -218,6 +222,8 @@ onBeforeUnmount(() => {
         </Transition>
       </RouterView>
     </main>
+
+    <AssistantDock v-if="showAssistant" />
 
     <footer class="site-footer">
       <div class="container">
