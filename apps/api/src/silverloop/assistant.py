@@ -217,15 +217,28 @@ GUIDE = {
         "If a shared walk stops in one place for a long time away from home, Care+ first asks "
         "“Are you OK?”. Only if there is no answer is the family told, so they can check in."
     ),
+    # Care+ has two codes (family_groups.py): the senior's one-time code, which starts their
+    # family group or links them to one, and the group's join PIN, which brings more family in.
+    # The labels quoted here are the screens' own (LinkFamily.vue, GroupPanel.vue,
+    # GroupStartView.vue): keep them in step if a button is renamed.
     "family": (
-        "To link family, open the Family tab and press “Add a family member”. They join with "
-        "the code shown there."
+        "To start your family group, open the Family tab and press “Add a family member”, then "
+        "show the code to one family member. It works once, for 10 minutes. If you already have "
+        "a group, ask someone in it to invite more family."
     ),
     "task": "Daily tasks are on Today. Press the circle next to a task to tick it off.",
     "text": (
         "Use the − and + buttons at the top of the screen to make the writing bigger or smaller."
     ),
 }
+
+# The same question from a family member: they invite with the group's join PIN, or start the
+# group with the senior's code.
+FAMILY_JOIN_GUIDE = (
+    "To invite family, open Family and press “Show a join PIN” under Invite family. They enter "
+    "it under “Join a group”, then you let them in. No group yet? The senior presses “Add a "
+    "family member” on their Family tab and you enter that code under “Create a group”."
+)
 
 _INTENTS: list[tuple[str, re.Pattern[str]]] = [
     ("greeting", re.compile(r"^\s*(hi|hello|hey|good (morning|afternoon|evening))\b", re.I)),
@@ -292,6 +305,8 @@ def helper_reply(question: str, facts: CareFacts) -> AssistantReply:
             source="helper",
             suggestions=["How do I add an appointment?"],
         )
+    if intent == "family" and facts.viewer == "family":
+        return AssistantReply(reply=FAMILY_JOIN_GUIDE, source="helper")
     if intent in GUIDE:
         return AssistantReply(reply=GUIDE[intent], source="helper")
     return AssistantReply(
@@ -312,9 +327,16 @@ encouraging, never pushy, never guilt about steps.
 
 What Care+ has: Home (family overview of steps and the watch), Walk (the senior's walk on a map,
 only when she shares it, and a "Still for a while" check-in), Calendar (appointments, who goes
-along), Family (the care group and joining code), and on the senior's own page the tabs Today,
-Calendar, Badges and Family. Badges are claimed on the Badges tab. Text size is the − and +
-buttons at the top.
+along), Family (the care group), and on the senior's own page the tabs Today, Calendar, Badges
+and Family. Badges are claimed on the Badges tab. Text size is the − and + buttons at the top.
+Joining uses two different codes; never mix them up:
+- The senior's code: on their Family tab the senior presses "Add a family member" and shows it.
+  It works once, for 10 minutes, and only starts the family group (a family member enters it
+  under "Create a group") or links the senior to a group. It cannot add anyone to a group that
+  already has the senior.
+- The join PIN: any family member in the group presses "Show a join PIN" under Invite family
+  on the Family page. Someone new enters it under "Join a group" and waits until a member lets
+  them in. A senior who wants more family added asks someone in the group for it.
 
 Rules you must keep:
 - You are not a doctor or an emergency service. Never diagnose, never advise on medicines,

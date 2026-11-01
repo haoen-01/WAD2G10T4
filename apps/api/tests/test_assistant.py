@@ -153,6 +153,18 @@ def test_the_helper_speaks_to_family_about_her() -> None:
     assert "Mdm Lim’s watch" in helper_reply("steps?", family).reply
 
 
+def test_the_helper_gives_each_viewer_the_right_code_for_family() -> None:
+    # The senior's code only starts the group; more family come in with the group's join PIN.
+    senior = helper_reply("How do I add a family member?", FACTS).reply
+    assert "Add a family member" in senior and "once" in senior
+    assert "ask someone in it to invite" in senior
+    assert "join PIN" not in senior
+    family = CareFacts(**{**FACTS.__dict__, "viewer": "family"})
+    told = helper_reply("How do I invite my brother?", family).reply
+    assert "Show a join PIN" in told and "Join a group" in told and "let them in" in told
+    assert "Create a group" in told
+
+
 def test_the_helper_explains_where_things_are_and_never_invents() -> None:
     assert "Claim" in helper_reply("How do badges work?", FACTS).reply
     assert "Calendar" in helper_reply("how do I add an appointment", FACTS).reply
