@@ -3636,16 +3636,10 @@ class OnboardRequest(BaseModel):
 
 class MyGroup(BaseModel):
     group_id: str
-    # None until the senior is linked with their senior-link PIN.
-    person_id: str | None
-    # The senior's own account name once linked; until then the name the creator typed.
+    person_id: str
     senior_name: str
     my_role: GroupRole
     my_status: MemberStatus
-    # Active members only; someone waiting for approval does not count.
-    member_count: int
-    # True on at most one group: the active membership this account opened most recently.
-    last_opened: bool
 
 
 class MeResponse(BaseModel):
@@ -3667,37 +3661,8 @@ class PinResponse(BaseModel):
 
 
 class CreateGroupRequest(BaseModel):
-    """`senior_name` alone creates a group with no senior linked yet; `senior_pin` (the PIN on the
-    senior's screen) creates it linked, and the senior's own account name wins. At least one."""
-
-    relationship: str = Field(min_length=1, max_length=40)
-    senior_name: str | None = Field(default=None, min_length=1, max_length=80)
-    senior_pin: str | None = Field(default=None, pattern=r"^[0-9]{6}$")
-
-    @field_validator("senior_name", mode="before")
-    @classmethod
-    def _strip_name(cls, value: object) -> object:
-        # Before the length check, so only what is kept counts.
-        return value.strip() if isinstance(value, str) else value
-
-    @model_validator(mode="after")
-    def _name_or_pin(self) -> CreateGroupRequest:
-        if self.senior_name is None and self.senior_pin is None:
-            raise ValueError("Enter the senior's name, or the PIN on their screen.")
-        return self
-
-
-class LinkSeniorRequest(BaseModel):
     senior_pin: str = Field(pattern=r"^[0-9]{6}$")
-
-
-class SeniorNameRequest(BaseModel):
-    senior_name: str = Field(min_length=1, max_length=80)
-
-    @field_validator("senior_name", mode="before")
-    @classmethod
-    def _strip_name(cls, value: object) -> object:
-        return value.strip() if isinstance(value, str) else value
+    relationship: str = Field(min_length=1, max_length=40)
 
 
 class JoinGroupRequest(BaseModel):
@@ -3717,9 +3682,7 @@ class GroupMember(BaseModel):
 
 class CareGroup(BaseModel):
     group_id: str
-    # None until the senior is linked with their senior-link PIN.
-    person_id: str | None
-    # The senior's own account name once linked; until then the name the creator typed.
+    person_id: str
     senior_name: str
     members: list[GroupMember]
 
@@ -3818,8 +3781,7 @@ class HelperAssignment(BaseModel):
 
 
 class FamilyCalendar(BaseModel):
-    # None for the calendar of a family group whose senior is not linked yet.
-    person_id: str | None
+    person_id: str
     senior_name: str
     group_id: str | None
     from_date: date
@@ -3871,8 +3833,6 @@ class FamilyActivityKind(StrEnum):
     AVAILABILITY_UPDATED = "availability_updated"
     CHECK_IN = "check_in"
     NOTE_ADDED = "note_added"
-    SENIOR_LINKED = "senior_linked"
-    SENIOR_RENAMED = "senior_renamed"
 
 
 class CheckInKind(StrEnum):
@@ -3968,3 +3928,39 @@ class WearableStatus(BaseModel):
     battery_percent: int | None = Field(default=None, ge=0, le=100)
     charging: bool
     source: Literal["synthetic"]
+
+
+# ── The Care+ assistant ──────────────────────────────────────────────────────
+
+
+class AssistantMessage(BaseModel):
+    """One turn of the chat, as the person saw it."""
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class AssistantChatRequest(BaseModel):
+    """The conversation so far (the newest turn last, and it is theirs), which senior it is about,
+    and the page they are on. Only the last 20 turns are sent."""
+
+    messages: list[AssistantMessage] = Field(min_length=1, max_length=20)
+    # Family only: the senior they care for. A senior always talks about themselves.
+    person_id: str | None = Field(default=None, max_length=80)
+    page: str | None = Field(default=None, max_length=60)
+
+    @model_validator(mode="after")
+    def _ends_with_a_question(self) -> AssistantChatRequest:
+        if self.messages[-1].role != "user":
+            raise ValueError("The last message needs to be the person's own.")
+        return self
+
+
+class AssistantReply(BaseModel):
+    """The assistant's answer. `source` says where it came from: `openai`, the built-in `helper`
+    (no AI key, the offline demo, or the AI could not be reached), or a fixed `safety` answer
+    (an emergency or a question about medicines, which never goes to the AI)."""
+
+    reply: str
+    source: Literal["openai", "helper", "safety"]
+    suggestions: list[str] = Field(default_factory=list)

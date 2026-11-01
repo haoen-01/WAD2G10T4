@@ -147,13 +147,11 @@ export type {
   GroupMember,
   GroupRole,
   JoinGroupRequest,
-  LinkSeniorRequest,
   MemberStatus,
   MeResponse,
   MyGroup,
   OnboardRequest,
   PinResponse,
-  SeniorNameRequest,
   // Family calendar
   Appointment as CalendarAppointment,
   AppointmentKind,
@@ -177,6 +175,10 @@ export type {
   RepeatRule,
   // The senior's watch
   WearableStatus,
+  // The Care+ assistant
+  AssistantChatRequest,
+  AssistantMessage,
+  AssistantReply,
   FollowUpWindow,
   PriorityHold,
   ThresholdReference,

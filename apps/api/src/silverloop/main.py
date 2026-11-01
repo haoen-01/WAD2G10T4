@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from silverloop.analytics import ACTIVITY_RELATIVE_DEFAULT_DAYS, ACTIVITY_RELATIVE_MAX_DAYS
+from silverloop.assistant_routes import register_assistant_routes
 from silverloop.auth import (
     AnyUser,
     Coordinator,
@@ -253,6 +254,7 @@ def create_app(
 
     register_routes(application)
     register_family_routes(application)
+    register_assistant_routes(application)
     register_exception_handlers(application)
     register_server_error_handlers(application)
     return application
