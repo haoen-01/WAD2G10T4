@@ -9,6 +9,7 @@
   },
   "scripts": {
     "setup": "bash scripts/bootstrap.sh",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "dev": "nx run-many -t dev --projects=web,api --parallel=2",
     "dev:web": "nx run web:dev",
     "dev:api": "nx run api:dev",
