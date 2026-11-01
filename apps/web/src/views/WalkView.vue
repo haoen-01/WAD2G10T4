@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
+import BadgeShelf from '@/components/badges/BadgeShelf.vue';
 import CheckInPanel from '@/components/walk/CheckInPanel.vue';
 import DemoWalkControls from '@/components/walk/DemoWalkControls.vue';
 import WalkFacts from '@/components/walk/WalkFacts.vue';
 import WalkMap from '@/components/walk/WalkMap.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { useFamily } from '@/composables/useFamily';
+import { currentGroup } from '@/composables/useMe';
 import { useWalk } from '@/composables/useWalk';
 import { AUTH_ENABLED } from '@/lib/config';
+import { DEMO_PERSON_ID } from '@/lib/labels';
 import type { MapLook } from '@/lib/map-style';
 import { ago, clockTime, STATE_WORDS, type WalkFix } from '@/lib/walk';
 
@@ -22,6 +25,8 @@ const walk = useWalk();
 useFamily();
 
 const name = walk.seniorName;
+// Her walking badges come from her steps, so they show whether or not she shares her walk.
+const badgePerson = computed(() => currentGroup.value?.person_id ?? DEMO_PERSON_ID);
 const follow = ref(true);
 const threeD = ref(true);
 const look = ref<MapLook>(import.meta.env.VITE_WALK_MAP === 'sketch' ? 'sketch' : 'streets');
@@ -169,6 +174,14 @@ watch(
         <DemoWalkControls />
       </div>
     </div>
+
+    <BadgeShelf
+      class="mt-4"
+      :person-id="badgePerson"
+      :can-claim="false"
+      :senior-name="name"
+      :title="`${name}’s walking badges`"
+    />
 
     <p class="visually-hidden" aria-live="polite">{{ announcement }}</p>
   </div>
