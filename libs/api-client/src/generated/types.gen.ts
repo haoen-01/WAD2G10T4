@@ -783,6 +783,65 @@ export type AppointmentRequest = {
 };
 
 /**
+ * AssistantChatRequest
+ *
+ * The conversation so far (the newest turn last, and it is theirs), which senior it is about,
+ * and the page they are on. Only the last 20 turns are sent.
+ */
+export type AssistantChatRequest = {
+    /**
+     * Messages
+     */
+    messages: Array<AssistantMessage>;
+    /**
+     * Person Id
+     */
+    person_id?: string | null;
+    /**
+     * Page
+     */
+    page?: string | null;
+};
+
+/**
+ * AssistantMessage
+ *
+ * One turn of the chat, as the person saw it.
+ */
+export type AssistantMessage = {
+    /**
+     * Role
+     */
+    role: 'user' | 'assistant';
+    /**
+     * Content
+     */
+    content: string;
+};
+
+/**
+ * AssistantReply
+ *
+ * The assistant's answer. `source` says where it came from: `openai`, the built-in `helper`
+ * (no AI key, the offline demo, or the AI could not be reached), or a fixed `safety` answer
+ * (an emergency or a question about medicines, which never goes to the AI).
+ */
+export type AssistantReply = {
+    /**
+     * Reply
+     */
+    reply: string;
+    /**
+     * Source
+     */
+    source: 'openai' | 'helper' | 'safety';
+    /**
+     * Suggestions
+     */
+    suggestions?: Array<string>;
+};
+
+/**
  * AttentionBand
  */
 export type AttentionBand = 'stable' | 'watch' | 'review';
@@ -10863,3 +10922,48 @@ export type PersonWearableV1PeoplePersonIdWearableGetResponses = {
 };
 
 export type PersonWearableV1PeoplePersonIdWearableGetResponse = PersonWearableV1PeoplePersonIdWearableGetResponses[keyof PersonWearableV1PeoplePersonIdWearableGetResponses];
+
+export type AssistantChatV1AssistantChatPostData = {
+    body: AssistantChatRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/assistant/chat';
+};
+
+export type AssistantChatV1AssistantChatPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Too Many Requests
+     */
+    429: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type AssistantChatV1AssistantChatPostError = AssistantChatV1AssistantChatPostErrors[keyof AssistantChatV1AssistantChatPostErrors];
+
+export type AssistantChatV1AssistantChatPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssistantReply;
+};
+
+export type AssistantChatV1AssistantChatPostResponse = AssistantChatV1AssistantChatPostResponses[keyof AssistantChatV1AssistantChatPostResponses];

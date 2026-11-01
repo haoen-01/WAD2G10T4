@@ -177,6 +177,10 @@ export type {
   RepeatRule,
   // The senior's watch
   WearableStatus,
+  // The Care+ assistant
+  AssistantChatRequest,
+  AssistantMessage,
+  AssistantReply,
   FollowUpWindow,
   PriorityHold,
   ThresholdReference,

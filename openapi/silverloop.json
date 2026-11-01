@@ -6236,6 +6236,68 @@
           }
         }
       }
+    },
+    "/v1/assistant/chat": {
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Assistant Chat",
+        "description": "One answer from the Care+ assistant. It only reads and explains: it never changes\nanything. Emergencies and questions about medicines get a fixed answer.",
+        "operationId": "assistant_chat_v1_assistant_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantReply"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -7721,6 +7783,105 @@
         ],
         "title": "AppointmentRequest",
         "description": "A new or changed appointment. A repeating one is stored once and shown on every day it\nrepeats, until `repeat_until` (inclusive) or forever."
+      },
+      "AssistantChatRequest": {
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantMessage"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Messages"
+          },
+          "person_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person Id"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "AssistantChatRequest",
+        "description": "The conversation so far (the newest turn last, and it is theirs), which senior it is about,\nand the page they are on. Only the last 20 turns are sent."
+      },
+      "AssistantMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "AssistantMessage",
+        "description": "One turn of the chat, as the person saw it."
+      },
+      "AssistantReply": {
+        "properties": {
+          "reply": {
+            "type": "string",
+            "title": "Reply"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "helper",
+              "safety"
+            ],
+            "title": "Source"
+          },
+          "suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reply",
+          "source"
+        ],
+        "title": "AssistantReply",
+        "description": "The assistant's answer. `source` says where it came from: `openai`, the built-in `helper`\n(no AI key, the offline demo, or the AI could not be reached), or a fixed `safety` answer\n(an emergency or a question about medicines, which never goes to the AI)."
       },
       "AttentionBand": {
         "type": "string",
