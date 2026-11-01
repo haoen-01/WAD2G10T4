@@ -18,7 +18,7 @@ Writes need an **active** member of the group; anyone else gets 404, as for the 
 from __future__ import annotations
 
 import calendar as month_calendar
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -786,27 +786,47 @@ class FamilyCalendarStore:
         family's first group once their memberships are re-dated below.
         """
         with self.sessions.begin() as session:
-            unlinked = list(
-                session.scalars(
-                    select(CareGroupRow.group_id).where(
-                        CareGroupRow.person_id.is_(None),
-                        CareGroupRow.created_by.in_(list(members)),
-                    )
+            self.reset_demo_in(session, person_id, today, members)
+
+    def reset_demo_in(
+        self,
+        session: Session,
+        person_id: str,
+        today: date,
+        members: dict[str, str],
+        *,
+        also_creators: Iterable[str] = (),
+        leave_other_unlinked_groups: bool = True,
+    ) -> None:
+        """`reset_demo` inside the caller's transaction, also used by `silverloop.demo_story`.
+
+        `members` is the owner (Sarah), then John, then Emily. `also_creators` are other accounts
+        whose unlinked groups go too, without making them members here. With
+        `leave_other_unlinked_groups=False`, a member keeps a place in an unlinked group somebody
+        else created, so that group stays exactly as it is.
+        """
+        unlinked = list(
+            session.scalars(
+                select(CareGroupRow.group_id).where(
+                    CareGroupRow.person_id.is_(None),
+                    CareGroupRow.created_by.in_([*members, *also_creators]),
                 )
             )
-            if unlinked:
-                # Children first, in the same order as below, then the groups themselves.
-                for table in (
-                    AppointmentNoteRow,
-                    FamilyActivityRow,
-                    HelperAssignmentRow,
-                    AvailabilityEntryRow,
-                    AppointmentRow,
-                    FamilyPinRow,
-                    GroupMemberRow,
-                ):
-                    session.execute(delete(table).where(table.group_id.in_(unlinked)))
-                session.execute(delete(CareGroupRow).where(CareGroupRow.group_id.in_(unlinked)))
+        )
+        if unlinked:
+            # Children first, in the same order as below, then the groups themselves.
+            for table in (
+                AppointmentNoteRow,
+                FamilyActivityRow,
+                HelperAssignmentRow,
+                AvailabilityEntryRow,
+                AppointmentRow,
+                FamilyPinRow,
+                GroupMemberRow,
+            ):
+                session.execute(delete(table).where(table.group_id.in_(unlinked)))
+            session.execute(delete(CareGroupRow).where(CareGroupRow.group_id.in_(unlinked)))
+        if leave_other_unlinked_groups:
             # A demo account that joined someone else's unlinked group leaves it (the group
             # stays), with what pointed at its membership there, so the demo group is its only one.
             joined = list(
@@ -831,54 +851,54 @@ class FamilyCalendarStore:
                 for table in (AppointmentNoteRow, HelperAssignmentRow, AvailabilityEntryRow):
                     session.execute(delete(table).where(table.member_id.in_(joined)))
                 session.execute(delete(GroupMemberRow).where(GroupMemberRow.member_id.in_(joined)))
-            group = session.scalar(select(CareGroupRow).where(CareGroupRow.person_id == person_id))
-            if group is None:
-                return
-            group_id = group.group_id
-            # Notes and the feed first: their rows point at appointments and members, which are
-            # removed further down.
-            for table in (
-                AppointmentNoteRow,
-                FamilyActivityRow,
-                HelperAssignmentRow,
-                AvailabilityEntryRow,
-                AppointmentRow,
-            ):
-                session.execute(delete(table).where(table.group_id == group_id))
-            session.execute(delete(FamilyPinRow).where(FamilyPinRow.group_id == group_id))
-            session.execute(
-                delete(GroupMemberRow).where(
-                    GroupMemberRow.group_id == group_id,
-                    GroupMemberRow.sub.not_in(list(members)),
+        group = session.scalar(select(CareGroupRow).where(CareGroupRow.person_id == person_id))
+        if group is None:
+            return
+        group_id = group.group_id
+        # Notes and the feed first: their rows point at appointments and members, which are
+        # removed further down.
+        for table in (
+            AppointmentNoteRow,
+            FamilyActivityRow,
+            HelperAssignmentRow,
+            AvailabilityEntryRow,
+            AppointmentRow,
+        ):
+            session.execute(delete(table).where(table.group_id == group_id))
+        session.execute(delete(FamilyPinRow).where(FamilyPinRow.group_id == group_id))
+        session.execute(
+            delete(GroupMemberRow).where(
+                GroupMemberRow.group_id == group_id,
+                GroupMemberRow.sub.not_in(list(members)),
+            )
+        )
+        # Nobody has a current group when a demo starts.
+        session.execute(
+            update(GroupMemberRow)
+            .where(GroupMemberRow.group_id == group_id)
+            .values(last_opened_at=None)
+        )
+        # Created one microsecond apart so the members keep this order (and their colours).
+        base = _utcnow()
+        by_sub: dict[str, GroupMemberRow] = {}
+        for index, (sub, relationship) in enumerate(members.items()):
+            member = session.scalar(
+                select(GroupMemberRow).where(
+                    GroupMemberRow.group_id == group_id, GroupMemberRow.sub == sub
                 )
             )
-            # Nobody has a current group when a demo starts.
-            session.execute(
-                update(GroupMemberRow)
-                .where(GroupMemberRow.group_id == group_id)
-                .values(last_opened_at=None)
-            )
-            # Created one microsecond apart so the members keep this order (and their colours).
-            base = _utcnow()
-            by_sub: dict[str, GroupMemberRow] = {}
-            for index, (sub, relationship) in enumerate(members.items()):
-                member = session.scalar(
-                    select(GroupMemberRow).where(
-                        GroupMemberRow.group_id == group_id, GroupMemberRow.sub == sub
-                    )
-                )
-                if member is None:
-                    member = GroupMemberRow(member_id=_id("mem"), group_id=group_id, sub=sub)
-                    session.add(member)
-                member.relationship = relationship
-                member.role = "owner" if index == 0 else "member"
-                member.status = MemberStatus.ACTIVE.value
-                member.created_at = base + timedelta(microseconds=index)
-                member.approved_by = next(iter(members))
-                member.approved_at = base
-                by_sub[sub] = member
-            session.flush()
-            _seed_demo_schedule(self, session, group_id, today, by_sub)
+            if member is None:
+                member = GroupMemberRow(member_id=_id("mem"), group_id=group_id, sub=sub)
+                session.add(member)
+            member.relationship = relationship
+            member.role = "owner" if index == 0 else "member"
+            member.status = MemberStatus.ACTIVE.value
+            member.created_at = base + timedelta(microseconds=index)
+            member.approved_by = next(iter(members))
+            member.approved_at = base
+            by_sub[sub] = member
+        session.flush()
+        _seed_demo_schedule(self, session, group_id, today, by_sub)
 
 
 # The demo schedule: the same made-up visits the browser used to hold (`lib/family-sample.ts`).
@@ -974,8 +994,8 @@ def _seed_demo_schedule(
     today: date,
     by_sub: dict[str, GroupMemberRow],
 ) -> None:
-    from silverloop.family_groups import DEMO_EMILY_SUB, DEMO_FAMILY_SUB, DEMO_JOHN_SUB
-
+    # Owner first, as `reset_demo_in` documents, so this works for either set of accounts.
+    sarah, john, emily = by_sub.values()
     now = _utcnow()
     rows: dict[str, AppointmentRow] = {}
     for key, title, kind, offset, start, end, location, notes in _DEMO_APPOINTMENTS:
@@ -991,14 +1011,13 @@ def _seed_demo_schedule(
             notes=notes,
             repeat=RepeatRule.NONE.value,
             repeat_until=None,
-            created_by=DEMO_FAMILY_SUB,
+            created_by=sarah.sub,
             created_at=now,
         )
         session.add(row)
         rows[key] = row
     session.flush()
 
-    sarah, john, emily = by_sub[DEMO_FAMILY_SUB], by_sub[DEMO_JOHN_SUB], by_sub[DEMO_EMILY_SUB]
     windows = [
         (john, 1, "00:00", "23:59", "available"),
         (emily, 1, "00:00", "23:59", "unavailable"),

@@ -1,6 +1,6 @@
 import { compareWords, percentOfUsual } from '../../lib/activity';
 import { addDays } from '../../lib/calendar';
-export const TABS = ['today', 'calendar', 'family'];
+export const TABS = ['today', 'calendar', 'badges', 'family'];
 export const TAB_KEY = 'careplus.seniorTab.v1';
 export function readTab(storage) {
   try {

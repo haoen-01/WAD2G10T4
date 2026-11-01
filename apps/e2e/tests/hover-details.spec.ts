@@ -5,6 +5,29 @@ import { expect, test } from '@playwright/test';
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
+test('sample activity counts back from the latest reading, and is labelled sample', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const chart = page.getByRole('group', { name: /Steps on each of the last days/ });
+  await expect(chart).toContainText('13 days ago');
+  await expect(chart).toContainText('Latest');
+  await expect(chart.getByRole('button').last()).toHaveAttribute('aria-label', /^Latest reading: /);
+  await expect(page.getByTestId('fortnight-sample')).toHaveText('Sample');
+  await expect(page.getByTestId('today-sample')).toHaveText('Sample');
+  await expect(page.getByText('Demo day')).toHaveCount(0);
+
+  await page.goto('/login/senior');
+  await page.getByTestId('continue-senior').click();
+  await page.getByRole('tab', { name: 'Today', exact: true }).click();
+  await expect(page.getByTestId('steps-sample')).toHaveText('Sample numbers');
+  await expect(page.getByTestId('steps-from')).toContainText('These steps are from');
+  const week = page.getByRole('group', { name: 'Steps on each day. Choose a day for details.' });
+  await expect(week).toContainText('6 days ago');
+  await expect(week).toContainText('Latest day');
+  await expect(week.getByRole('button').first()).toHaveAttribute('aria-label', /^6 days ago, /);
+});
+
 test('the chart shows a day’s figures only while its bar is pointed at, focused or tapped', async ({
   page,
 }) => {
@@ -20,7 +43,9 @@ test('the chart shows a day’s figures only while its bar is pointed at, focuse
   await expect(tip).toContainText(/steps/);
   await expect(tip).toContainText(/% of her usual day/);
   const label = (await bars.nth(4).getAttribute('aria-label')) ?? '';
-  await expect(tip).toContainText(label.split(':')[0].split(', ')[1]);
+  // Counted back from the latest reading, never a calendar date.
+  await expect(tip).toContainText(label.split(':')[0]);
+  expect(label).toMatch(/^9 days ago: /);
   await page.mouse.move(5, 5);
   await expect(tip).toHaveCount(0);
 

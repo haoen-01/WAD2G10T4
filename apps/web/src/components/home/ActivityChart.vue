@@ -10,10 +10,18 @@ import {
   summariseDays,
 } from '@/lib/activity';
 import type { StepDay } from '@/lib/activity';
-import { formatIsoDay, parseIsoDay } from '@/lib/format-date';
+import { useNow } from '@/composables/useNow';
+import { todayIso } from '@/lib/calendar';
+import {
+  countedBackNote,
+  latestDay,
+  oldestReadingLabel,
+  readingDayLabel,
+} from '@/lib/reading-days';
 
 /**
- * The last fortnight of steps as bars, drawn with plain HTML and CSS. Each bar is a button, so a
+ * The last fortnight of steps as bars, drawn with plain HTML and CSS. Days are counted back from the
+ * latest reading ("3 days ago"), never dated: see `lib/reading-days.ts`. Each bar is a button, so a
  * keyboard, a mouse and a finger can all pick a day. A day's figures pop out above its bar while the
  * mouse is over it or the bar has keyboard focus; a click or tap keeps them showing (another click,
  * or Escape, hides them). Each bar's name says the same in words for screen readers. Two lines give the bars meaning: her usual day, and 20% below it (the first point at which
@@ -44,10 +52,14 @@ const nudgeLine = computed(
   () => `${((props.usual * (100 - GENTLE_NUDGE_PERCENT)) / 100 / top.value) * 100}%`,
 );
 
-const dayNumber = (iso: string) => parseIsoDay(iso)?.day ?? '';
+const latest = computed(() => latestDay(props.days) ?? '');
+const oldestLabel = computed(() => oldestReadingLabel(props.days));
+const dayLabel = (iso: string) => readingDayLabel(iso, latest.value);
+const now = useNow();
+const countedBack = computed(() => countedBackNote(latestDay(props.days), todayIso(now.value)));
 const describe = (day: StepDay) => {
   const percent = percentOfUsual(day.steps, props.usual);
-  const parts = [`${formatIsoDay(day.day)}: ${formatSteps(day.steps)}`];
+  const parts = [`${dayLabel(day.day)}: ${formatSteps(day.steps)}`];
   if (percent !== null) parts.push(`${percent}% of ${props.owner} usual day`);
   if (!isNearUsual(day.steps, props.usual))
     parts.push(`more than ${GENTLE_NUDGE_PERCENT}% below usual`);
@@ -154,7 +166,7 @@ function onKey(event: KeyboardEvent, index: number) {
             aria-hidden="true"
             data-testid="chart-tip"
           >
-            <strong class="chart-tip-day">{{ formatIsoDay(shown.day, { style: 'long' }) }}</strong>
+            <strong class="chart-tip-day">{{ dayLabel(shown.day) }}</strong>
             <span class="chart-tip-steps">{{ formatSteps(shown.steps) }}</span>
             <span v-if="percentOfUsual(shown.steps, usual) !== null" class="chart-tip-line">
               {{ percentOfUsual(shown.steps, usual) }}% of {{ owner }} usual day
@@ -168,17 +180,16 @@ function onKey(event: KeyboardEvent, index: number) {
           </div>
         </Transition>
       </div>
-      <div class="labels" aria-hidden="true">
-        <span
-          v-for="(day, index) in days"
-          :key="day.day"
-          :class="{ chosen: day.day === shownDay, latest: index === days.length - 1 }"
-          >{{ dayNumber(day.day) }}</span
-        >
+      <div class="labels d-flex justify-content-between gap-2 mt-1" aria-hidden="true">
+        <span>{{ oldestLabel }}</span>
+        <span class="latest">Latest</span>
       </div>
     </div>
 
-    <p class="sl-note mt-2 mb-0">Point at a bar, or tap it, to see that day.</p>
+    <p class="sl-note mt-2 mb-0">
+      Point at a bar, or tap it, to see that day.
+      <span v-if="countedBack" data-testid="counted-back">{{ countedBack }}</span>
+    </p>
   </div>
 </template>
 
@@ -194,27 +205,13 @@ function onKey(event: KeyboardEvent, index: number) {
 }
 
 .labels {
-  display: flex;
-  gap: 0.3rem;
-  margin-top: 0.35rem;
   color: var(--sl-ink-soft);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.labels span {
-  flex: 1;
-  min-width: 0;
-  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .labels .latest {
   color: var(--sl-ink);
-  font-weight: 800;
-}
-
-.labels .chosen {
-  color: var(--sl-jade-deep);
   font-weight: 800;
 }
 

@@ -281,8 +281,10 @@ it current. Joining, being approved, linking a senior and renaming do not. With 
 the demo reset clears it for the demo group's members.
 
 A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN entry. PINs are stored
-as SHA-256 hashes. With `AUTH_ENABLED=false`, API startup and `POST /v1/demo/reset` (for Mdm Lim)
-put Mdm Lim's demo family and schedule back to their starting state, relative to today.
+as SHA-256 hashes. With `AUTH_ENABLED=false`, `POST /v1/demo/reset` (for Mdm Lim) puts Mdm Lim's demo
+family and schedule back to their starting state, relative to today, and API startup does the same
+when the database is SQLite. With sign-in on, `pnpm demo:story` sets up the real logins instead (see
+`docs/supabase.md`).
 
 ### The family feed
 
@@ -470,7 +472,9 @@ Failing to find something is a real answer.
 
 **At most one question, ever.** `PersonState.pending_question` is populated only when the missing
 fact would change the decision. A question that changes nothing reads as scripted, and a system
-that asks whenever it is uncertain becomes an interrogation.
+that asks whenever it is uncertain becomes an interrogation. `/state` decides whether an answer is
+accepted: the `advance` response can still carry a question on a day its own offer reaches the cap,
+and that answer is refused.
 
 **A second, rarer question: "is this your new normal?"** `PersonState.pending_baseline_confirmation`
 answers a different problem -- `analytics.BASELINE_DRIFT_FLOOR` clamps a person's baseline so a

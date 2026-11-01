@@ -208,9 +208,9 @@ Top-level modules:
 - `seed.py` / `smoke.py` / `supabase_smoke.py` --
   seed every curated persona; a black-box HTTP smoke test; the Supabase-specific equivalent run
   before a shared-profile deploy.
-- `setup_demo_accounts.py` -- admin CLI provisioning demo Supabase accounts and
-  linking them to `person_id`s; refuses to run under `APP_ENV=production` without
-  `--allow-production`.
+- `setup_demo_accounts.py` -- admin CLI provisioning demo Supabase accounts, linking
+  the senior to its `person_id` and writing the family accounts' `accounts` rows; refuses to run
+  under `APP_ENV=production` without `--allow-production`. See `docs/supabase.md`.
 
 Subpackages:
 

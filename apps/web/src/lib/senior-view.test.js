@@ -60,6 +60,12 @@ test('arrow keys wrap tabs and Home and End reach the endpoints', () => {
   assert.equal(adjacentTab('today', 'End'), 'family');
   assert.equal(adjacentTab('today', 'Tab'), null);
 });
+test('the badges tab sits between calendar and family, and is remembered', () => {
+  assert.equal(adjacentTab('calendar', 'ArrowRight'), 'badges');
+  assert.equal(adjacentTab('badges', 'ArrowRight'), 'family');
+  assert.equal(adjacentTab('family', 'ArrowLeft'), 'badges');
+  assert.equal(readTab({ getItem: () => 'badges' }), 'badges');
+});
 test('seven-day strip anchors to latest data and preserves missing days', () => {
   const reading = { day: '2026-08-18', steps: 5720 };
   const days = sevenDays([reading], '2026-08-18');

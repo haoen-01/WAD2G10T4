@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
+import httpx
 import pytest
 from alembic.config import Config
 from sqlalchemy import select, text, update
@@ -11,10 +13,23 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 
 from alembic import command
-from silverloop.db_models import AppointmentNoteRow, Base, DecisionEvidenceRow
+from silverloop import demo_story
+from silverloop.config import Settings
+from silverloop.db_models import (
+    AppointmentNoteRow,
+    AppointmentRow,
+    AvailabilityEntryRow,
+    Base,
+    CareGroupRow,
+    DecisionEvidenceRow,
+    FamilyActivityRow,
+    GroupMemberRow,
+    HelperAssignmentRow,
+)
 from silverloop.family_calendar import FamilyCalendarStore
 from silverloop.family_groups import DEMO_FAMILY, DEMO_FAMILY_SUB, FamilyGroups
 from silverloop.fixtures import DEMO_PERSON_ID
+from silverloop.local_time import local_date
 from silverloop.migrations import apply_rls_posture, upgrade_database
 from silverloop.models import (
     AppointmentNoteRequest,
@@ -88,6 +103,167 @@ def test_postgres_preserves_the_safe_product_loop_across_restart() -> None:
             .values(decision="no_action")
         )
     restarted.close()
+
+
+# ── `pnpm demo:story`, on the engine the shared runtime actually uses ─────────────────────────
+
+
+CLEARED_NOTE = "A note the story has to clear."
+
+
+def _story_settings(database_url: str) -> Settings:
+    """Explicit, so nothing here comes from a `.env`. The fake admin below answers Supabase."""
+    return Settings(
+        app_env="test",
+        database_url=database_url,
+        silverloop_runtime_profile="shared",
+        auth_enabled=True,
+        llm_enabled=False,
+        supabase_url="https://project.supabase.invalid",
+    )
+
+
+def _story_logins(
+    repository: SqlAlchemyRepository, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, str]:
+    """All six logins as `setup_demo_accounts` leaves them, behind a read-only fake admin API."""
+    family = FamilyGroups(repository.sessions, repository)
+    subs = {login: str(uuid4()) for login in demo_story.LOGINS}
+    users = [
+        {
+            "id": sub,
+            "email": f"{login}@{demo_story.EMAIL_DOMAIN}",
+            "app_metadata": {"role": "senior"} if login == "senior" else {},
+        }
+        for login, sub in subs.items()
+    ]
+    for login in demo_story.FAMILY_LOGINS:
+        family.provision_family_account(subs[login], login.title())
+    repository.upsert_person_link(subs["senior"], DEMO_PERSON_ID, "setup_demo_accounts")
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET", "the story only reads Supabase Auth"
+        return httpx.Response(200, json={"users": users})
+
+    monkeypatch.setattr(
+        demo_story,
+        "_supabase_admin",
+        lambda *_: httpx.Client(
+            transport=httpx.MockTransport(answer), base_url="https://admin.invalid"
+        ),
+    )
+    monkeypatch.setenv("SUPABASE_URL", "https://project.supabase.invalid")
+    monkeypatch.setenv("SUPABASE_SECRET_KEY", "not-a-real-admin-key")
+    return subs
+
+
+def _story_rows(repository: SqlAlchemyRepository) -> dict[str, object]:
+    """Mdm Lim's group and everything hanging off it, in a form two runs can be compared by."""
+    with repository.sessions() as session:
+        group = session.scalar(select(CareGroupRow).where(CareGroupRow.person_id == DEMO_PERSON_ID))
+        assert group is not None
+
+        def rows(model: type) -> list:
+            return list(session.scalars(select(model).where(model.group_id == group.group_id)))
+
+        return {
+            "created_by": group.created_by,
+            "linked_by": group.linked_by,
+            "members": sorted((row.sub, row.role, row.status) for row in rows(GroupMemberRow)),
+            "appointments": sorted(row.title for row in rows(AppointmentRow)),
+            "availability": len(rows(AvailabilityEntryRow)),
+            "helpers": len(rows(HelperAssignmentRow)),
+            "notes": sorted(row.text for row in rows(AppointmentNoteRow)),
+            "feed": sorted(row.kind for row in rows(FamilyActivityRow)),
+        }
+
+
+def test_postgres_runs_the_demo_story_twice_over_the_seeded_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The seeded group's rows hold foreign keys to its members and appointments, and PostgreSQL
+    enforces them where SQLite as configured here may not: the run has to delete them in order."""
+    database_url = dedicated_postgres_test_url()
+    upgrade_database(database_url)
+    repository = SqlAlchemyRepository(database_url)
+    try:
+        repository.reset()
+        FamilyGroups(repository.sessions, repository).ensure_demo_group()
+        calendar = FamilyCalendarStore(repository.sessions)
+        calendar.reset_demo(
+            DEMO_PERSON_ID,
+            local_date(datetime.now(UTC)),
+            {sub: relationship for sub, (_, relationship) in DEMO_FAMILY.items()},
+        )
+        seeded = _story_rows(repository)
+        assert seeded["availability"] and seeded["helpers"] and seeded["feed"]
+        with repository.sessions() as session:
+            group_id = session.scalar(
+                select(CareGroupRow.group_id).where(CareGroupRow.person_id == DEMO_PERSON_ID)
+            )
+            appointment_id = session.scalar(
+                select(AppointmentRow.appointment_id).where(AppointmentRow.group_id == group_id)
+            )
+            on_date = session.scalar(
+                select(AppointmentRow.start_date).where(
+                    AppointmentRow.appointment_id == appointment_id
+                )
+            )
+        calendar.add_note(
+            DEMO_FAMILY_SUB,
+            group_id,
+            appointment_id,
+            AppointmentNoteRequest(date=on_date, text=CLEARED_NOTE),
+        )
+        assert CLEARED_NOTE in _story_rows(repository)["notes"]
+        subs = _story_logins(repository, monkeypatch)
+        settings = _story_settings(database_url)
+
+        first = demo_story.run(settings)
+        after_first = _story_rows(repository)
+        second = demo_story.run(settings)
+        after_second = _story_rows(repository)
+
+        assert after_second == after_first
+        assert after_first["created_by"] == subs["sarah"]
+        # A re-run on a used database finds the previous run's link, which is not a seeded one.
+        seeded_link = str(seeded["linked_by"]).startswith("demo-")
+        assert after_first["linked_by"] == (subs["sarah"] if seeded_link else seeded["linked_by"])
+        assert {member[0] for member in after_first["members"]} == {
+            subs["sarah"],
+            subs["john"],
+            subs["emily"],
+        }
+        assert CLEARED_NOTE not in after_first["notes"]
+        assert after_first["availability"] and after_first["helpers"] and after_first["feed"]
+        assert first.landing.lim_group_id == second.landing.lim_group_id
+        assert first.landing.tan_group_id != second.landing.tan_group_id
+        waiting = [
+            row
+            for row in repository.list_interventions(person_id=DEMO_PERSON_ID)
+            if row.status == "proposed"
+        ]
+        assert [row.title for row in waiting] == [second.mdm_lim.suggestion_title]
+        state = repository.person_state(person_id=DEMO_PERSON_ID)
+        assert state.last_decision == "programme_suggestion"
+        with repository.sessions() as session:
+            assert session.get(CareGroupRow, first.landing.tan_group_id) is None
+            assert session.get(CareGroupRow, second.landing.tan_group_id) is not None
+
+        # A failure in the group transaction rolls the whole of it back on the real engine.
+        def fails_half_way(*args: object, **kwargs: object) -> None:
+            real_seed(*args, **kwargs)
+            raise RuntimeError("stopped half way")
+
+        real_seed = demo_story._seed_mr_tan
+        monkeypatch.setattr(demo_story, "_seed_mr_tan", fails_half_way)
+        with pytest.raises(RuntimeError, match="stopped half way"):
+            demo_story.run(settings)
+        assert _story_rows(repository) == after_second
+        with repository.sessions() as session:
+            assert session.get(CareGroupRow, second.landing.tan_group_id) is not None
+    finally:
+        repository.close()
 
 
 # ── What Alembic owns on PostgreSQL, checked against the live catalogue ───────────────────────

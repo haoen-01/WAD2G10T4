@@ -43,8 +43,8 @@ Inspired by Life360's day view and Caring Village's shared care calendar: one gl
 
 ## Files changed
 
-| File                               | Change                                                                         |
-| ---------------------------------- | ------------------------------------------------------------------------------ |
+| File                                            | Change                                                                                                                                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `apps/web/src/lib/day-timeline.ts`              | **New.** Pure rules: clock times, Singapore day/minute of a timestamp, sorting, the drawn window (7 am–10 pm, widened), "now / next / latest", day summary and past-day record |
 | `apps/web/src/lib/day-timeline.test.ts`         | **New.** Unit tests for the above                                                                                                                                              |
 | `apps/web/src/components/home/DayTimeline.vue`  | **New.** The panel: header and day arrows, three lanes, Now line, details card with the actions, past-day record, live sync                                                    |

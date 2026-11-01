@@ -172,6 +172,24 @@ class FamilyGroups:
             self.repository.upsert_person_link(sub, person_id, "self_onboarding")
         return self.me(sub, AuthRole(role.value), person_id)
 
+    def provision_family_account(self, sub: str, display_name: str) -> None:
+        """Admin setup only (`setup_demo_accounts`): the row `onboard` writes for a family member,
+        so the account never sees the onboarding prompt. Running it again updates that row."""
+        with self.sessions.begin() as session:
+            account = session.get(AccountRow, sub)
+            if account is None:
+                session.add(
+                    AccountRow(
+                        sub=sub,
+                        role=AccountRole.FAMILY.value,
+                        display_name=display_name,
+                        created_at=_utcnow(),
+                    )
+                )
+            else:
+                account.role = AccountRole.FAMILY.value
+                account.display_name = display_name
+
     def me(self, sub: str, role: AuthRole | None, person_id: str | None) -> MeResponse:
         with self.sessions() as session:
             account = session.get(AccountRow, sub)

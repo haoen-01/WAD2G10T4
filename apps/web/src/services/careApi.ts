@@ -1,5 +1,7 @@
 import type {
   AccountRole,
+  AssistantChatRequest,
+  AssistantReply,
   AppointmentNote,
   AppointmentNoteRequest,
   AppointmentRequest,
@@ -279,4 +281,16 @@ export async function addAppointmentNote(
 /** Removes your own note; another member's note answers 403. */
 export async function deleteAppointmentNote(groupId: string, noteId: string): Promise<void> {
   await http.post(`/v1/groups/${groupId}/notes/${noteId}/delete`);
+}
+
+/**
+ * One answer from the Care+ assistant. The AI is called by the API with its own key (never from
+ * here); emergencies and questions about medicines get a fixed answer. Too many questions in a
+ * short time answers 429.
+ */
+export async function askAssistant(request: AssistantChatRequest): Promise<AssistantReply> {
+  const response = await http.post<AssistantReply>('/v1/assistant/chat', request, {
+    timeout: 30_000,
+  });
+  return response.data;
 }
