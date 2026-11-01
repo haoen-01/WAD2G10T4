@@ -215,5 +215,5 @@ test('Home’s fortnight chart reads out the day that is chosen', async ({ page 
   const label = (await bars.first().getAttribute('aria-label')) ?? '';
   const day = label.split(':')[0];
   await expect(page.locator('.chart-readout')).toContainText(/steps/);
-  expect(day).toMatch(/^\w{3}, \d{1,2} \w{3}$/);
+  expect(day).toBe('13 days ago');
 });

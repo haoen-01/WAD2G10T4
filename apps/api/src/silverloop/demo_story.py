@@ -8,13 +8,15 @@ users, so the seeded `demo-*` members mean nothing to them. This plays Mdm Lim's
 the real `advance`, gives her family group to the real family, adds a second group for the made-up
 Mr Tan, and reads the result back. It is not part of `pnpm demo:offline`.
 
-Re-running gives the same end state. Everything about Mdm Lim and the people here is synthetic. The
-story never sets a password or a role: `setup_demo_accounts` owns those.
+Re-running gives the same groups and the same shape of story. Which programme suggestion is waiting
+is the real ranking's choice: Mdm Lim's earlier answers are kept across runs, so it can differ, and
+it is printed. Everything about Mdm Lim and the people here is synthetic. The story never sets a
+password or a role: `setup_demo_accounts` owns those.
 
 Not atomic as a whole: `reset`, each `advance` and the outcome commit on their own, and all the
 family group writes are one transaction. A failure part-way through Mdm Lim's run leaves her on a
 newer, unfinished run with the groups as they were; a failure in the group transaction changes no
-group. Running it again repairs both.
+group. Running it again repairs both, unless the policy itself decided otherwise (`_play_mdm_lim`).
 """
 
 from __future__ import annotations
@@ -35,9 +37,11 @@ from silverloop.db_models import (
     AppointmentRow,
     AuthUserPersonLinkRow,
     CareGroupRow,
+    DecisionEvidenceRow,
     FamilyPinRow,
     GroupMemberRow,
     HelperAssignmentRow,
+    InterventionRow,
     PersonRow,
 )
 from silverloop.family_activity import ORIGIN_DEMO_SEED, record
@@ -52,7 +56,16 @@ from silverloop.family_groups import (
 )
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.local_time import local_date
-from silverloop.models import AccountRole, FamilyActivityKind, MemberStatus, OutcomeKind, RepeatRule
+from silverloop.models import (
+    AccountRole,
+    AdvanceResponse,
+    Decision,
+    FamilyActivityKind,
+    MemberStatus,
+    OutcomeKind,
+    PolicyGate,
+    RepeatRule,
+)
 from silverloop.runtime import RuntimeConfigurationError, validate_runtime
 from silverloop.setup_demo_accounts import _find_user_by_email, _supabase_admin
 from silverloop.sql_repository import SqlAlchemyRepository
@@ -61,9 +74,9 @@ LOGINS = ("sarah", "john", "emily", "weiming", "aisha", "senior")
 EMAIL_DOMAIN = "silverloop.demo"
 FAMILY_LOGINS = tuple(login for login in LOGINS if login != "senior")
 
-NUDGE_TITLE = "Five-minute movement option"
-WAITING_TITLE = "Chair Mobility & Balance"
 SECOND_SENIOR = "Mr Tan"
+# The seeded accounts' subs all start with this; a real login's sub is a UUID.
+_SEEDED_SUB_PREFIX = "demo-"
 
 # Mdm Lim's family, then Mr Tan's. The owner comes first in each.
 _LIM_FAMILY = {"sarah": "Daughter", "john": "Son", "emily": "Granddaughter"}
@@ -75,12 +88,58 @@ _SEEDED_LIM_FEED_ENTRIES = 6
 class StoryFailed(Exception):
     """The story could not finish, or finished in the wrong state. The message is safe to print."""
 
+    def __init__(self, message: str, *, running_again_can_help: bool = False) -> None:
+        super().__init__(message)
+        self.running_again_can_help = running_again_can_help
+
 
 @dataclass(frozen=True)
 class Landing:
     lim_group_id: str
     tan_group_id: str
     join_pin_expires_on: date
+
+
+@dataclass(frozen=True)
+class MdmLimStory:
+    """What the policy and the ranking chose. `nudge_title` is `None` when she has muted every
+    nudge, so day 1 offered nothing to answer."""
+
+    suggestion_title: str
+    nudge_title: str | None
+
+
+@dataclass(frozen=True, order=True)
+class OtherGroup:
+    """A group outside the story that a login belongs to. Order is the order it is printed in."""
+
+    senior_name: str
+    creator: str
+
+
+@dataclass(frozen=True)
+class StoryResult:
+    landing: Landing
+    mdm_lim: MdmLimStory
+    # Each login that also has a place in a group outside the story, whoever created it.
+    other_groups: dict[str, list[OtherGroup]]
+
+
+def _plain(text: str) -> str:
+    """Typed names on one line, in ASCII: they must not break a warning, or a console's encoding."""
+    return text.encode("unicode_escape").decode("ascii")
+
+
+def _creator_label(session: Session, created_by: str, subs: dict[str, str]) -> str:
+    """The login if the creator has one. Otherwise the display name with the sub, because seeded
+    accounts share their display names with the logins, or the sub alone if there is no name."""
+    for login, sub in subs.items():
+        if sub == created_by:
+            return f"`{login}`"
+    account = session.get(AccountRow, created_by)
+    if account is None or not account.display_name:
+        return _plain(created_by)
+    return f"{_plain(account.display_name)} ({_plain(created_by)})"
 
 
 def _refuse(message: str) -> SystemExit:
@@ -102,6 +161,19 @@ def _refuse_wrong_environment(settings: Settings) -> None:
         validate_runtime(settings)
     except RuntimeConfigurationError as exc:
         raise _refuse(f"{exc} Nothing was changed.") from exc
+
+
+def _refuse_stale_schema(repository: SqlAlchemyRepository, profile: str) -> None:
+    """The check `/ready` makes, before anything is read from or written to the story's tables."""
+    readiness = repository.readiness(profile)
+    if not readiness.database_connected:
+        raise _refuse("could not connect to the database. Check DATABASE_URL. Nothing was changed.")
+    if readiness.migration_revision != readiness.expected_migration_revision:
+        raise _refuse(
+            f"the database is at Alembic revision {readiness.migration_revision or 'none'} and "
+            f"this code needs {readiness.expected_migration_revision}. Start the API once, or run "
+            "`alembic upgrade head` in apps/api, then run this again. Nothing was changed."
+        )
 
 
 def _run_setup_first(what: str) -> SystemExit:
@@ -166,35 +238,55 @@ def _muted_labels(repository: SqlAlchemyRepository) -> list[str]:
     ]
 
 
-def _play_mdm_lim(repository: SqlAlchemyRepository, senior_sub: str) -> None:
+def _not_as_planned(
+    day: int, wanted: str, result: AdvanceResponse, repository: SqlAlchemyRepository
+) -> StoryFailed:
+    state = result.state
+    return StoryFailed(
+        f"Day {day} did not offer {wanted}: the policy decided {state.last_decision.value} "
+        f"({state.decided_by_gate.value}). {' '.join(state.rationale)} {_mute_hint(repository)}"
+    )
+
+
+def _play_mdm_lim(repository: SqlAlchemyRepository, senior_sub: str) -> MdmLimStory:
     """Two real days, deliberately through the same methods the routes use, so the policy decides
     and every decision has its evidence and audit rows. `reset` also starts the new run with active
-    consent; standing mutes and senior statements carry over, and the story leaves those alone."""
+    consent; standing mutes and senior statements carry over, and the story leaves those alone.
+
+    The ranking picks which nudge and which suggestion, from everything she has answered before.
+    A nudge she has wholly muted is her instruction and the story carries on without one: the
+    decision stays at the severity rung and `_resolve_decision_state` lowers it to `NO_ACTION`.
+    Any other decision on either day ends the story, because running it again would decide the
+    same thing."""
     repository.reset(person_id=DEMO_PERSON_ID)
     day_1 = repository.advance("activity_declines", _DAYS[0], person_id=DEMO_PERSON_ID)
     nudge = day_1.created_intervention
-    if nudge is None or nudge.title != NUDGE_TITLE:
-        raise StoryFailed(
-            f'Day 1 did not offer "{NUDGE_TITLE}" (decision: {day_1.state.last_decision.value}). '
-            f"{_mute_hint(repository)}"
+    if nudge is not None and day_1.state.last_decision == Decision.GENTLE_NUDGE:
+        repository.record_outcome(
+            nudge.intervention_id, OutcomeKind.DEFERRED, senior_sub, person_id=DEMO_PERSON_ID
         )
-    repository.record_outcome(
-        nudge.intervention_id, OutcomeKind.DEFERRED, senior_sub, person_id=DEMO_PERSON_ID
-    )
-    repository.advance("activity_declines", _DAYS[1], person_id=DEMO_PERSON_ID)
+    elif not (
+        nudge is None
+        and day_1.state.last_decision == Decision.NO_ACTION
+        and day_1.state.decided_by_gate == PolicyGate.SEVERITY_PERSISTENCE
+    ):
+        raise _not_as_planned(1, "a nudge", day_1, repository)
+
+    day_2 = repository.advance("activity_declines", _DAYS[1], person_id=DEMO_PERSON_ID)
+    suggestion = day_2.created_intervention
+    if suggestion is None or day_2.state.last_decision != Decision.PROGRAMME_SUGGESTION:
+        raise _not_as_planned(2, "a programme suggestion", day_2, repository)
+    return MdmLimStory(suggestion.title, nudge.title if nudge is not None else None)
 
 
 def _mute_hint(repository: SqlAlchemyRepository) -> str:
     muted = _muted_labels(repository)
     if not muted:
-        return (
-            "No suggestion is muted, so an earlier answer probably changed the ranking: answers "
-            "are kept across runs and the story cannot remove them (see docs/supabase.md)."
-        )
+        return "Nothing is muted, so running this again will decide the same thing."
     return (
-        f"Mdm Lim has muted: {', '.join(muted)}. A mute is her own standing instruction, so the "
-        "story does not lift it. Lift it signed in as `senior` (see docs/supabase.md), then run "
-        "this again."
+        f"Mdm Lim has muted: {', '.join(muted)}. A mute is her own instruction, or follows three "
+        "of her declines, so the story does not lift it. Lift it signed in as `senior` (see "
+        "docs/supabase.md), then run this again."
     )
 
 
@@ -228,7 +320,10 @@ def _write_groups(
             session.add(lim_group)
             session.flush()
         lim_group.created_by = sarah
-        lim_group.linked_by = sarah
+        # Only the seeded family's link is replaced. `linked_via` and `linked_at` stay on any link,
+        # so a link somebody really made keeps saying who made it.
+        if (lim_group.linked_by or "").startswith(_SEEDED_SUB_PREFIX):
+            lim_group.linked_by = sarah
 
         calendar.reset_demo_in(
             session,
@@ -355,30 +450,64 @@ def _verify(
     calendar: FamilyCalendarStore,
     subs: dict[str, str],
     landing: Landing,
-) -> None:
-    problems = [
-        *_mdm_lim_problems(repository),
-        *_group_problems(repository, family, calendar, subs, landing),
-    ]
+    mdm_lim: MdmLimStory,
+) -> dict[str, list[OtherGroup]]:
+    """Raises if the end state is wrong; returns the logins that are also in a group outside it."""
+    group_problems, other_groups = _group_problems(repository, family, calendar, subs, landing)
+    problems = [*_mdm_lim_problems(repository, mdm_lim), *group_problems]
     if problems:
-        raise StoryFailed("The end state is wrong:\n  - " + "\n  - ".join(problems))
+        raise StoryFailed(
+            "The end state is wrong:\n  - " + "\n  - ".join(problems),
+            running_again_can_help=True,
+        )
+    return other_groups
 
 
-def _mdm_lim_problems(repository: SqlAlchemyRepository) -> list[str]:
+def _mdm_lim_problems(repository: SqlAlchemyRepository, mdm_lim: MdmLimStory) -> list[str]:
     problems: list[str] = []
     state = repository.person_state(person_id=DEMO_PERSON_ID)
     if not state.consent_active:
         problems.append("Mdm Lim's consent is not active.")
+    if state.last_decision != Decision.PROGRAMME_SUGGESTION:
+        problems.append(f"Mdm Lim's state reads {state.last_decision.value}.")
     interventions = repository.list_interventions(person_id=DEMO_PERSON_ID)
-    waiting = [row.title for row in interventions if row.status == "proposed"]
-    if waiting != [WAITING_TITLE]:
+    waiting = [row for row in interventions if row.status == "proposed"]
+    if (
+        [row.title for row in waiting] != [mdm_lim.suggestion_title]
+        or waiting[0].decision != Decision.PROGRAMME_SUGGESTION
+        or not (waiting[0].candidate_key or "").startswith("programme:")
+        or not _recorded_as_programme_suggestion(repository, waiting[0].intervention_id)
+    ):
         problems.append(
-            f'Expected only "{WAITING_TITLE}" waiting, found {waiting}. {_mute_hint(repository)}'
+            "Expected exactly one programme suggestion waiting, from a recorded "
+            f"programme_suggestion decision, and found {[row.title for row in waiting]}."
         )
-    nudges = [row for row in interventions if row.title == NUDGE_TITLE]
-    if len(nudges) != 1 or nudges[0].outcome != OutcomeKind.DEFERRED.value:
-        problems.append(f'"{NUDGE_TITLE}" should be answered once, with "Maybe later".')
+    nudges = [row for row in interventions if row.decision == Decision.GENTLE_NUDGE]
+    if mdm_lim.nudge_title is None:
+        if nudges:
+            problems.append("No nudge should have been offered.")
+    elif (
+        len(nudges) != 1
+        or nudges[0].title != mdm_lim.nudge_title
+        or nudges[0].outcome != OutcomeKind.DEFERRED.value
+    ):
+        problems.append(f'"{mdm_lim.nudge_title}" should be answered once, with "Maybe later".')
     return problems
+
+
+def _recorded_as_programme_suggestion(
+    repository: SqlAlchemyRepository, intervention_id: str
+) -> bool:
+    with repository.sessions() as session:
+        recorded = session.scalar(
+            select(DecisionEvidenceRow.decision)
+            .join(
+                InterventionRow,
+                InterventionRow.decision_evidence_id == DecisionEvidenceRow.evidence_id,
+            )
+            .where(InterventionRow.intervention_id == intervention_id)
+        )
+    return recorded == Decision.PROGRAMME_SUGGESTION.value
 
 
 def _group_problems(
@@ -387,8 +516,9 @@ def _group_problems(
     calendar: FamilyCalendarStore,
     subs: dict[str, str],
     landing: Landing,
-) -> list[str]:
+) -> tuple[list[str], dict[str, list[OtherGroup]]]:
     problems: list[str] = []
+    other_groups: dict[str, list[OtherGroup]] = {}
     lim, tan = landing.lim_group_id, landing.tan_group_id
 
     expected_groups = {
@@ -400,13 +530,29 @@ def _group_problems(
     }
     for login, expected in expected_groups.items():
         groups = family.me(subs[login], None, None).groups
-        found = [(group.group_id, group.last_opened, group.member_count) for group in groups]
+        found = [
+            (group.group_id, group.last_opened, group.member_count)
+            for group in groups
+            if group.group_id in (lim, tan)
+        ]
         if found != expected:
-            problems.append(
-                f"`{login}` should have {len(expected)} group(s) and has {len(found)}, or a "
-                "group is wrong. A group another account created is left alone, so if the login "
-                "joined one, it must leave that group itself."
-            )
+            problems.append(f"`{login}` has the wrong demo groups.")
+        # The story leaves these alone and no route lets the login leave: somebody else's group, or
+        # a linked group of its own, since only unlinked ones are removed.
+        extras = [group for group in groups if group.group_id not in (lim, tan)]
+        if extras:
+            with repository.sessions() as session:
+                other_groups[login] = sorted(
+                    OtherGroup(
+                        _plain(group.senior_name),
+                        _creator_label(
+                            session,
+                            session.get(CareGroupRow, group.group_id).created_by,
+                            subs,
+                        ),
+                    )
+                    for group in extras
+                )
 
     with repository.sessions() as session:
         for group_id, name, roster in (
@@ -465,17 +611,16 @@ def _group_problems(
         problems.append("Mdm Lim's group has the wrong feed.")
     if len(calendar.activity(subs["sarah"], tan, 50, None).entries) != 1:
         problems.append("Mr Tan's group has the wrong feed.")
-    return problems
+    return problems, other_groups
 
 
-def run(settings: Settings) -> Landing:
+def run(settings: Settings) -> StoryResult:
     """Everything after the environment checks. The LLM is off whatever the environment says, and
     live weather with it: the deterministic ranker and the scripted events decide."""
     story_settings = settings.model_copy(
         update={"llm_enabled": False, "external_context_enabled": False}
     )
     _refuse_wrong_environment(story_settings)
-    subs = _look_up_logins()
     repository = SqlAlchemyRepository(
         story_settings.database_url,
         seed=story_settings.demo_seed,
@@ -483,6 +628,8 @@ def run(settings: Settings) -> Landing:
         settings=story_settings,
     )
     try:
+        _refuse_stale_schema(repository, story_settings.silverloop_runtime_profile)
+        subs = _look_up_logins()
         try:
             _check_accounts(repository, subs)
         # SQLite reports a missing table as OperationalError; psycopg as ProgrammingError.
@@ -493,10 +640,10 @@ def run(settings: Settings) -> Landing:
             ) from exc
         family = FamilyGroups(repository.sessions, repository)
         calendar = FamilyCalendarStore(repository.sessions)
-        _play_mdm_lim(repository, subs["senior"])
+        mdm_lim = _play_mdm_lim(repository, subs["senior"])
         landing = _write_groups(repository, family, calendar, subs, local_date(datetime.now(UTC)))
-        _verify(repository, family, calendar, subs, landing)
-        return landing
+        other_groups = _verify(repository, family, calendar, subs, landing, mdm_lim)
+        return StoryResult(landing, mdm_lim, other_groups)
     finally:
         repository.close()
 
@@ -504,9 +651,11 @@ def run(settings: Settings) -> Landing:
 def main() -> None:
     settings = Settings()
     try:
-        landing = run(settings)
+        result = run(settings)
     except StoryFailed as exc:
-        print(f"Error: {exc}\nIt is safe to run this again.", file=sys.stderr)
+        print(f"Error: {exc}", file=sys.stderr)
+        if exc.running_again_can_help:
+            print("It is safe to run this again.", file=sys.stderr)
         raise SystemExit(1) from exc
     except Exception as exc:
         # The type alone: a database error's text can carry connection details.
@@ -515,12 +664,24 @@ def main() -> None:
             file=sys.stderr,
         )
         raise SystemExit(1) from exc
+    for login, groups in result.other_groups.items():
+        listed = "; ".join(f'"{group.senior_name}", created by {group.creator}' for group in groups)
+        print(
+            f"Warning: `{login}` is also in {len(groups)} group(s) outside the story: {listed}. "
+            "The story left them untouched, so this login sees them too.",
+            file=sys.stderr,
+        )
+    mdm_lim = result.mdm_lim
     print("Demo story ready (synthetic data).")
-    print(f'  Mdm Lim: "{WAITING_TITLE}" is waiting; "{NUDGE_TITLE}" was answered "Maybe later".')
+    print(f'  Mdm Lim: "{mdm_lim.suggestion_title}" is waiting.')
+    if mdm_lim.nudge_title is None:
+        print("  Day 1 offered no nudge, because she has muted every nudge.")
+    else:
+        print(f'  Day 1 offered "{mdm_lim.nudge_title}", answered "Maybe later".')
     print("  Mdm Lim's group: Sarah (owner), John, Emily. Sarah lands here.")
     print(
         "  Mr Tan's group: Sarah (owner), Wei Ming, Aisha. "
-        f"Its Join PIN lasts until {landing.join_pin_expires_on.isoformat()}; "
+        f"Its Join PIN lasts until {result.landing.join_pin_expires_on.isoformat()}; "
         "a member can show a new one at any time."
     )
 

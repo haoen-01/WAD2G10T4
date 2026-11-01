@@ -1,11 +1,14 @@
 <script setup>
 import { computed, ref, useId, watch } from 'vue';
+import { useNow } from '@/composables/useNow';
 import { percentOfUsual } from '@/lib/activity';
-import { formatIsoDay, parseIsoDay, WEEKDAYS_SHORT } from '@/lib/format-date';
+import { todayIso } from '@/lib/calendar';
+import { latestDay, seniorCountedBackLine, seniorDayLabel } from '@/lib/reading-days';
 /**
  * The senior's week as bars, drawn with plain HTML and CSS. Each bar is a button: hovering,
- * focusing or tapping one lifts it and shows a small tooltip, and choosing one fills in the box
- * below. Every date is the reading's own day, written "Tue 18 Aug". Describes the numbers only.
+ * focusing or tapping one lightens it and shows a small tooltip, and choosing one fills in the box
+ * below. Days are counted back from the latest reading ("3 days ago"), and a line under the chart
+ * names that day when it is not today: see `lib/reading-days.ts`. Describes the numbers only.
  */
 const props = defineProps({
   days: { type: Array, required: true },
@@ -24,10 +27,15 @@ watch(
 const hovered = ref(null);
 const focused = ref(null);
 const tipDay = computed(() => hovered.value ?? focused.value);
-/** "Tue 18 Aug" (or "Tuesday 18 August" when `long`): the reading's own day. */
-function dayWords(iso, long = false) {
-  return formatIsoDay(iso, long ? { style: 'long' } : {}).replace(',', '');
+function dayWords(iso) {
+  return seniorDayLabel(iso, latestDay(props.days) ?? '');
 }
+const now = useNow();
+const countedBack = computed(() =>
+  seniorCountedBackLine(latestDay(props.days), todayIso(now.value)),
+);
+// The axis under the first bar says what that bar says, so the two never disagree.
+const oldestLabel = computed(() => (props.days.length > 1 ? dayWords(props.days[0].day) : ''));
 function stepWords(steps) {
   return `${Math.round(steps).toLocaleString('en-SG')} steps`;
 }
@@ -42,14 +50,13 @@ const bars = computed(() => {
   const count = props.days.length;
   return props.days.map((reading, index) => {
     const ofUsual = usualWords(reading.steps);
-    const parts = [dayWords(reading.day, true), stepWords(reading.steps)];
+    const parts = [dayWords(reading.day), stepWords(reading.steps)];
     if (ofUsual) parts.push(ofUsual);
     const position = (index + 0.5) / count;
     return {
       day: reading.day,
       height: `${Math.max(2, (reading.steps / top.value) * 100)}%`,
       label: parts.join(', '),
-      weekday: WEEKDAYS_SHORT[parseIsoDay(reading.day)?.weekday ?? 0],
       date: dayWords(reading.day),
       steps: stepWords(reading.steps),
       ofUsual,
@@ -88,7 +95,12 @@ function onKey(event, index) {
 
 <template>
   <div class="week-chart">
-    <div class="chart" role="group" aria-label="Steps on each day. Choose a day for details.">
+    <div
+      class="chart"
+      role="group"
+      aria-label="Steps on each day. Choose a day for details."
+      :aria-describedby="countedBack ? `${id}-hint ${id}-note` : `${id}-hint`"
+    >
       <div class="plot" @mouseleave="hovered = null">
         <div class="usual-line" :style="{ bottom: usualLine }" aria-hidden="true">
           <span>Usual day</span>
@@ -126,12 +138,23 @@ function onKey(event, index) {
           <span v-if="tip.ofUsual" class="d-block">{{ tip.ofUsual }}</span>
         </div>
       </div>
-      <div class="labels" aria-hidden="true">
-        <span v-for="bar in bars" :key="bar.day" :class="{ chosen: bar.day === selected }">
-          {{ bar.weekday }}
-        </span>
+      <div class="labels d-flex justify-content-between gap-2 mt-1" aria-hidden="true">
+        <span>{{ oldestLabel }}</span>
+        <span class="latest">Latest day</span>
       </div>
     </div>
+
+    <p :id="`${id}-hint`" class="fs-5 text-body-secondary mt-3 mb-0" data-testid="week-hint">
+      Tap a bar to see that day.
+    </p>
+    <p
+      v-if="countedBack"
+      :id="`${id}-note`"
+      class="fs-5 text-body-secondary mt-1 mb-0"
+      data-testid="week-counted-back"
+    >
+      {{ countedBack }}
+    </p>
 
     <p v-if="chosen" :id="`${id}-detail`" class="chart-detail" aria-live="polite">
       <strong class="d-block">{{ dayWords(chosen.day) }}</strong>
@@ -151,20 +174,12 @@ function onKey(event, index) {
 }
 
 .labels {
-  display: flex;
-  gap: 0.3rem;
-  margin-top: 0.35rem;
   color: var(--sl-ink-soft);
-  font-size: 0.8rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
-.labels span {
-  flex: 1;
-  min-width: 0;
-  text-align: center;
-}
-
-.labels .chosen {
+.labels .latest {
   color: var(--sl-ink);
   font-weight: 800;
 }
@@ -208,19 +223,17 @@ function onKey(event, index) {
   width: 100%;
   border-radius: 0.45rem 0.45rem 0 0;
   background: color-mix(in srgb, var(--sl-jade) 62%, var(--sl-surface));
-  transition:
-    transform 0.15s var(--sl-ease),
-    background-color 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
-/* The chosen day is the darkest bar; a hovered, focused or tapped one is lighter and lifted. */
+/* The chosen day is the darkest bar; a hovered, focused or tapped one is lighter. It stays on the
+   baseline, so its height still reads true against the Usual day line. */
 .bar-btn.chosen .bar {
   background: var(--sl-jade-deep);
 }
 
 .bar-btn.active .bar {
   background: color-mix(in srgb, var(--sl-jade) 40%, var(--sl-surface));
-  transform: translateY(-4px);
 }
 
 .bar-btn.chosen.active .bar {

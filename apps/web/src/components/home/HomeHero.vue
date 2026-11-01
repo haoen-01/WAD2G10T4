@@ -9,12 +9,13 @@ import StatusBadge from '@/components/StatusBadge.vue';
 import LoopRing from '@/components/ui/LoopRing.vue';
 import WalkLink from '@/components/walk/WalkLink.vue';
 import { GENTLE_NUDGE_PERCENT, compareWords, formatSteps, percentOfUsual } from '@/lib/activity';
-import { formatIsoDay } from '@/lib/format-date';
+import { todayIso } from '@/lib/calendar';
 import { attentionBadge, decisionBadge } from '@/lib/labels';
+import { homeReadingWords, isSampleSource } from '@/lib/reading-days';
 
 /**
- * The top of Home: the greeting, how far she has walked today against her usual day (as a
- * sentence and as a ring), her watch (connected, battery), the status badges and, in one line,
+ * The top of Home: the greeting, how far she walked on the latest reading's day against her usual
+ * day (as a sentence and as a ring), her watch (connected, battery), the status badges and, in one line,
  * why Care+ says so (`StatusWhyPanel`).
  */
 export default defineComponent({
@@ -40,7 +41,11 @@ export default defineComponent({
   },
 
   computed: {
-    /** Today's steps as a percentage of her usual day. */
+    /** "Today" only when the latest reading is from today; otherwise that reading's own day. */
+    reading() {
+      return homeReadingWords(this.person?.current_day ?? '', todayIso(this.now), this.elder);
+    },
+    /** The latest reading's steps as a percentage of her usual day. */
     percent(): number | null {
       if (!this.person) return null;
       return percentOfUsual(this.person.signal.current_steps, this.person.baseline.median_steps);
@@ -56,7 +61,7 @@ export default defineComponent({
     decisionBadge,
     compareWords,
     formatSteps,
-    formatIsoDay,
+    isSampleSource,
     signed(n: number): string {
       return `${n > 0 ? '+' : ''}${Math.round(n)}%`;
     },
@@ -76,8 +81,8 @@ export default defineComponent({
       <h1 class="hero-title"><span class="visually-hidden">Care+: </span>{{ elder }}’s day</h1>
 
       <p v-if="person" class="hero-lede">
-        She has walked <strong>{{ formatSteps(person.signal.current_steps) }}</strong> so far,
-        {{ compareWords(percent) }}.
+        {{ reading.ledeStart }} <strong>{{ formatSteps(person.signal.current_steps) }}</strong>
+        {{ reading.ledeWhen }}, {{ compareWords(percent) }}.
       </p>
       <p v-else-if="!loading" class="hero-lede">Her activity is not available right now.</p>
 
@@ -102,7 +107,15 @@ export default defineComponent({
 
     <div v-if="person" class="col-12 col-lg-auto">
       <section class="hero-card sl-panel" aria-labelledby="today-heading">
-        <h2 id="today-heading" class="h5 mb-3">Today with {{ elder }}</h2>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+          <h2 id="today-heading" class="h5 mb-0">{{ reading.heading }}</h2>
+          <span
+            v-if="isSampleSource(person.signal.quality.source)"
+            class="badge text-bg-secondary"
+            data-testid="today-sample"
+            >Sample</span
+          >
+        </div>
         <div class="d-flex flex-nowrap align-items-center gap-3 gap-sm-4">
           <LoopRing
             :value="(percent ?? 0) / 100"
@@ -119,7 +132,7 @@ export default defineComponent({
           </LoopRing>
           <dl class="ring-facts">
             <div>
-              <dt>Today so far</dt>
+              <dt data-testid="hero-steps-label">{{ reading.stepsLabel }}</dt>
               <dd class="tabular">
                 {{ formatSteps(person.signal.current_steps) }}
                 ({{ signed(person.signal.delta_percent) }} from usual)
@@ -128,12 +141,6 @@ export default defineComponent({
             <div>
               <dt>Usual day</dt>
               <dd class="tabular">{{ formatSteps(person.baseline.median_steps) }}</dd>
-            </div>
-            <div>
-              <!-- The demo's own simulated day, not the browser's real date (which the calendar
-               below shows), so it is spelled out rather than labelled "Today" too. -->
-              <dt>Demo day</dt>
-              <dd>{{ formatIsoDay(person.current_day, { style: 'long' }) }}</dd>
             </div>
           </dl>
         </div>

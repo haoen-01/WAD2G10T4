@@ -2,13 +2,17 @@
 import { computed, useId } from 'vue';
 import SeniorWeekChart from '@/components/senior/SeniorWeekChart.vue';
 import Icon from '@/components/ui/Icon.vue';
-import { formatIsoDay } from '@/lib/format-date';
+import { useNow } from '@/composables/useNow';
+import { todayIso } from '@/lib/calendar';
+import { isSampleSource, seniorReadingLine } from '@/lib/reading-days';
 import { stepProgress, stepWords } from './senior-view.js';
 const props = defineProps({
   person: { type: Object, required: true },
   week: { type: Array, default: null },
 });
 const id = useId();
+const now = useNow();
+const fromLine = computed(() => seniorReadingLine(props.person.current_day, todayIso(now.value)));
 const steps = computed(() => Math.round(props.person.signal.current_steps).toLocaleString('en-SG'));
 const progress = computed(() =>
   stepProgress(props.person.signal.current_steps, props.person.baseline.median_steps),
@@ -31,9 +35,17 @@ const activeMinutes = computed(
 
 <template>
   <section class="sl-panel steps-hero rounded-4 shadow-sm p-4" :aria-labelledby="`${id}-heading`">
-    <h2 :id="`${id}-heading`" class="fs-3 d-flex align-items-center gap-2">
-      <Icon name="activity" />My steps
-    </h2>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+      <h2 :id="`${id}-heading`" class="fs-3 d-flex align-items-center gap-2 mb-0">
+        <Icon name="activity" />My steps
+      </h2>
+      <span
+        v-if="isSampleSource(person.signal.quality.source)"
+        class="badge text-bg-secondary fs-6"
+        data-testid="steps-sample"
+        >Sample numbers</span
+      >
+    </div>
     <div class="row align-items-center g-4">
       <div class="col-md-5 col-lg-4 text-center">
         <div class="step-ring mx-auto" role="img" :aria-label="`${steps} steps. ${percentLabel}`">
@@ -66,8 +78,15 @@ const activeMinutes = computed(
               : `${activeMinutes} active minutes`
           }}
         </p>
-        <p v-if="person.current_day" class="text-body-secondary fs-5 mb-0">
-          Latest reading: {{ formatIsoDay(person.current_day) }}
+        <p v-if="person.current_day" class="text-body-secondary fs-5 mb-0" data-testid="steps-from">
+          {{ fromLine }}
+        </p>
+        <p
+          v-if="isSampleSource(person.signal.quality.source)"
+          class="text-body-secondary fs-5 mb-0 mt-2"
+          data-testid="steps-sample-note"
+        >
+          These are sample numbers, not your own steps.
         </p>
       </div>
     </div>

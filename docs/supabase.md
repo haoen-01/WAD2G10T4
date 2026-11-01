@@ -363,34 +363,60 @@ uv run --env-file ../../.env python -m silverloop.demo_story
 
 Run it on the morning of the demo and before each rehearsal, because the appointments are dated from
 that day. It only reads Supabase Auth, and sets no password or role. It writes nothing and exits
-non-zero if `APP_ENV=production`, if `AUTH_ENABLED=false`, or if any of `sarah`, `john`, `emily`,
-`weiming`, `aisha` or `senior` is missing (run `setup_demo_accounts` first).
+non-zero if `APP_ENV=production`, if `AUTH_ENABLED=false`, if the database's Alembic revision is not
+the repository's head (start the API once or run `alembic upgrade head`), or if any of `sarah`,
+`john`, `emily`, `weiming`, `aisha` or `senior` is missing (run `setup_demo_accounts` first).
 
 What it does, in order:
 
 1. Starts a new run for Mdm Lim and plays two `activity_declines` days through the real `advance`,
-   with the LLM off whatever the environment says. Day 1's "Five-minute movement option" is answered
-   "Maybe later"; day 2's "Chair Mobility & Balance" stays waiting. A new run has active consent.
+   with the LLM off whatever the environment says. Day 1's nudge is answered "Maybe later"; day 2's
+   programme suggestion stays waiting. The real ranking picks both, and the command prints their
+   titles. A new run has active consent.
 2. Puts Mdm Lim's family group back to its seeded schedule and feed, with Sarah (owner), John and
    Emily, and creates the unlinked group for the made-up Mr Tan with Sarah (owner), Wei Ming and
    Aisha. Sarah lands on Mdm Lim's group.
 3. Reads the end state back and exits non-zero if it is wrong.
 
-Re-running gives the same end state. Extra members of both groups are removed, and so are other
-unlinked groups created by the demo accounts. Groups created by anyone else are left exactly as they
-are, so a demo login that joined one keeps its place there, and the command reports that login's
-extra group as an error for it to leave.
+Re-running gives the same groups and the same shape of story, though the suggestion can differ (see
+below).
+
+**What a run deletes.** Inside the two demo groups, everything people added goes: other people's
+memberships, their notes, their appointments and availability, and the feed rows. Other unlinked
+groups created by the demo accounts go too, with everything in them. The group link's `linked_by`
+moves to Sarah only if a seeded `demo-*` account made the link; a link someone really made keeps its
+`linked_by`, `linked_via` and `linked_at`.
+
+**What it leaves, and its limits.** Groups created by anyone else keep their members, appointments
+and feed, and a demo login that joined one keeps its place there, because no route lets it leave. A
+group a demo account created with a senior linked stays too, since only unlinked ones are removed. For
+each of these the command prints a warning naming the login, the group's senior and the group's
+creator, then carries on, so the login sees that group as well.
+Two things do reach beyond the demo groups: creating Mr Tan's Join PIN clears every expired or used
+Join PIN in the database, as any PIN creation does, and `reset` re-anchors the fixture activity
+listings' times to the new run.
+
+`POST /v1/demo/reset` with `AUTH_ENABLED=false` still puts the demo family back on PostgreSQL, which
+removes real members from Mdm Lim's group. Only API start-up is limited to SQLite. Keep `AUTH_ENABLED=true`
+whenever the API points at the team's shared Supabase.
 
 The Mdm Lim steps commit one at a time and the group writes are one transaction, so a failure leaves
 either a newer unfinished run for Mdm Lim with the groups unchanged, or no group change at all.
 Running it again repairs both.
 
-**When it cannot finish.** Reset keeps what Mdm Lim said. A muted suggestion stays muted, and her
-earlier answers keep shaping the ranking, because outcomes are append-only. So a mute, or a "Not
-today" on either suggestion in an earlier rehearsal, means a different suggestion is offered, and
-the command exits non-zero instead of printing success. Lift a mute with
-`POST /v1/people/mdm-lim/preferences/{candidate_key}` signed in as `senior`. An earlier "Not today"
-cannot be undone by this command; rehearse with "Maybe later" or "Show me more".
+**Why the suggestion can differ.** Reset keeps what Mdm Lim said. Her earlier "Yes, I'd like that"
+and "Not for me" answers keep shaping the ranking, because outcomes are append-only, and a suggestion
+left unanswered closes as `no_response` once its reply window passes, which counts too. "Maybe later"
+is recorded but moves the ranking by nothing, so it does not change the next run's suggestion. Three
+"Not for me" answers to one suggestion mute it automatically. In each case the command
+succeeds with the next-ranked suggestion and prints its title. If she has muted every nudge, day 1
+offers none and the command says so.
+
+**When it cannot finish.** If the policy decides anything else on either day, the command exits
+non-zero and names the decision, for example when every programme suggestion is muted. Running it
+again decides the same thing until that changes. Lift a mute with
+`POST /v1/people/mdm-lim/preferences/{candidate_key}` signed in as `senior`. The command cannot remove
+an earlier answer.
 
 The Join PIN in Mr Tan's group lasts 7 days. Any active member gets a fresh one from the group's
 Family page (`POST /v1/groups/{id}/join-pin`). The command does not print the PIN.

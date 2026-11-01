@@ -472,7 +472,9 @@ Failing to find something is a real answer.
 
 **At most one question, ever.** `PersonState.pending_question` is populated only when the missing
 fact would change the decision. A question that changes nothing reads as scripted, and a system
-that asks whenever it is uncertain becomes an interrogation.
+that asks whenever it is uncertain becomes an interrogation. `/state` decides whether an answer is
+accepted: the `advance` response can still carry a question on a day its own offer reaches the cap,
+and that answer is refused.
 
 **A second, rarer question: "is this your new normal?"** `PersonState.pending_baseline_confirmation`
 answers a different problem -- `analytics.BASELINE_DRIFT_FLOOR` clamps a person's baseline so a

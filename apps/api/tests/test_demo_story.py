@@ -16,7 +16,7 @@ import httpx
 import jwt
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.engine import make_url
 
 from silverloop import demo_story
@@ -35,6 +35,7 @@ from silverloop.db_models import (
     GroupMemberRow,
     HelperAssignmentRow,
     InterventionRow,
+    PersonRow,
 )
 from silverloop.family_calendar import FamilyCalendarStore
 from silverloop.family_groups import DEMO_FAMILY, DEMO_FAMILY_SUB, DEMO_SENIOR_SUB, FamilyGroups
@@ -42,7 +43,8 @@ from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.local_time import local_date
 from silverloop.main import create_app, resets_demo_family_on_start
 from silverloop.models import AppointmentRequest, CheckInKind, CheckInRequest
-from silverloop.sql_repository import SqlAlchemyRepository
+from silverloop.schema_revision import expected_database_revision
+from silverloop.sql_repository import RESPONSE_WINDOW_DAYS, SqlAlchemyRepository
 
 JWT_SECRET = "story-test-secret-key-at-least-32-bytes"
 SUPABASE_URL = "https://project.supabase.co"
@@ -107,10 +109,23 @@ def database_url(tmp_path: Path) -> str:
     return f"sqlite+pysqlite:///{(tmp_path / 'story.db').as_posix()}"
 
 
+def _stamp_revision(repository: SqlAlchemyRepository, revision: str | None) -> None:
+    """`create_schema_for_tests` skips Alembic, so the revision the story checks is written here."""
+    with repository.sessions.begin() as session:
+        session.execute(text("DROP TABLE IF EXISTS alembic_version"))
+        if revision is not None:
+            session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
+            session.execute(
+                text("INSERT INTO alembic_version (version_num) VALUES (:revision)"),
+                {"revision": revision},
+            )
+
+
 @pytest.fixture
 def repo(database_url: str) -> Iterator[SqlAlchemyRepository]:
     repository = SqlAlchemyRepository(database_url, settings=_settings(database_url))
     repository.create_schema_for_tests()
+    _stamp_revision(repository, expected_database_revision())
     repository.reset()
     yield repository
     repository.close()
@@ -556,23 +571,124 @@ def test_another_accounts_groups_are_untouched(
     assert (_full_row_dump(repo, unlinked), _full_row_dump(repo, linked)) == before
 
 
-def test_a_login_in_someone_elses_group_stops_success_and_the_group_stays(
-    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
+def test_a_login_in_someone_elses_group_gets_a_warning_and_the_group_stays(
+    admin: FakeSupabaseAdmin,
+    repo: SqlAlchemyRepository,
+    client: TestClient,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The two rules meet here: that group stays exactly as it is, including Sarah's place in it, so
-    she has three groups, not two. The command says so instead of printing success."""
+    """No route lets a login leave a group, so the story must not ask it to. That group stays as
+    it is, including Sarah's place in it, and the command finishes and says so."""
     family = FamilyGroups(repo.sessions, repo)
     theirs = family.create_group(OUTSIDER, "Son", senior_name="Mdm Ong").group_id
     pin = family.create_join_pin(OUTSIDER, theirs).pin
     family.join_group(admin.sub("sarah"), pin, "Friend")
     before = _full_row_dump(repo, theirs)
 
-    with pytest.raises(SystemExit) as exit_info:
-        demo_story.main()
+    demo_story.main()
 
-    assert exit_info.value.code == 1
-    assert "`sarah`" in capsys.readouterr().err
+    captured = capsys.readouterr()
+    assert "Demo story ready" in captured.out
+    assert "Warning: `sarah` is also in 1 group(s)" in captured.err
+    assert "leave" not in captured.err
     assert _full_row_dump(repo, theirs) == before
+    assert {g["senior_name"] for g in _groups(client, admin, "sarah")} == {
+        "Mdm Lim",
+        "Mr Tan",
+        "Mdm Ong",
+    }
+    assert (
+        next(g for g in _groups(client, admin, "sarah") if g["last_opened"])["senior_name"]
+        == "Mdm Lim"
+    )
+
+
+def test_the_warning_names_each_groups_true_creator_in_a_fixed_order(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Three creators for Sarah's three other groups: another login, somebody with no login, and
+    Sarah herself, whose linked group the story keeps and so must not call someone else's."""
+    family = FamilyGroups(repo.sessions, repo)
+
+    def linked_group(creator: str, person_id: str) -> str:
+        repo.reset(person_id=person_id, allow_new_person=True)
+        link_pin = family.create_link_pin(f"senior-of-{person_id}", person_id).pin
+        return family.create_group(creator, "Son", senior_pin=link_pin).group_id
+
+    def sarah_joins(group_id: str, member: str) -> None:
+        family.join_group(
+            admin.sub("sarah"), family.create_join_pin(member, group_id).pin, "Friend"
+        )
+
+    family.provision_family_account("ana-sub", "Zoë\nAna")
+    sarah_joins(family.create_group("ana-sub", "Son", senior_name="Mdm Ong").group_id, "ana-sub")
+    johns = linked_group(admin.sub("john"), "person-of-john")
+    sarah_joins(johns, admin.sub("john"))
+    sarahs = linked_group(admin.sub("sarah"), "person-of-sarah")
+    with repo.sessions.begin() as session:
+        for person_id, name in (("person-of-john", "Mr Lee"), ("person-of-sarah", "Mdm Goh")):
+            session.get(PersonRow, person_id).display_name = name
+        assert session.get(CareGroupRow, johns).created_by == admin.sub("john")
+        assert session.get(CareGroupRow, sarahs).created_by == admin.sub("sarah")
+
+    demo_story.main()
+
+    err = capsys.readouterr().err
+    assert (
+        "Warning: `sarah` is also in 3 group(s) outside the story: "
+        '"Mdm Goh", created by `sarah`; '
+        '"Mdm Ong", created by Zo\\xeb\\nAna (ana-sub); '
+        '"Mr Lee", created by `john`. '
+    ) in err
+    # John's own warning, for the same group, still names its creator.
+    assert (
+        'Warning: `john` is also in 1 group(s) outside the story: "Mr Lee", created by `john`.'
+        in err
+    )
+    assert "another account" not in err
+    assert admin.sub("john") not in err and admin.sub("sarah") not in err
+
+    demo_story.main()
+    assert capsys.readouterr().err == err
+
+
+def test_a_clean_run_prints_no_warning(
+    admin: FakeSupabaseAdmin, capsys: pytest.CaptureFixture[str]
+) -> None:
+    demo_story.main()
+    assert "Warning" not in capsys.readouterr().err
+
+
+def _mdm_lims_group(repo: SqlAlchemyRepository) -> tuple[str | None, str | None, datetime | None]:
+    with repo.sessions() as session:
+        group = session.scalar(select(CareGroupRow).where(CareGroupRow.person_id == DEMO_PERSON_ID))
+        return group.linked_by, group.linked_via, group.linked_at
+
+
+def test_a_seeded_accounts_link_passes_to_sarah(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository
+) -> None:
+    _seed_the_sign_in_off_family(repo)
+    _, via, at = _mdm_lims_group(repo)
+
+    demo_story.main()
+
+    assert _mdm_lims_group(repo) == (admin.sub("sarah"), via, at)
+
+
+def test_a_link_somebody_really_made_keeps_saying_who_made_it(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository
+) -> None:
+    family = FamilyGroups(repo.sessions, repo)
+    link_pin = family.create_link_pin("the-real-senior", DEMO_PERSON_ID).pin
+    family.create_group(OUTSIDER, "Son", senior_pin=link_pin)
+    linked = _mdm_lims_group(repo)
+    assert linked[0] == OUTSIDER
+
+    demo_story.main()
+    demo_story.main()
+
+    assert _mdm_lims_group(repo) == linked
 
 
 def test_other_unlinked_groups_of_demo_accounts_go_with_their_children(
@@ -686,6 +802,26 @@ def test_an_unreachable_admin_api_is_refused_with_no_secret_in_the_message(
     assert _everything(repo) == before
 
 
+@pytest.mark.parametrize("revision", ["an_older_revision", None])
+def test_a_database_on_another_revision_is_refused_before_anything_is_written(
+    admin: FakeSupabaseAdmin,
+    repo: SqlAlchemyRepository,
+    capsys: pytest.CaptureFixture[str],
+    revision: str | None,
+) -> None:
+    _stamp_revision(repo, revision)
+    before = _everything(repo)
+    with pytest.raises(SystemExit) as exit_info:
+        demo_story.main()
+    assert exit_info.value.code == 1
+    err = capsys.readouterr().err
+    assert "alembic upgrade head" in err
+    assert "Start the API" in err
+    assert "Nothing was changed" in err
+    assert expected_database_revision() in err
+    assert _everything(repo) == before
+
+
 def test_missing_supabase_settings_are_refused(
     admin: FakeSupabaseAdmin,
     repo: SqlAlchemyRepository,
@@ -713,23 +849,75 @@ def test_reset_restores_consent_a_tester_revoked(
     assert _waiting(client, admin) == ["Chair Mobility & Balance"]
 
 
-@pytest.mark.parametrize(
-    "candidate_key_part",
-    ["gentle_nudge", "programme_suggestion"],
-)
-def test_a_mute_that_stops_a_suggestion_stops_success_and_stays(
-    admin: FakeSupabaseAdmin,
-    repo: SqlAlchemyRepository,
-    capsys: pytest.CaptureFixture[str],
-    candidate_key_part: str,
+def _programme_keys(repo: SqlAlchemyRepository) -> list[str]:
+    return [
+        pref.candidate_key
+        for pref in repo.list_candidate_preferences(person_id=DEMO_PERSON_ID)
+        if pref.candidate_key.startswith("programme:")
+    ]
+
+
+def _nudge_keys(repo: SqlAlchemyRepository) -> list[str]:
+    return [
+        pref.candidate_key
+        for pref in repo.list_candidate_preferences(person_id=DEMO_PERSON_ID)
+        if pref.candidate_key.startswith("gentle_nudge:")
+    ]
+
+
+def _mute(repo: SqlAlchemyRepository, keys: list[str]) -> None:
+    for key in keys:
+        repo.set_candidate_preference(key, True, "not for me", "senior", person_id=DEMO_PERSON_ID)
+
+
+def _muted(repo: SqlAlchemyRepository) -> set[str]:
+    return {
+        pref.candidate_key
+        for pref in repo.list_candidate_preferences(person_id=DEMO_PERSON_ID)
+        if pref.suppressed
+    }
+
+
+def _the_waiting_one(repo: SqlAlchemyRepository):
+    (waiting,) = [
+        row for row in repo.list_interventions(person_id=DEMO_PERSON_ID) if row.status == "proposed"
+    ]
+    return waiting
+
+
+def _assert_ready_with_the_waiting_title(
+    repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
+) -> str:
+    captured = capsys.readouterr()
+    waiting = _the_waiting_one(repo)
+    assert waiting.decision.value == "programme_suggestion"
+    assert "Demo story ready" in captured.out
+    assert f'"{waiting.title}" is waiting' in captured.out
+    return waiting.title
+
+
+def test_a_mute_of_the_top_suggestion_gives_the_next_one_and_stays(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
+) -> None:
+    demo_story.main()
+    first = _the_waiting_one(repo)
+    capsys.readouterr()
+    _mute(repo, [first.candidate_key])
+
+    demo_story.main()
+
+    assert _assert_ready_with_the_waiting_title(repo, capsys) != first.title
+    assert first.candidate_key in _muted(repo)
+
+
+def test_a_mute_of_every_suggestion_fails_plainly_and_names_what_happened(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
 ) -> None:
     demo_story.main()
     capsys.readouterr()
-    rows = repo.list_interventions(person_id=DEMO_PERSON_ID)
-    target = next(row for row in rows if row.decision.value == candidate_key_part)
-    repo.set_candidate_preference(
-        target.candidate_key, True, "not for me", "senior", person_id=DEMO_PERSON_ID
-    )
+    keys = _programme_keys(repo)
+    assert len(keys) >= 2
+    _mute(repo, keys)
 
     with pytest.raises(SystemExit) as exit_info:
         demo_story.main()
@@ -737,20 +925,60 @@ def test_a_mute_that_stops_a_suggestion_stops_success_and_stays(
     assert exit_info.value.code == 1
     captured = capsys.readouterr()
     assert "Demo story ready" not in captured.out
+    assert "Day 2 did not offer a programme suggestion" in captured.err
+    assert "the policy decided no_action" in captured.err
     assert "muted" in captured.err
-    still = {
-        pref.candidate_key
-        for pref in repo.list_candidate_preferences(person_id=DEMO_PERSON_ID)
-        if pref.suppressed
-    }
-    assert target.candidate_key in still
+    # Running it again decides the same until the mute is lifted, so it does not promise otherwise.
+    assert "It is safe to run this again" not in captured.err
+    assert "then run this again" in captured.err
+    assert set(keys) <= _muted(repo)
+
+
+def test_a_mute_of_every_nudge_still_gives_a_suggestion_and_says_no_nudge_was_offered(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
+) -> None:
+    demo_story.main()
+    capsys.readouterr()
+    keys = _nudge_keys(repo)
+    assert keys
+    _mute(repo, keys)
+
+    demo_story.main()
+
+    out = capsys.readouterr().out
+    assert "Day 1 offered no nudge, because she has muted every nudge." in out
+    assert "Demo story ready" in out
+    rows = repo.list_interventions(person_id=DEMO_PERSON_ID)
+    assert [row.decision.value for row in rows] == ["programme_suggestion"]
+    assert set(keys) <= _muted(repo)
+
+
+def test_anything_else_on_day_one_fails_and_names_the_decision(
+    admin: FakeSupabaseAdmin,
+    repo: SqlAlchemyRepository,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    real = SqlAlchemyRepository.advance
+
+    def low_wear_instead(self: SqlAlchemyRepository, event: str, *args: object, **kwargs: object):
+        return real(self, "low_wear", *args, **kwargs)
+
+    monkeypatch.setattr(SqlAlchemyRepository, "advance", low_wear_instead)
+    with pytest.raises(SystemExit) as exit_info:
+        demo_story.main()
+
+    assert exit_info.value.code == 1
+    err = capsys.readouterr().err
+    assert "Day 1 did not offer a nudge" in err
+    assert "the policy decided no_action (data_quality)" in err
+    assert "It is safe to run this again" not in err
 
 
 def _answer_the_waiting_suggestion(repo: SqlAlchemyRepository, answer: str) -> None:
-    waiting = next(
-        row for row in repo.list_interventions(person_id=DEMO_PERSON_ID) if row.status == "proposed"
+    repo.record_outcome(
+        _the_waiting_one(repo).intervention_id, answer, "senior", person_id=DEMO_PERSON_ID
     )
-    repo.record_outcome(waiting.intervention_id, answer, "senior", person_id=DEMO_PERSON_ID)
 
 
 @pytest.mark.parametrize("answer", ["accepted", "deferred"])
@@ -771,43 +999,112 @@ def test_a_rehearsal_that_answers_kindly_can_be_run_again(
     assert _waiting(client, admin) == ["Chair Mobility & Balance"]
 
 
-@pytest.mark.parametrize("answer", ["declined", "no_response"])
-def test_an_earlier_refusal_changes_the_ranking_and_stops_success(
-    admin: FakeSupabaseAdmin,
-    repo: SqlAlchemyRepository,
-    capsys: pytest.CaptureFixture[str],
-    answer: str,
+def test_an_earlier_decline_gives_the_next_ranked_suggestion(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Outcomes are append-only and outlive a reset, so "Sheltered Morning Walk" now ranks first.
-    The command must say so: it may not delete the answer or call this success."""
+    """Outcomes are append-only and outlive a reset, so the ranking moves on. That is success."""
     demo_story.main()
-    _answer_the_waiting_suggestion(repo, answer)
+    first = _the_waiting_one(repo).title
+    _answer_the_waiting_suggestion(repo, "declined")
     capsys.readouterr()
 
-    with pytest.raises(SystemExit) as exit_info:
+    demo_story.main()
+
+    assert _assert_ready_with_the_waiting_title(repo, capsys) == "Sheltered Morning Walk" != first
+
+
+def test_an_earlier_silence_on_the_real_response_clock_gives_the_next_ranked_suggestion(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
+) -> None:
+    demo_story.main()
+    offered = _the_waiting_one(repo)
+    for index in range(RESPONSE_WINDOW_DAYS):
+        repo.advance("activity_declines", f"later-{index}", person_id=DEMO_PERSON_ID)
+    closed = next(
+        row
+        for row in repo.list_interventions(person_id=DEMO_PERSON_ID)
+        if row.intervention_id == offered.intervention_id
+    )
+    assert (closed.outcome, closed.status) == ("no_response", "closed")
+    capsys.readouterr()
+
+    demo_story.main()
+
+    assert _assert_ready_with_the_waiting_title(repo, capsys) == "Sheltered Morning Walk"
+
+
+def test_three_declines_auto_mute_that_item_and_the_next_one_is_offered(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Declining whatever is waiting, run after run, until the deterministic rule mutes one."""
+    demo_story.main()
+    for _ in range(10):
+        declined = _the_waiting_one(repo)
+        _answer_the_waiting_suggestion(repo, "declined")
+        if declined.candidate_key in _muted(repo):
+            break
         demo_story.main()
+    else:
+        pytest.fail("three declines of one suggestion did not mute it")
+    capsys.readouterr()
 
-    assert exit_info.value.code == 1
-    captured = capsys.readouterr()
-    assert "Demo story ready" not in captured.out
-    assert "earlier answer" in captured.err
-    assert "Sheltered Morning Walk" in captured.err
+    demo_story.main()
+
+    assert _assert_ready_with_the_waiting_title(repo, capsys) != declined.title
+    assert declined.candidate_key in _muted(repo)
 
 
-def test_an_earlier_no_to_the_nudge_stops_success(
-    admin: FakeSupabaseAdmin,
-    repo: SqlAlchemyRepository,
-    capsys: pytest.CaptureFixture[str],
+def test_an_earlier_no_to_the_nudge_offers_the_next_nudge_and_answers_that(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, capsys: pytest.CaptureFixture[str]
 ) -> None:
     repo.reset(person_id=DEMO_PERSON_ID)
     nudge = repo.advance("activity_declines", "x", person_id=DEMO_PERSON_ID).created_intervention
     repo.record_outcome(nudge.intervention_id, "declined", "senior", person_id=DEMO_PERSON_ID)
 
-    with pytest.raises(SystemExit) as exit_info:
-        demo_story.main()
+    demo_story.main()
 
-    assert exit_info.value.code == 1
-    assert "Day 1 did not offer" in capsys.readouterr().err
+    _assert_ready_with_the_waiting_title(repo, capsys)
+    rows = repo.list_interventions(person_id=DEMO_PERSON_ID)
+    (answered,) = [row for row in rows if row.decision.value == "gentle_nudge"]
+    assert answered.title != nudge.title
+    assert answered.outcome == "deferred"
+
+
+# ── /state after the story ────────────────────────────────────────────────────
+
+
+def _state(client: TestClient, admin: FakeSupabaseAdmin) -> dict:
+    response = client.get(f"/v1/people/{DEMO_PERSON_ID}/state", headers=_headers(admin, "senior"))
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_state_after_the_story_reads_the_recorded_programme_suggestion(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, client: TestClient
+) -> None:
+    demo_story.main()
+
+    state = _state(client, admin)
+
+    assert state["last_decision"] == "programme_suggestion"
+    assert state["decided_by_gate"] == "severity_persistence"
+    assert state["rationale"] == [
+        "Activity is at least 25% below the personal baseline for two valid-wear days.",
+        "A nearby low-barrier programme is permitted.",
+    ]
+
+
+def test_state_after_the_story_then_a_revoked_consent_reads_the_live_suppress(
+    admin: FakeSupabaseAdmin, repo: SqlAlchemyRepository, client: TestClient
+) -> None:
+    demo_story.main()
+    repo.set_consent(False, "Testing a revocation", "tester", person_id=DEMO_PERSON_ID)
+
+    state = _state(client, admin)
+
+    assert state["last_decision"] == "suppress"
+    assert state["decided_by_gate"] == "consent"
+    assert state["rationale"] == ["Consent is inactive; all outreach is blocked."]
 
 
 # ── AC7, AC8: start-up and sign-in off ────────────────────────────────────────
