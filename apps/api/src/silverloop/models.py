@@ -3642,6 +3642,10 @@ class MyGroup(BaseModel):
     senior_name: str
     my_role: GroupRole
     my_status: MemberStatus
+    # Active members only; someone waiting for approval does not count.
+    member_count: int
+    # True on at most one group: the active membership this account opened most recently.
+    last_opened: bool
 
 
 class MeResponse(BaseModel):
@@ -4032,3 +4036,39 @@ class WearableStatus(BaseModel):
     battery_percent: int | None = Field(default=None, ge=0, le=100)
     charging: bool
     source: Literal["synthetic"]
+
+
+# ── The Care+ assistant ──────────────────────────────────────────────────────
+
+
+class AssistantMessage(BaseModel):
+    """One turn of the chat, as the person saw it."""
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class AssistantChatRequest(BaseModel):
+    """The conversation so far (the newest turn last, and it is theirs), which senior it is about,
+    and the page they are on. Only the last 20 turns are sent."""
+
+    messages: list[AssistantMessage] = Field(min_length=1, max_length=20)
+    # Family only: the senior they care for. A senior always talks about themselves.
+    person_id: str | None = Field(default=None, max_length=80)
+    page: str | None = Field(default=None, max_length=60)
+
+    @model_validator(mode="after")
+    def _ends_with_a_question(self) -> AssistantChatRequest:
+        if self.messages[-1].role != "user":
+            raise ValueError("The last message needs to be the person's own.")
+        return self
+
+
+class AssistantReply(BaseModel):
+    """The assistant's answer. `source` says where it came from: `openai`, the built-in `helper`
+    (no AI key, the offline demo, or the AI could not be reached), or a fixed `safety` answer
+    (an emergency or a question about medicines, which never goes to the AI)."""
+
+    reply: str
+    source: Literal["openai", "helper", "safety"]
+    suggestions: list[str] = Field(default_factory=list)

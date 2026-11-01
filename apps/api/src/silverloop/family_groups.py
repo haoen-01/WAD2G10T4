@@ -114,6 +114,17 @@ def senior_name_of(group: CareGroupRow, person: PersonRow | None) -> str:
     return person.display_name if person is not None else group.senior_name
 
 
+def _current_group_id(memberships: list[GroupMemberRow]) -> str | None:
+    """The active membership opened most recently, or None if none has been opened. A pending
+    membership never counts, whatever it holds. The group id settles an exact tie."""
+    opened = [
+        (_aware(member.last_opened_at), member.group_id)
+        for member in memberships
+        if member.status == MemberStatus.ACTIVE.value and member.last_opened_at is not None
+    ]
+    return max(opened)[1] if opened else None
+
+
 _ALREADY_HAS_GROUP = (
     "This senior already has a family group. Ask one of its members for the join PIN."
 )
@@ -161,6 +172,24 @@ class FamilyGroups:
             self.repository.upsert_person_link(sub, person_id, "self_onboarding")
         return self.me(sub, AuthRole(role.value), person_id)
 
+    def provision_family_account(self, sub: str, display_name: str) -> None:
+        """Admin setup only (`setup_demo_accounts`): the row `onboard` writes for a family member,
+        so the account never sees the onboarding prompt. Running it again updates that row."""
+        with self.sessions.begin() as session:
+            account = session.get(AccountRow, sub)
+            if account is None:
+                session.add(
+                    AccountRow(
+                        sub=sub,
+                        role=AccountRole.FAMILY.value,
+                        display_name=display_name,
+                        created_at=_utcnow(),
+                    )
+                )
+            else:
+                account.role = AccountRole.FAMILY.value
+                account.display_name = display_name
+
     def me(self, sub: str, role: AuthRole | None, person_id: str | None) -> MeResponse:
         with self.sessions() as session:
             account = session.get(AccountRow, sub)
@@ -172,11 +201,13 @@ class FamilyGroups:
                 .where(GroupMemberRow.sub == sub)
                 .order_by(GroupMemberRow.created_at)
             ).all()
+            counts = self._active_member_counts(session, [group.group_id for _, group, _ in rows])
             display_name = account.display_name if account else None
             if display_name is None and person_id is not None:
                 person = session.get(PersonRow, person_id)
                 display_name = person.display_name if person else None
         resolved = role or (AuthRole(account.role) if account else None)
+        current_group_id = _current_group_id([member for member, _, _ in rows])
         return MeResponse(
             sub=sub,
             role=resolved,
@@ -190,10 +221,25 @@ class FamilyGroups:
                     senior_name=senior_name_of(group, person),
                     my_role=GroupRole(member.role),
                     my_status=MemberStatus(member.status),
+                    member_count=counts.get(group.group_id, 0),
+                    last_opened=group.group_id == current_group_id,
                 )
                 for member, group, person in rows
             ],
         )
+
+    def _active_member_counts(self, session: Session, group_ids: list[str]) -> dict[str, int]:
+        if not group_ids:
+            return {}
+        rows = session.execute(
+            select(GroupMemberRow.group_id, func.count())
+            .where(
+                GroupMemberRow.group_id.in_(group_ids),
+                GroupMemberRow.status == MemberStatus.ACTIVE.value,
+            )
+            .group_by(GroupMemberRow.group_id)
+        ).all()
+        return {group_id: count for group_id, count in rows}
 
     # ── PINs ──────────────────────────────────────────────────────────────────
 
@@ -360,6 +406,7 @@ class FamilyGroups:
                         created_at=now,
                         approved_by=sub,
                         approved_at=now,
+                        last_opened_at=now,  # a new group becomes the creator's current one
                     )
                 )
                 session.flush()  # the member row first: the feed entry points at it
@@ -491,6 +538,7 @@ class FamilyGroups:
                     if group is not None and group.person_id is not None
                     else None
                 )
+                member_count = self._active_member_counts(session, [group_id]).get(group_id, 0)
         except IntegrityError as exc:
             raise FamilyGroupError(409, "You have already joined this group.") from exc
         return MyGroup(
@@ -499,7 +547,14 @@ class FamilyGroups:
             senior_name=senior_name_of(group, person) if group else "",
             my_role=GroupRole.MEMBER,
             my_status=MemberStatus.PENDING,
+            member_count=member_count,
+            last_opened=False,  # a pending group is never current
         )
+
+    def open_group(self, sub: str, group_id: str) -> None:
+        """Make this group the caller's current one. Not an activity feed event."""
+        with self.sessions.begin() as session:
+            self._require_active_member(session, sub, group_id).last_opened_at = _utcnow()
 
     def _require_active_member(self, session: Session, sub: str, group_id: str) -> GroupMemberRow:
         """The caller's membership. 404, not 403, for anyone who is not an active member: whether

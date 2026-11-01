@@ -142,6 +142,17 @@ class Settings(BaseSettings):
     external_context_timeout_seconds: float = 3.0
     external_context_country: str = "SG"
 
+    # The Care+ assistant (silverloop.assistant): the chat helper on every screen. With no
+    # `openai_api_key`, or under the `offline` profile, it answers from its built-in helper and
+    # makes no outside call. The key is read here, server-side only: it is never sent to the
+    # browser, and must never be put in a `VITE_` variable.
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_timeout_seconds: float = 20.0
+    # Questions one person may ask in 10 minutes, so a stuck key or a loop cannot run up a bill.
+    assistant_rate_per_10_min: int = 30
+
     auth_enabled: bool = True
     supabase_url: str = ""
     supabase_jwt_secret: str = ""  # only for explicitly configured legacy HS256 projects

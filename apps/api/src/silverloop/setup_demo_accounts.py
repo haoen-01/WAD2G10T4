@@ -10,7 +10,13 @@ in the shell) would be difficult to undo.
 
 Reads SUPABASE_URL, SUPABASE_SECRET_KEY, DATABASE_URL from environment.
 Reads demo account passwords from SENIOR_PASSWORD, COORDINATOR_PASSWORD,
-DEMO_OPERATOR_PASSWORD environment variables, or prompts securely if absent.
+DEMO_OPERATOR_PASSWORD, SARAH_PASSWORD, JOHN_PASSWORD, EMILY_PASSWORD, WEIMING_PASSWORD and
+AISHA_PASSWORD environment variables, or prompts securely if absent.
+
+The senior, coordinator and demo-operator accounts keep their role in Supabase `app_metadata`.
+The family accounts are set up the way a family member who signed up is: no role in `app_metadata`
+and a row in `accounts`, which is where the display name `GET /v1/me` returns lives. Family groups
+are not created here. Re-running updates every account instead of adding another.
 
 Never commits or logs passwords. Never places person_id in Supabase user metadata.
 """
@@ -24,9 +30,10 @@ from urllib.parse import urlparse
 
 import httpx
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from silverloop.config import Settings
+from silverloop.family_groups import FamilyGroups
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.sql_repository import SqlAlchemyRepository
 
@@ -52,7 +59,49 @@ _ACCOUNTS = [
         "password_env": "DEMO_OPERATOR_PASSWORD",
         "label": "Demo Operator",
     },
+    {
+        "default_email": "sarah@silverloop.demo",
+        "role": "family",
+        "password_env": "SARAH_PASSWORD",
+        "label": "Family (Sarah)",
+        "display_name": "Sarah",
+    },
+    {
+        "default_email": "john@silverloop.demo",
+        "role": "family",
+        "password_env": "JOHN_PASSWORD",
+        "label": "Family (John)",
+        "display_name": "John",
+    },
+    {
+        "default_email": "emily@silverloop.demo",
+        "role": "family",
+        "password_env": "EMILY_PASSWORD",
+        "label": "Family (Emily)",
+        "display_name": "Emily",
+    },
+    {
+        "default_email": "weiming@silverloop.demo",
+        "role": "family",
+        "password_env": "WEIMING_PASSWORD",
+        "label": "Family (Wei Ming)",
+        "display_name": "Wei Ming",
+    },
+    {
+        "default_email": "aisha@silverloop.demo",
+        "role": "family",
+        "password_env": "AISHA_PASSWORD",
+        "label": "Family (Aisha)",
+        "display_name": "Aisha",
+    },
 ]
+
+
+def _account_email(account: dict[str, str]) -> str:
+    """The fixed address, unless this account has an override and it is filled in. The family
+    accounts have none: an override could point the update path at someone's real account."""
+    override = os.environ.get(account.get("env_key", ""), "")
+    return override if override.strip() else account["default_email"]
 
 
 def _supabase_admin(supabase_url: str, secret_key: str) -> httpx.Client:
@@ -84,16 +133,20 @@ def _find_user_by_email(client: httpx.Client, email: str) -> dict | None:
 
 
 def _upsert_user(client: httpx.Client, email: str, password: str, role: str) -> str:
-    """Create or update a Supabase user and set server-controlled role metadata. Returns sub."""
+    """Create or update a Supabase user and set server-controlled role metadata. Returns sub.
+
+    A family account's role lives in `accounts`, not the token. Supabase merges `app_metadata` on
+    update and a null value removes the key, so a role left over on that user is cleared.
+    """
     existing = _find_user_by_email(client, email)
 
-    app_metadata = {"role": role}
+    is_family = role == "family"
 
     if existing:
         user_id = existing["id"]
         resp = client.put(
             f"/users/{user_id}",
-            json={"password": password, "app_metadata": app_metadata},
+            json={"password": password, "app_metadata": {"role": None if is_family else role}},
         )
         resp.raise_for_status()
         print(f"  Updated: {email} (sub={user_id})")
@@ -104,7 +157,7 @@ def _upsert_user(client: httpx.Client, email: str, password: str, role: str) -> 
             json={
                 "email": email,
                 "password": password,
-                "app_metadata": app_metadata,
+                "app_metadata": {} if is_family else {"role": role},
                 "email_confirm": True,
             },
         )
@@ -157,9 +210,11 @@ def main() -> None:
     try:
         with repo.engine.connect() as conn:
             conn.execute(text("SELECT 1 FROM auth_user_person_links LIMIT 1"))
-    except OperationalError as exc:
+            conn.execute(text("SELECT 1 FROM accounts LIMIT 1"))
+    # SQLite reports a missing table as OperationalError; psycopg as ProgrammingError.
+    except (OperationalError, ProgrammingError) as exc:
         print(
-            "Error: auth_user_person_links table not found. "
+            "Error: auth_user_person_links or accounts table not found. "
             "Run 'alembic upgrade head' (or start the API server) before running this script.",
             file=sys.stderr,
         )
@@ -167,22 +222,27 @@ def main() -> None:
 
     print(f"Target Supabase host: {_supabase_host(supabase_url)}  (APP_ENV={settings.app_env})")
 
+    family = FamilyGroups(repo.sessions, repo)
+
     with _supabase_admin(supabase_url, secret_key) as admin:
         for account in _ACCOUNTS:
-            email = os.environ.get(account["env_key"], account["default_email"])
+            email = _account_email(account)
             password = os.environ.get(account["password_env"], "")
             if not password:
                 password = getpass.getpass(f"Password for {account['label']} ({email}): ")
             if not password:
-                print(f"  Skipping {email} — no password provided.", file=sys.stderr)
+                print(f"  Skipping {email}: no password provided.", file=sys.stderr)
                 continue
 
-            print(f"\nProvisioning {account['label']}…")
+            print(f"\nProvisioning {account['label']}...")
             sub = _upsert_user(admin, email, password, account["role"])
 
             if account["role"] == "senior":
                 repo.upsert_person_link(sub, DEMO_PERSON_ID, "setup_demo_accounts")
-                print(f"  Linked {sub} → person_id={DEMO_PERSON_ID}")
+                print(f"  Linked {sub} -> person_id={DEMO_PERSON_ID}")
+            elif account["role"] == "family":
+                family.provision_family_account(sub, account["display_name"])
+                print(f"  Family account ready: {account['display_name']}")
 
     print("\nSetup complete.")
 

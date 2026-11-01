@@ -8,13 +8,13 @@
       "executor": "nx:run-commands",
       "outputs": ["{projectRoot}/src/generated"],
       "options": {
-        "command": "./scripts/generate-contract.sh"
+        "command": "bash scripts/generate-contract.sh"
       }
     },
     "check": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "./scripts/check-contract.sh"
+        "command": "bash scripts/check-contract.sh"
       }
     },
     "typecheck": {

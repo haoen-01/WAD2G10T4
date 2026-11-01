@@ -8,7 +8,8 @@
     "pnpm": ">=11 <12"
   },
   "scripts": {
-    "setup": "./scripts/bootstrap.sh",
+    "setup": "bash scripts/bootstrap.sh",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "dev": "nx run-many -t dev --projects=web,api --parallel=2",
     "dev:web": "nx run web:dev",
     "dev:api": "nx run api:dev",
@@ -27,11 +28,12 @@
     "client:check": "nx run api-client:check",
     "seed": "nx run api:seed",
     "demo:reset": "nx run api:demo-reset",
+    "demo:story": "nx run api:demo-story",
     "demo:smoke": "nx run api:demo-smoke",
     "demo:supabase-smoke": "nx run api:supabase-smoke",
     "demo:offline": "node scripts/demo-offline.mjs",
     "affected": "nx affected -t lint,typecheck,test",
-    "verify": "./scripts/verify.sh"
+    "verify": "bash scripts/verify.sh"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",

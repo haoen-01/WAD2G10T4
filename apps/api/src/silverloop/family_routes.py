@@ -196,6 +196,22 @@ def register_family_routes(application: FastAPI) -> None:
         return _call(lambda: family.group(current_user.sub, group_id))
 
     @application.post(
+        "/v1/groups/{group_id}/open",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["family"],
+        responses={401: {}, 404: {}},
+    )
+    def open_group(request: Request, group_id: str, identity: SignedIn) -> Response:
+        """Make this the caller's current group, as `last_opened` on `GET /v1/me` reports. Active
+        members only: anyone else, a senior included, gets 404, so `SignedIn` rather than
+        `Family`, whose 403 would answer a senior differently. Adds nothing to the family feed."""
+        if identity.role is AuthRole.SENIOR:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Group not found")
+        family = _family(request)
+        _call(lambda: family.open_group(identity.sub, group_id))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @application.post(
         "/v1/groups/{group_id}/link-senior",
         response_model=CareGroup,
         tags=["family"],

@@ -29,6 +29,26 @@ async function monthSettled(page: Page) {
 }
 
 /**
+ * Waits until the page has stopped scrolling: the app scrolls smoothly, which takes a few hundred
+ * milliseconds, so the position must hold for several frames in a row.
+ */
+async function scrollSettled(page: Page) {
+  await page.waitForFunction(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const y = window.scrollY;
+        let frames = 0;
+        const check = () => {
+          if (window.scrollY !== y) return resolve(false);
+          if (++frames >= 10) return resolve(true);
+          requestAnimationFrame(check);
+        };
+        requestAnimationFrame(check);
+      }),
+  );
+}
+
+/**
  * The first `count` days an appointment can go on, read from the calendar on screen rather than
  * worked out here: days in the month shown that are today or later, as the page drew them from what
  * the API returned. In the last days of a month there may be too few left, so it turns to the next
@@ -261,6 +281,13 @@ test('a one-off appointment can be dragged to another day, and edited', async ({
   await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Added Haircut' })).toBeVisible();
   await monthSettled(page);
+  // Adding it scrolls the day's list under the calendar into view, which takes a day early in the
+  // month off the top of the screen: bring the day back, as a person would, before dragging.
+  await scrollSettled(page);
+  await page
+    .locator(`[data-iso="${fromDay}"]`)
+    .evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
+  await scrollSettled(page);
 
   const chip = page.locator('[data-appt]').filter({ hasText: 'Haircut' });
   const from = await chip.boundingBox();

@@ -4,6 +4,7 @@ import { defineComponent, type PropType } from 'vue';
 
 import ActivityChart from '@/components/home/ActivityChart.vue';
 import BasePanel from '@/components/ui/BasePanel.vue';
+import { isSampleSource } from '@/lib/reading-days';
 
 /**
  * "The last two weeks": the step chart, or what to show while it loads, when it failed (with a
@@ -24,11 +25,21 @@ export default defineComponent({
   },
 
   emits: ['retry'],
+
+  computed: {
+    /** Sample readings say so: their days are simulated, not real dates. */
+    sample(): boolean {
+      return (this.history ?? []).some((day) => isSampleSource(day.source));
+    },
+  },
 });
 </script>
 
 <template>
   <BasePanel title="The last two weeks">
+    <template v-if="sample" #actions>
+      <span class="badge text-bg-secondary" data-testid="fortnight-sample">Sample</span>
+    </template>
     <ActivityChart v-if="history && history.length" :days="history" :usual="usual" />
     <p v-else-if="failed" class="text-body-secondary mb-0">
       Her recent days could not be loaded.

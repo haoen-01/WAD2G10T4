@@ -53,4 +53,4 @@ $$;
 
 update public.alembic_version
 set version_num = 'a7d4c2e9f1b3'
-where version_num = 'f3a9c1e7b254';
+where version_num = 'c1e5a8f2d640';

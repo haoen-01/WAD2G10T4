@@ -23,9 +23,13 @@ language model can open one.
 **Suggestion (intervention).** The message a senior sees on the Senior screen when the decision is a
 nudge or a programme suggestion.
 
-**Outcome.** How the senior answered a suggestion: _accepted_ ("show me more", not proof it helped),
-_declined_, _deferred_ ("maybe later") or _no response_. Outcomes adapt which permitted suggestion is
-offered next; they never change what is permitted.
+**Outcome.** How the senior answered a suggestion: _accepted_ ("Yes, I'd like that", not proof it
+helped), _declined_ ("Not for me"), _deferred_ ("Maybe later") or _no response_. Accepted, declined
+and no response change how permitted suggestions are ranked; deferred does not. Three declines of one
+suggestion mute it until the senior lifts the mute. A decline given as a bad day or already being
+active counts towards neither, unless that reason was added later to a plain decline, which still
+counts towards the mute. A mute only removes that suggestion from the options; no outcome can open a
+gate or add to what is permitted.
 
 **Contact cap.** The limit on how many suggestions a senior is sent in a week. After a senior accepts
 one, they also get 3 days of quiet.

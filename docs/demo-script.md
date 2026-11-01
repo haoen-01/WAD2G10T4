@@ -13,6 +13,28 @@ Open <http://127.0.0.1:3000>. The home page should say **Backend connected**. Ev
 synthetic data for one demo person, Mdm Lim. To start again at any point, run `pnpm demo:reset` in
 a terminal (or send `POST /v1/demo/reset` from the API docs used below).
 
+### The signed-in demo on shared Supabase
+
+The offline demo above needs nothing else. For the signed-in app, run this on the morning of the
+demo and before each rehearsal, because appointments are dated from the day it runs:
+
+```bash
+pnpm demo:story
+```
+
+Mdm Lim then has one programme suggestion waiting, with the earlier nudge answered **Maybe later**.
+The command prints the suggestion's title; check it each time, because it can change between runs.
+`sarah` lands on Mdm Lim's group with `john` and `emily`, and also has Mr Tan's made-up group with
+`weiming` and `aisha`. It needs the logins from `setup_demo_accounts`; see
+[Demo story](supabase.md#demo-story) for what it does and when it refuses to finish.
+
+Her answers stay across runs. **Yes, I'd like that** and **Not for me** shape future ranking, and so
+does a suggestion nobody answers, which closes as `no_response` once its reply window passes.
+**Maybe later** is recorded but moves the ranking by nothing. So a rehearsal can change which
+suggestion the next run offers, and three **Not for me** answers to one suggestion stop it being
+offered at all. Nothing is wrong when that happens. The command stops with an error if no programme
+suggestion is left to offer.
+
 ## Act 1: a day goes by (about 60 s)
 
 There is no Simulator screen any more; a day is advanced straight through the API, which is exactly

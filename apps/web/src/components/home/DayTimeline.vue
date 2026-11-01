@@ -20,7 +20,9 @@ import {
   hasHappened,
   isUnderway,
   minutesToLabel,
+  marksUnderLabel,
   momentInZone,
+  nowLabelTransform,
   positionOf,
   sortMoments,
 } from '@/lib/day-timeline';
@@ -170,6 +172,9 @@ const showNow = computed(
   () => isToday.value && nowMinute.value >= range.value.from && nowMinute.value <= range.value.to,
 );
 const nowAt = computed(() => `${positionOf(nowMinute.value, range.value) * 100}%`);
+const nowLabelStyle = computed(() => ({
+  transform: nowLabelTransform(positionOf(nowMinute.value, range.value)),
+}));
 const passedWidth = computed(() => (isToday.value ? nowAt.value : isPast.value ? '100%' : '0%'));
 
 // ---- Hour marks along the top: every 2 hours (every 3 on a phone, via CSS) ----
@@ -193,6 +198,31 @@ const hours = computed(() => {
   }
   return marks;
 });
+
+// ---- An hour mark the Now label sits on is hidden whole, so no letter of it peeks out ----
+// Measured, because the widths depend on the zoom and the font.
+const track = ref<HTMLElement | null>(null);
+const nowLabel = ref<HTMLElement | null>(null);
+const coveredHours = ref<ReadonlySet<number>>(new Set());
+function measureCoveredHours() {
+  const label = nowLabel.value?.getBoundingClientRect();
+  const elements = track.value?.querySelectorAll<HTMLElement>('.timeline-hour') ?? [];
+  const marks = [...elements].map((element, index) => {
+    const box = element.getBoundingClientRect();
+    return { key: hours.value[index]?.minute ?? -1, left: box.left, right: box.right };
+  });
+  coveredHours.value = new Set(label ? marksUnderLabel(label, marks) : []);
+}
+watch([hours, nowMinute, showNow], measureCoveredHours, { flush: 'post' });
+let resizeWatcher: ResizeObserver | undefined;
+watch(
+  nowLabel,
+  (label, previous) => {
+    if (previous) resizeWatcher?.unobserve(previous);
+    if (label) resizeWatcher?.observe(label);
+  },
+  { flush: 'post' },
+);
 
 const LANES: { lane: TimelineLane; label: string }[] = [
   { lane: 'appointment', label: 'Appointments' },
@@ -287,11 +317,19 @@ onMounted(() => {
   timer = setInterval(() => void sync(), 30_000);
   document.addEventListener('visibilitychange', onVisible);
   window.addEventListener('focus', onVisible);
+  measureCoveredHours();
+  void document.fonts?.ready.then(measureCoveredHours);
+  // The track changes width with the window and with the app's zoom.
+  resizeWatcher = new ResizeObserver(measureCoveredHours);
+  if (track.value) resizeWatcher.observe(track.value);
+  // The label grows with the zoom even where the track keeps its width.
+  if (nowLabel.value) resizeWatcher.observe(nowLabel.value);
 });
 onBeforeUnmount(() => {
   clearInterval(timer);
   document.removeEventListener('visibilitychange', onVisible);
   window.removeEventListener('focus', onVisible);
+  resizeWatcher?.disconnect();
 });
 
 const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
@@ -364,14 +402,17 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
         }}</span>
       </div>
 
-      <div class="timeline-track">
+      <div ref="track" class="timeline-track">
         <div class="timeline-hours" aria-hidden="true">
           <span
             v-for="mark in hours"
             :key="mark.minute"
             class="timeline-hour"
             :class="{ minor: mark.minor }"
-            :style="{ left: mark.at }"
+            :style="{
+              left: mark.at,
+              visibility: coveredHours.has(mark.minute) ? 'hidden' : undefined,
+            }"
             >{{ mark.label }}</span
           >
         </div>
@@ -444,7 +485,9 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
         </div>
 
         <div v-if="showNow" class="timeline-now" :style="{ left: nowAt }" aria-hidden="true">
-          <span class="timeline-now-label">Now · {{ minutesToLabel(nowMinute) }}</span>
+          <span ref="nowLabel" class="timeline-now-label" :style="nowLabelStyle"
+            >Now · {{ minutesToLabel(nowMinute) }}</span
+          >
         </div>
       </div>
     </div>
@@ -638,6 +681,7 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
 
 .timeline-days {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.15rem;
 }
@@ -646,7 +690,7 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 6.5rem;
+  min-width: 6rem;
   line-height: 1.15;
   text-align: center;
 }
@@ -854,7 +898,6 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   font-size: 0.72rem;
   font-weight: 800;
   white-space: nowrap;
-  transform: translateX(-50%);
 }
 
 /* ---- Details ---- */
@@ -943,7 +986,8 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
 
 .record-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  /* A column never wider than the list, however large the zoom makes 16rem. */
+  grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr));
   gap: 0.4rem 1rem;
   margin: 0;
   padding: 0;
@@ -954,7 +998,9 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   display: flex;
   align-items: flex-start;
   gap: 0.45rem;
+  min-width: 0;
   font-size: 0.92rem;
+  overflow-wrap: anywhere;
 }
 
 .record-item > .sl-icon {

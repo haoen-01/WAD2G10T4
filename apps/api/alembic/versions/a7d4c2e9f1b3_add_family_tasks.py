@@ -1,7 +1,7 @@
 """add family tasks
 
 Revision ID: a7d4c2e9f1b3
-Revises: f3a9c1e7b254
+Revises: c1e5a8f2d640
 Create Date: 2026-10-29
 
 `tasks` and `task_ticks` (`silverloop.family_tasks`) move the senior's shared reminder list out of
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "a7d4c2e9f1b3"
-down_revision: str | None = "f3a9c1e7b254"
+down_revision: str | None = "c1e5a8f2d640"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -58,7 +58,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_task_ticks_group_id"), "task_ticks", ["group_id"])
     op.create_index(op.f("ix_task_ticks_task_id"), "task_ticks", ["task_id"])
-    # RLS and the deny posture: infra/supabase/migrations/202610290026_family_tasks.sql.
+    # RLS and the deny posture: infra/supabase/migrations/202610300027_family_tasks.sql.
 
 
 def downgrade() -> None:

@@ -2338,7 +2338,62 @@ class SqlAlchemyRepository:
 
     def person_state(self, *, person_id: str = DEMO_PERSON_ID) -> PersonState:
         with self.sessions() as session:
-            return self._person_state(session, self._active_run(session, person_id))
+            return self._reported_person_state(session, self._active_run(session, person_id))
+
+    def _reported_person_state(self, session: Session, run: ScenarioRunRow) -> PersonState:
+        """The state the person's own reads report: `_person_state`, minus one read-time artefact.
+
+        Display only. `advance` and every gate read `_evaluate` directly and never come here.
+
+        The weekly contact count includes the intervention the current day's own decision created,
+        so re-running the ladder after the day's second offer reads `SUPPRESS` from `CONTACT_CAP`
+        although that offer was sent (`_with_recorded_decision` describes the same artefact on the
+        care-priority board). So when the live result comes from `CONTACT_CAP`, and only then, the
+        decision recorded for the current day is reported, with its own reasons. Every other gate
+        sits above the contact guard and still wins live.
+
+        Two cases keep the live result. A recorded `SUPPRESS`: the cap really held that day, or
+        nothing was sent. And a running acceptance cooldown, which `_contact_guard` checks after
+        the cap and so cannot name here: the person has since taken a suggestion up, and that hold
+        must not be overwritten.
+
+        `pending_question` stays the live one, never re-derived from the reported decision: an
+        answer feeds the ladder, so `answer_context_question` accepts only what the live state
+        offers. `_evaluate`'s call to `question_for` is the one test both paths read.
+        """
+        reads = self._run_reads(session, run)
+        state = self._person_state(session, run, reads)
+        if state.decided_by_gate != PolicyGate.CONTACT_CAP:
+            return state
+        days_since_accepted = reads.days_since_last_accepted(state.current_day)
+        if (
+            days_since_accepted is not None
+            and days_since_accepted < ACCEPTED_OUTREACH_COOLDOWN_DAYS
+        ):
+            return state
+        day_start = datetime.combine(state.current_day, time.min, tzinfo=UTC)
+        recorded = session.scalar(
+            select(DecisionEvidenceRow)
+            .where(
+                DecisionEvidenceRow.run_id == run.run_id,
+                DecisionEvidenceRow.observed_at >= day_start,
+                DecisionEvidenceRow.observed_at < day_start + timedelta(days=1),
+            )
+            .order_by(
+                DecisionEvidenceRow.recorded_at.desc(), DecisionEvidenceRow.evidence_id.desc()
+            )
+            .limit(1)
+        )
+        if recorded is None or recorded.decision == Decision.SUPPRESS.value:
+            return state
+        return self._with_recorded_decision(state, recorded.decision).model_copy(
+            update={
+                "rationale": list(recorded.reasons_json),
+                # The contact guard only runs inside the severity rung, and a recorded downgrade
+                # to `NO_ACTION` keeps that rung, as `_resolve_decision_state` leaves it.
+                "decided_by_gate": PolicyGate.SEVERITY_PERSISTENCE,
+            }
+        )
 
     def daily_metrics(
         self, *, person_id: str = DEMO_PERSON_ID, days: int = 14
@@ -4463,7 +4518,7 @@ class SqlAlchemyRepository:
         `list_interventions`, exactly."""
         with self.sessions() as session:
             run = self._active_run(session, person_id)
-            state = self._person_state(session, run)
+            state = self._reported_person_state(session, run)
             newest = session.execute(
                 select(InterventionRow, DecisionEvidenceRow.observed_at)
                 .select_from(InterventionRow)

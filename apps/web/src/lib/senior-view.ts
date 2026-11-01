@@ -6,7 +6,7 @@
 import { compareWords, percentOfUsual } from './activity';
 import { addDays } from './calendar';
 
-export const TABS = ['today', 'calendar', 'family'] as const;
+export const TABS = ['today', 'calendar', 'badges', 'family'] as const;
 export type SeniorTab = (typeof TABS)[number];
 export const TAB_KEY = 'careplus.seniorTab.v1';
 

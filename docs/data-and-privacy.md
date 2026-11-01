@@ -34,3 +34,13 @@ Consent gates proactive outreach and inferred preference learning; it does not g
 search, an explicit preference statement, the underlying signal analysis, or the ambient weather
 fetch -- those are separate scopes and are, by decision, always permitted. See
 `docs/adr/0001-consent-scope-model.md` for the full model and what is deferred.
+
+## The Care+ assistant (Kaki)
+
+When `OPENAI_API_KEY` is set (never in the offline profile), each question to the assistant is sent
+by the API to OpenAI with the last few turns of the chat and a short summary of what that person can
+already see: the senior's name, recent daily steps and a usual day, and appointments in the next two
+weeks. Emergencies and questions about medicines are answered by fixed text and never sent. The
+conversation is not stored by Care+, and the API logs only which source answered. Voice typing uses
+the browser's own speech recognition, which in most browsers sends the recording to Google or Apple;
+it asks first. See `docs/adr/0013-care-plus-assistant.md` and `docs/assistant.md`.
