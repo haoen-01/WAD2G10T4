@@ -31,6 +31,11 @@ defineProps<{
 }>();
 
 defineEmits<{ volunteer: [appointment: Appointment] }>();
+
+// "12:00 pm" stays on one line: the time and its am/pm never split, now the buttons beside it leave
+// the line less room. Display only; screen readers read the same words.
+const whenText = (date: string, start: string, end?: string | null) =>
+  visitWhen(date, start, end).replace(/ (am|pm)\b/g, '\u00a0$1');
 </script>
 
 <template>
@@ -73,7 +78,7 @@ defineEmits<{ volunteer: [appointment: Appointment] }>();
           >
             <span class="needs-title">{{ item.title }}</span>
             <span class="needs-when">
-              <Icon name="clock" class="me-1" />{{ visitWhen(item.date, item.start, item.end) }}
+              <Icon name="clock" class="me-1" />{{ whenText(item.date, item.start, item.end) }}
             </span>
             <AskedTag
               v-if="openAskOf(item.id)"

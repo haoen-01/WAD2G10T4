@@ -8,6 +8,7 @@ import Icon from '@/components/ui/Icon.vue';
 import { useAction } from '@/composables/useAction';
 import { loadMe, useMe } from '@/composables/useMe';
 import { showToast } from '@/composables/useToast';
+import { badgeText, groupUnreadLabel } from '@/lib/asks';
 import { RELATIONSHIPS } from '@/lib/family';
 import { createGroup, joinGroup } from '@/services/careApi';
 
@@ -18,7 +19,7 @@ import { createGroup, joinGroup } from '@/services/careApi';
  * they are an active member of a group.
  */
 const router = useRouter();
-const { me, currentGroup, pendingGroups } = useMe();
+const { me, currentGroup, pendingGroups, activeGroups, selectGroup } = useMe();
 const join = useAction();
 const create = useAction();
 const checking = useAction();
@@ -35,7 +36,14 @@ const createRelId = useId();
 
 const hasGroup = computed(() => currentGroup.value !== null);
 
-onMounted(() => void checking.run(async () => void (await loadMe())));
+// Read afresh, so each group card's unread badge is current (the bell may have marked some read).
+onMounted(() => void checking.run(async () => void (await loadMe(true))));
+
+/** Open a group from its card: it becomes the current group, and Home shows it. */
+async function openGroup(groupId: string) {
+  selectGroup(groupId);
+  await router.push('/');
+}
 
 function choose(next: 'join' | 'create' | null) {
   choice.value = next;
@@ -102,6 +110,39 @@ function checkAgain() {
       >
         Check again
       </button>
+    </section>
+
+    <!-- The groups this account is in, each with its unread notifications as a badge. -->
+    <section v-if="activeGroups.length" class="mb-4" aria-labelledby="my-groups-title">
+      <h2 id="my-groups-title" class="h5 mb-3">Your family groups</h2>
+      <ul class="list-unstyled d-grid gap-2 mb-0">
+        <li
+          v-for="group in activeGroups"
+          :key="group.group_id"
+          class="sl-panel group-card d-flex align-items-center gap-3"
+          data-testid="group-card"
+        >
+          <span class="choice-icon"><Icon name="users" /></span>
+          <span class="me-auto">
+            <strong class="d-block">{{ group.senior_name }}</strong>
+            <span class="sl-note"
+              >{{ group.member_count }} {{ group.member_count === 1 ? 'member' : 'members' }}</span
+            >
+          </span>
+          <span v-if="group.unread_count > 0" class="group-unread" data-testid="group-unread"
+            ><span aria-hidden="true">{{ badgeText(group.unread_count) }}</span
+            ><span class="visually-hidden">{{ groupUnreadLabel(group.unread_count) }}</span></span
+          >
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            :aria-label="`Open ${group.senior_name}’s family group`"
+            @click="openGroup(group.group_id)"
+          >
+            Open
+          </button>
+        </li>
+      </ul>
     </section>
 
     <!-- Step 1: two big, separate choices. -->
@@ -218,6 +259,26 @@ function checkAgain() {
 </template>
 
 <style scoped>
+/* A group card: compact, so several fit above the join and create choices. */
+.group-card {
+  padding: 0.75rem 1rem;
+}
+
+/* The unread badge, in the bell's style (coral, white ring). Its label says the count in words. */
+.group-unread {
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--sl-coral);
+  box-shadow: 0 0 0 2px var(--sl-surface);
+  color: var(--sl-coral-on);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.5rem;
+  text-align: center;
+}
+
 .steps {
   padding-left: 1.25rem;
 }

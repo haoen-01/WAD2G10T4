@@ -1933,6 +1933,9 @@ class MyGroup(BaseModel):
     member_count: int
     # True on at most one group: the active membership this account opened most recently.
     last_opened: bool
+    # This member's unread notifications in this group, for a badge on its group card. The bell
+    # counts across every group; this is the same count split by group. 0 while pending.
+    unread_count: int
 
 
 class MeResponse(BaseModel):

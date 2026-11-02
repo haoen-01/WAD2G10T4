@@ -822,6 +822,67 @@ def test_the_appointment_is_locked_before_asks_are_read_or_ended(
         assert locks[:1] == [True]
 
 
+@pytest.mark.parametrize(
+    ("action", "sub_key"),
+    [("accept", "asked"), ("decline", "asked"), ("withdraw", "asker")],
+)
+def test_answering_an_ask_locks_the_appointment_before_any_ask_is_lapsed_or_ended(
+    client: TestClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+    action: str,
+    sub_key: str,
+) -> None:
+    """Accepting, declining and withdrawing keep the same lock order as asking, "I'll go", editing
+    and deleting: the appointment `FOR UPDATE` first, then `lapse_due`, then the ask's own
+    compare-and-set. Ending the ask first deadlocked against "I'll go" and delete on PostgreSQL
+    (the helper rows' foreign key locks the appointment)."""
+    group_id, ids, occurrence = _setup(client)
+    ask = _open_ask(client, group_id, occurrence, ids[B])
+    events: list[str] = []
+    real_appointment = FamilyCalendarStore._appointment
+    real_lapse = family_asks.lapse_due
+    real_end = family_asks._end
+
+    def appointment_spy(session, group_id, appointment_id, *, lock=False):  # noqa: ANN001, ANN202
+        events.append("lock" if lock else "read")
+        return real_appointment(session, group_id, appointment_id, lock=lock)
+
+    def lapse_spy(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        events.append("lapse")
+        return real_lapse(*args, **kwargs)
+
+    def end_spy(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        events.append("end")
+        return real_end(*args, **kwargs)
+
+    monkeypatch.setattr(FamilyCalendarStore, "_appointment", staticmethod(appointment_spy))
+    monkeypatch.setattr(family_asks, "lapse_due", lapse_spy)
+    monkeypatch.setattr(family_asks, "_end", end_spy)
+
+    sub = B if sub_key == "asked" else OWNER
+    response = _act(client, group_id, ask["ask_id"], action, sub)
+    assert response.status_code in (200, 204), response.text
+    assert events[0] == "lock", events
+    assert events.index("lock") < events.index("lapse") < events.index("end"), events
+
+
+def test_answering_an_ask_whose_appointment_was_deleted_is_409(
+    client: TestClient,  # noqa: F811
+) -> None:
+    """With the appointment gone there is nothing to lock; its asks were withdrawn with it, so
+    answering is the same 409 as before (never a 404 or a 500)."""
+    group_id, ids, occurrence = _setup(client)
+    ask = _open_ask(client, group_id, occurrence, ids[B])
+    appointment_id = occurrence.split("@")[0]
+    deleted = client.post(
+        f"/v1/groups/{group_id}/appointments/{appointment_id}/delete", headers=_headers(OWNER)
+    )
+    assert deleted.status_code in (200, 204), deleted.text
+    for action, sub in (("accept", B), ("decline", B), ("withdraw", OWNER)):
+        response = _act(client, group_id, ask["ask_id"], action, sub)
+        assert response.status_code == 409, (action, response.text)
+
+
 def _repeating(client: TestClient, group_id: str, first: date) -> str:  # noqa: F811
     return _appointment(
         client,
@@ -1266,3 +1327,52 @@ def test_nothing_on_the_decision_path_imports_asks() -> None:
         assert files
         for path in files:
             assert not any("family_asks" in name for name in _imports(path)), path
+
+
+# ── Unread notifications per group (`MyGroup.unread_count` in `GET /v1/me`) ──────
+
+
+def _unread_by_group(client: TestClient, sub: str) -> dict[str, int]:  # noqa: F811
+    response = client.get("/v1/me", headers=_headers(sub))
+    assert response.status_code == 200, response.text
+    return {group["group_id"]: group["unread_count"] for group in response.json()["groups"]}
+
+
+def test_an_ask_counts_as_unread_only_in_the_asked_members_group_until_the_bell_is_read(
+    client: TestClient,  # noqa: F811
+) -> None:
+    group_id, ids, occurrence = _setup(client)
+    # Jun is also in a second family group, for another senior.
+    _onboard(client, "senior-2", "senior", "Mr Lee")
+    pin = client.post("/v1/me/link-pin", headers=_headers("senior-2")).json()["pin"]
+    other = client.post(
+        "/v1/groups", json={"senior_pin": pin, "relationship": "Son"}, headers=_headers(B)
+    )
+    assert other.status_code == 201, other.text
+    other_id = other.json()["group_id"]
+    assert _unread_by_group(client, B) == {group_id: 0, other_id: 0}
+
+    _open_ask(client, group_id, occurrence, ids[B])
+
+    assert _unread_by_group(client, B) == {group_id: 1, other_id: 0}
+    # Nobody else's count moves: the asker is not told of their own ask, Kai is not told at all.
+    assert _unread_by_group(client, OWNER) == {group_id: 0}
+    assert _unread_by_group(client, C) == {group_id: 0}
+
+    # Opening the bell marks everything read, and the group's count follows.
+    read = client.post("/v1/me/notifications/read", json={"all": True}, headers=_headers(B))
+    assert read.status_code in (200, 204), read.text
+    assert _unread_by_group(client, B) == {group_id: 0, other_id: 0}
+
+
+def test_a_pending_membership_has_no_unread_count(client: TestClient) -> None:  # noqa: F811
+    group_id = _group_with_owner(client)
+    _onboard(client, C, "family", "Kai")
+    joined = client.post(
+        "/v1/groups/join",
+        json={"pin": _join_pin(client, group_id), "relationship": "Nephew"},
+        headers=_headers(C),
+    )
+    assert joined.status_code in (200, 201), joined.text
+    assert joined.json()["unread_count"] == 0
+    assert _unread_by_group(client, C) == {group_id: 0}

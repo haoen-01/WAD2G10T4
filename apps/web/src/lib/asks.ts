@@ -261,3 +261,12 @@ export function badgeText(unread: number): string {
   if (unread <= 0) return '';
   return unread > 9 ? '9+' : String(unread);
 }
+
+/**
+ * The accessible name of the unread badge on a group card ("3 unread"), from that group's
+ * `MyGroup.unread_count`. Empty at 0: the card shows no badge then. The badge itself shows
+ * `badgeText`, as the bell does.
+ */
+export function groupUnreadLabel(unread: number): string {
+  return unread > 0 ? `${unread} unread` : '';
+}

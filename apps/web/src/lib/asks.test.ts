@@ -11,6 +11,7 @@ import {
   askedCount,
   badgeText,
   bellLabel,
+  groupUnreadLabel,
   canAnswer,
   canStillAsk,
   markPageRead,
@@ -298,5 +299,11 @@ describe('the unread count', () => {
     assert.equal(badgeText(0), '');
     assert.equal(badgeText(3), '3');
     assert.equal(badgeText(12), '9+');
+  });
+
+  it('labels the unread badge on a group card, and has none at 0', () => {
+    assert.equal(groupUnreadLabel(0), '');
+    assert.equal(groupUnreadLabel(1), '1 unread');
+    assert.equal(groupUnreadLabel(12), '12 unread');
   });
 });

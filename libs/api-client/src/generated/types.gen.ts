@@ -1285,6 +1285,10 @@ export type MyGroup = {
      * Last Opened
      */
     last_opened: boolean;
+    /**
+     * Unread Count
+     */
+    unread_count: number;
 };
 
 /**

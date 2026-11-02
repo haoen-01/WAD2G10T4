@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import threading
+import time
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -13,7 +16,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError
 
 from alembic import command
-from silverloop import demo_story
+from silverloop import demo_story, family_asks
 from silverloop.config import Settings
 from silverloop.db_models import (
     ActivityCandidateRow,
@@ -29,7 +32,14 @@ from silverloop.db_models import (
     HelperAssignmentRow,
 )
 from silverloop.family_calendar import FamilyCalendarStore
-from silverloop.family_groups import DEMO_FAMILY, DEMO_FAMILY_SUB, FamilyGroups
+from silverloop.family_groups import (
+    DEMO_EMILY_SUB,
+    DEMO_FAMILY,
+    DEMO_FAMILY_SUB,
+    DEMO_JOHN_SUB,
+    FamilyGroupError,
+    FamilyGroups,
+)
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.local_time import local_date
 from silverloop.migrations import apply_rls_posture, upgrade_database
@@ -38,6 +48,7 @@ from silverloop.models import (
     AppointmentRequest,
     CheckInKind,
     CheckInRequest,
+    HelperAskRequest,
 )
 from silverloop.schema_revision import expected_database_revision
 from silverloop.sql_repository import SqlAlchemyRepository, _sync_database_url
@@ -1213,5 +1224,129 @@ def test_postgres_demo_reset_removes_unlinked_demo_groups_children_first() -> No
         assert left == 0
         first = groups.me(DEMO_FAMILY_SUB, None, None).groups[0]
         assert first.person_id == DEMO_PERSON_ID
+    finally:
+        repository.close()
+
+
+def _race(
+    monkeypatch: pytest.MonkeyPatch,
+    hold_after: str,
+    first: Callable[[], object],
+    second: Callable[[], object],
+) -> dict[str, object]:
+    """Run `first` in a thread, hold it just after `family_asks.<hold_after>` returns (so it holds
+    its locks), start `second` and give it time to reach the appointment lock, then let `first`
+    finish. Returns each side's outcome: "ok", the `FamilyGroupError` status, or the exception."""
+    paused = threading.Event()
+    release = threading.Event()
+    real = getattr(family_asks, hold_after)
+
+    def held(*args: object, **kwargs: object) -> object:
+        result = real(*args, **kwargs)
+        if threading.current_thread().name == "first":
+            paused.set()
+            release.wait(10)
+        return result
+
+    outcomes: dict[str, object] = {}
+
+    def run(name: str, call: Callable[[], object]) -> None:
+        try:
+            call()
+            outcomes[name] = "ok"
+        except FamilyGroupError as exc:
+            outcomes[name] = exc.status_code
+        except Exception as exc:  # noqa: BLE001 - a deadlock or other database error is the bug
+            outcomes[name] = exc
+
+    with monkeypatch.context() as patch:
+        patch.setattr(family_asks, hold_after, held)
+        one = threading.Thread(target=run, args=("first", first), name="first")
+        one.start()
+        assert paused.wait(10), "the first request never reached the hold point"
+        two = threading.Thread(target=run, args=("second", second), name="second")
+        two.start()
+        time.sleep(0.75)  # long enough for the second request to block on the appointment
+        release.set()
+        one.join(20)
+        two.join(20)
+    assert not one.is_alive() and not two.is_alive(), outcomes
+    return outcomes
+
+
+def test_postgres_accepting_an_ask_never_deadlocks_with_ill_go_or_a_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Accepting an ask used to end the ask before touching the appointment, then add the helper,
+    whose foreign key locks the appointment. "I'll go" and deleting lock the appointment first and
+    then end the ask: a lock cycle, so PostgreSQL aborted one side with a deadlock (a 500). Now
+    every path locks the appointment first, so whichever comes second waits and then sees the
+    first one's result: it succeeds, or gets the clean 409. Never a 500 or a database error."""
+    database_url = dedicated_postgres_test_url()
+    upgrade_database(database_url)
+    repository = SqlAlchemyRepository(database_url)
+    try:
+        repository.reset()
+        groups = FamilyGroups(repository.sessions, repository)
+        calendar = FamilyCalendarStore(repository.sessions)
+        demo_members = {sub: relationship for sub, (_, relationship) in DEMO_FAMILY.items()}
+        groups.ensure_demo_group()
+        calendar.reset_demo(DEMO_PERSON_ID, date.today(), demo_members)
+        group_id = groups.me(DEMO_FAMILY_SUB, None, None).groups[0].group_id
+        emily = next(
+            member.member_id
+            for member in groups.group(DEMO_EMILY_SUB, group_id).members
+            if member.is_me
+        )
+
+        def asked_day(offset: int) -> tuple[str, str]:
+            """A new appointment `offset` days ahead, and Sarah's ask to Emily for it."""
+            day = local_date(datetime.now(UTC)) + timedelta(days=offset)
+            appointment = calendar.create_appointment(
+                DEMO_FAMILY_SUB,
+                group_id,
+                AppointmentRequest(
+                    title=f"Race {offset}", kind="medical", date=day, start="09:00", end="10:00"
+                ),
+            )
+            occurrence = f"{appointment.appointment_id}@{day.isoformat()}"
+            ask = calendar.create_ask(
+                DEMO_FAMILY_SUB,
+                group_id,
+                HelperAskRequest(occurrence_id=occurrence, asked_member_id=emily),
+            )
+            return occurrence, ask.ask_id
+
+        def accept(ask_id: str) -> Callable[[], object]:
+            return lambda: calendar.accept_ask(DEMO_EMILY_SUB, group_id, ask_id)
+
+        def ill_go(occurrence: str) -> Callable[[], object]:
+            return lambda: calendar.volunteer(DEMO_JOHN_SUB, group_id, occurrence)
+
+        def delete(occurrence: str) -> Callable[[], object]:
+            appointment_id = occurrence.split("@")[0]
+            return lambda: calendar.delete_appointment(DEMO_FAMILY_SUB, group_id, appointment_id)
+
+        # Accept holds the appointment; John's "I'll go" waits, then joins as a second helper.
+        occurrence, ask_id = asked_day(5)
+        outcomes = _race(monkeypatch, "accept", accept(ask_id), ill_go(occurrence))
+        assert outcomes == {"first": "ok", "second": "ok"}, outcomes
+
+        # "I'll go" holds the appointment and closes the ask; accepting then finds it ended.
+        occurrence, ask_id = asked_day(6)
+        outcomes = _race(monkeypatch, "on_volunteer", ill_go(occurrence), accept(ask_id))
+        assert outcomes == {"first": "ok", "second": 409}, outcomes
+
+        # Accept holds the appointment; the delete waits, then removes it and its helpers.
+        occurrence, ask_id = asked_day(7)
+        outcomes = _race(monkeypatch, "accept", accept(ask_id), delete(occurrence))
+        assert outcomes == {"first": "ok", "second": "ok"}, outcomes
+
+        # The delete holds the appointment and withdraws the ask; accepting then finds it ended.
+        occurrence, ask_id = asked_day(8)
+        outcomes = _race(
+            monkeypatch, "withdraw_for_appointment", delete(occurrence), accept(ask_id)
+        )
+        assert outcomes == {"first": "ok", "second": 409}, outcomes
     finally:
         repository.close()

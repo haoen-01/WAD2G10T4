@@ -20,6 +20,7 @@ Writes need an **active** member of the group; anyone else gets 404, as for the 
 from __future__ import annotations
 
 import calendar as month_calendar
+import contextlib
 from collections.abc import Iterable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -39,6 +40,7 @@ from silverloop.db_models import (
     FamilyActivityRow,
     FamilyPinRow,
     GroupMemberRow,
+    HelperAskRow,
     HelperAssignmentRow,
     PersonRow,
 )
@@ -699,7 +701,8 @@ class FamilyCalendarStore:
     #
     # Each opens a write transaction, even to read: open asks whose day has started lapse first
     # (ADR 0014). Then membership, then the actor (403), then an ended ask (409), then the rest.
-    # Asking checks membership and locks the appointment before it lapses (see `_appointment`).
+    # Asking, accepting, declining and withdrawing check membership and lock the appointment
+    # before anything lapses or ends an ask (see `_appointment` and `_ask_locked`).
 
     def create_ask(self, sub: str, group_id: str, body: HelperAskRequest) -> HelperAsk:
         try:
@@ -729,13 +732,28 @@ class FamilyCalendarStore:
             member = self._active_member(session, sub, group_id)
             return HelperAskList(asks=family_asks.open_asks(session, group_id, member.member_id))
 
+    def _ask_locked(
+        self, session: Session, sub: str, group_id: str, ask_id: str
+    ) -> tuple[GroupMemberRow, HelperAskRow]:
+        """Membership, then the ask, in the lock order every path keeps (see `_appointment`): the
+        ask is read without a lock, its appointment is locked, and only then are due asks lapsed
+        and this ask re-read. Ending the ask first and adding the helper after would hold the ask
+        while waiting on the appointment, against "I'll go" or a delete that hold the appointment
+        while waiting on the ask: a deadlock on PostgreSQL."""
+        member = self._active_member(session, sub, group_id)
+        ask = family_asks.ask_in_group(session, group_id, ask_id)
+        # A missing appointment means its asks have already ended: the checks below answer 409.
+        with contextlib.suppress(FamilyGroupError):
+            self._appointment(session, group_id, ask.appointment_id, lock=True)
+        family_asks.lapse_due(session, [group_id], self._occurs)
+        session.refresh(ask)
+        return member, ask
+
     def accept_ask(self, sub: str, group_id: str, ask_id: str) -> None:
         """The asked member says yes and becomes the helper, exactly as "I'll go" (`helper_joined`
         in the feed, with them as the actor)."""
         with self.sessions.begin() as session:
-            family_asks.lapse_due(session, [group_id], self._occurs)
-            member = self._active_member(session, sub, group_id)
-            ask = family_asks.ask_in_group(session, group_id, ask_id)
+            member, ask = self._ask_locked(session, sub, group_id, ask_id)
             family_asks.accept(session, ask, member)
             # An open ask's day still exists: removing it withdraws the ask.
             row = self._checked_occurrence(session, group_id, ask.appointment_id, ask.on_date)
@@ -751,19 +769,15 @@ class FamilyCalendarStore:
 
     def decline_ask(self, sub: str, group_id: str, ask_id: str) -> None:
         with self.sessions.begin() as session:
-            family_asks.lapse_due(session, [group_id], self._occurs)
-            member = self._active_member(session, sub, group_id)
-            ask = family_asks.ask_in_group(session, group_id, ask_id)
-            # Checked before the appointment is read, so an ended ask is 409 whatever became of it.
+            member, ask = self._ask_locked(session, sub, group_id, ask_id)
+            # Checked before the day is checked, so an ended ask is 409 whatever became of it.
             family_asks.check_can_answer(ask, member)
             row = self._checked_occurrence(session, group_id, ask.appointment_id, ask.on_date)
             family_asks.decline(session, ask, member, row)
 
     def withdraw_ask(self, sub: str, group_id: str, ask_id: str) -> None:
         with self.sessions.begin() as session:
-            family_asks.lapse_due(session, [group_id], self._occurs)
-            member = self._active_member(session, sub, group_id)
-            ask = family_asks.ask_in_group(session, group_id, ask_id)
+            member, ask = self._ask_locked(session, sub, group_id, ask_id)
             family_asks.withdraw(session, ask, member)
 
     @staticmethod

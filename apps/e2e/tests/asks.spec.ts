@@ -63,3 +63,38 @@ test('ask someone, answer from the bell, and the asked member becomes the helper
   await expect(details.getByText('Emily is going with Mdm Lim.')).toBeVisible();
   await expect(details.getByTestId('asked-tag')).toHaveCount(0);
 });
+
+// Each group card on the groups page shows that group's unread notifications (issue #36): the
+// asked member sees a badge on their group's card, and it is gone once they have opened the bell.
+test('the asked member’s group card shows an unread badge until the bell is opened', async ({
+  page,
+}) => {
+  await page.goto('/login/family');
+  await page.getByTestId('continue-family').click();
+  await page.goto(`/calendar?appointment=${encodeURIComponent(demoOccurrence('demo-eye', 7))}`);
+
+  // Sarah asks Emily.
+  const details = page.locator('article.details');
+  await details.getByRole('button', { name: /^Ask someone/ }).click();
+  await details
+    .getByRole('group', { name: 'Who to ask' })
+    .getByRole('button', { name: 'Ask Emily to go to Eye check-up' })
+    .click();
+  await expect(details.getByTestId('asked-tag')).toContainText('Asked Emily · waiting');
+
+  // Emily's group card has the badge, and says it in words for a screen reader.
+  await page.getByLabel('Viewing as').selectOption({ label: 'Emily' });
+  await expect(page.getByRole('button', { name: 'Notifications, 1 unread' })).toBeVisible();
+  await page.goto('/groups/start');
+  const card = page.getByTestId('group-card').filter({ hasText: 'Mdm Lim' });
+  await expect(card.getByTestId('group-unread')).toContainText('1 unread');
+
+  // She opens the bell (which marks it read), comes back, and the badge has gone.
+  await card.getByRole('button', { name: /^Open/ }).click();
+  await page.getByRole('button', { name: 'Notifications, 1 unread' }).click();
+  await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
+  await page.goto('/groups/start');
+  await expect(
+    page.getByTestId('group-card').filter({ hasText: 'Mdm Lim' }).getByTestId('group-unread'),
+  ).toHaveCount(0);
+});

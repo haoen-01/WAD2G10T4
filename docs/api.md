@@ -206,6 +206,11 @@ unknown group all get 404, and it adds no feed entry. Creating a group (by name 
 it current. Joining, being approved, linking a senior and renaming do not. With `AUTH_ENABLED=false`,
 the demo reset clears it for the demo group's members.
 
+Each `MyGroup` also carries `unread_count`: the caller's unread notifications in that group (the
+bell's `unread_count` split by group), counted in one grouped query. It is 0 for a pending membership
+and for a group with no unread notifications. The groups page shows it as a badge on each group card;
+marking notifications read shows on the next `GET /v1/me`.
+
 A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN entry. PINs are stored
 as SHA-256 hashes. With `AUTH_ENABLED=false`, `POST /v1/demo/reset` (for Mdm Lim) puts Mdm Lim's demo
 family and schedule back to their starting state, relative to today, and API startup does the same

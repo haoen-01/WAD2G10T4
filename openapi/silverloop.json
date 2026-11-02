@@ -5810,6 +5810,10 @@
           "last_opened": {
             "type": "boolean",
             "title": "Last Opened"
+          },
+          "unread_count": {
+            "type": "integer",
+            "title": "Unread Count"
           }
         },
         "type": "object",
@@ -5820,7 +5824,8 @@
           "my_role",
           "my_status",
           "member_count",
-          "last_opened"
+          "last_opened",
+          "unread_count"
         ],
         "title": "MyGroup"
       },
