@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 
 import AssistantDock from '@/components/assistant/AssistantDock.vue';
@@ -19,7 +27,7 @@ import { homeFor, isLoginPath, isPathInView } from '@/lib/view-mode';
 const { loading, currentUser, signOut } = useAuth();
 const { mode, leaveDemoView } = useViewMode();
 // A family member caring for more than one senior picks whose care the screens show.
-const { activeGroups, currentGroup, selectGroup } = useMe();
+const { activeGroups, currentGroup, selectGroup, loadMe } = useMe();
 function pickSenior(event: Event) {
   selectGroup((event.target as HTMLSelectElement).value);
 }
@@ -65,6 +73,27 @@ async function leaveDemo() {
 }
 
 const signedIn = computed(() => (AUTH_ENABLED ? !!currentUser.value : !!mode.value));
+
+// The notification bell: family view only, once this person is an active member of a group (the
+// senior never gets one). Its own chunk, loaded only when it shows, so the layout stays small.
+const NotificationBell = defineAsyncComponent(
+  () => import('@/components/family/NotificationBell.vue'),
+);
+const showBell = computed(
+  () =>
+    mode.value === 'family' &&
+    signedIn.value &&
+    activeGroups.value.length > 0 &&
+    !isLoginPath(route.path),
+);
+// Every family screen reads `/v1/me` anyway; this only makes sure the bell knows on any page.
+watch(
+  [mode, signedIn],
+  ([currentMode, isIn]) => {
+    if (currentMode === 'family' && isIn) void loadMe().catch(() => null);
+  },
+  { immediate: true },
+);
 // Kaki, the Care+ assistant: on every screen once someone is in (senior or family), never on the
 // sign-in screens.
 const showAssistant = computed(() => signedIn.value && !!mode.value && !isLoginPath(route.path));
@@ -159,6 +188,7 @@ onBeforeUnmount(() => {
             <RouterLink v-if="ready && !signedIn" class="btn btn-outline-primary" to="/login">
               Sign in
             </RouterLink>
+            <NotificationBell v-if="showBell" />
             <SettingsMenu v-slot="{ close }">
               <p v-if="mode" class="menu-view mb-0">{{ VIEW_NAMES[mode] }} view</p>
               <select

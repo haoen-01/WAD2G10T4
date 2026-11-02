@@ -3,6 +3,7 @@ import { computed } from 'vue';
 
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
+import Icon from '@/components/ui/Icon.vue';
 import { HELPING_BADGE, statusBadge } from '@/lib/family';
 import type { FamilyMember, MemberStatus } from '@/lib/family';
 
@@ -13,6 +14,8 @@ const props = defineProps<{
   /** What each person has said about it, by member id. Missing means they have not said. */
   statuses: Record<string, MemberStatus>;
   currentMemberId: string | null;
+  /** Who has been asked to go and not answered yet, if anyone: they read "Asked · waiting". */
+  askedMemberId?: string | null;
 }>();
 
 // Most useful first: who is helping, then who could, then who has not said, then who cannot.
@@ -53,8 +56,23 @@ const rows = computed(() =>
         <span v-if="row.member.id === currentMemberId" class="text-body-secondary"> (you)</span>
         <span class="d-block small text-body-secondary">{{ row.member.relationship }}</span>
       </span>
-      <StatusBadge v-if="row.badge" v-bind="row.badge" />
+      <span v-if="row.member.id === askedMemberId" class="asked-row">
+        <Icon name="clock" class="me-1" />Asked · waiting
+      </span>
+      <StatusBadge v-else-if="row.badge" v-bind="row.badge" />
       <span v-else class="small text-body-secondary">Has not replied yet</span>
     </li>
   </ul>
 </template>
+
+<style scoped>
+/* The asked member, in the same amber as the "Asked Emily · waiting" tag above the list. */
+.asked-row {
+  display: inline-flex;
+  align-items: center;
+  color: var(--sl-sun-deep);
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+</style>

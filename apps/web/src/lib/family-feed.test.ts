@@ -54,6 +54,11 @@ describe('feedSentence', () => {
       [{ kind: 'check_in', check_in_kind: 'visited' }, 'Sarah visited Mdm Lim'],
       [{ kind: 'check_in', check_in_kind: 'messaged' }, 'Sarah messaged Mdm Lim'],
       [{ kind: 'note_added', ...physio }, 'Sarah added a note on Physio on Wed, 28 Oct'],
+      [
+        { kind: 'helper_asked', subject_name: 'Emily', ...physio },
+        'Sarah asked Emily to go to Physio on Wed, 28 Oct',
+      ],
+      [{ kind: 'helper_declined', ...physio }, 'Sarah can’t make Physio on Wed, 28 Oct'],
     ];
     for (const [fields, expected] of cases) {
       assert.equal(feedSentence(entry(fields), elder), expected, String(fields.kind));
@@ -65,6 +70,10 @@ describe('feedSentence', () => {
     assert.equal(feedSentence(mine, elder), 'You called Mdm Lim');
     assert.equal(feedLine(mine).actor, 'You');
     assert.equal(feedLine(entry({ check_in_kind: 'called' })).actor, 'Sarah');
+    const asked = entry({ is_me: true, kind: 'helper_asked', subject_name: 'Emily', ...physio });
+    assert.equal(feedSentence(asked), 'You asked Emily to go to Physio on Wed, 28 Oct');
+    const declined = entry({ is_me: true, kind: 'helper_declined', ...physio });
+    assert.equal(feedSentence(declined), 'You can’t make Physio on Wed, 28 Oct');
   });
 
   it('quotes a note', () => {
@@ -188,5 +197,13 @@ describe('withoutUndone', () => {
       took('other', '2026-10-26T00:31:30Z', 'm2'),
     ];
     assert.deepEqual(ids(withoutUndone(feed)), ['t2', 'other']);
+  });
+
+  it('never pairs ask lines: an asked and a can’t-make line both stay', () => {
+    const feed = [
+      entry({ activity_id: 'no', kind: 'helper_declined', at: '2026-10-26T00:31:00Z', ...physio }),
+      entry({ activity_id: 'ask', kind: 'helper_asked', at: '2026-10-26T00:30:00Z', ...physio }),
+    ];
+    assert.deepEqual(ids(withoutUndone(feed)), ['no', 'ask']);
   });
 });

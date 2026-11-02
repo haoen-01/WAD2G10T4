@@ -904,7 +904,7 @@ export type FamilyActivityEntry = {
  *
  * What a feed entry records. Closed: the browser words each one itself.
  */
-export type FamilyActivityKind = 'group_created' | 'member_approved' | 'member_declined' | 'appointment_added' | 'appointment_changed' | 'appointment_removed' | 'helper_joined' | 'helper_stepped_back' | 'availability_updated' | 'check_in' | 'note_added' | 'senior_linked' | 'senior_renamed';
+export type FamilyActivityKind = 'group_created' | 'member_approved' | 'member_declined' | 'appointment_added' | 'appointment_changed' | 'appointment_removed' | 'helper_joined' | 'helper_stepped_back' | 'availability_updated' | 'check_in' | 'note_added' | 'senior_linked' | 'senior_renamed' | 'helper_asked' | 'helper_declined';
 
 /**
  * FamilyActivityPage
@@ -1028,6 +1028,90 @@ export type HealthResponse = {
      */
     llm_enabled: boolean;
 };
+
+/**
+ * HelperAsk
+ */
+export type HelperAsk = {
+    /**
+     * Ask Id
+     */
+    ask_id: string;
+    /**
+     * Occurrence Id
+     */
+    occurrence_id: string;
+    /**
+     * Appointment Id
+     */
+    appointment_id: string;
+    /**
+     * On Date
+     */
+    on_date: string;
+    /**
+     * Asker Member Id
+     */
+    asker_member_id: string;
+    /**
+     * Asker Name
+     */
+    asker_name: string;
+    /**
+     * Asked Member Id
+     */
+    asked_member_id: string;
+    /**
+     * Asked Name
+     */
+    asked_name: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    state: HelperAskState;
+    /**
+     * Can Answer
+     */
+    can_answer: boolean;
+    /**
+     * Can Withdraw
+     */
+    can_withdraw: boolean;
+};
+
+/**
+ * HelperAskList
+ */
+export type HelperAskList = {
+    /**
+     * Asks
+     */
+    asks: Array<HelperAsk>;
+};
+
+/**
+ * HelperAskRequest
+ *
+ * Ask an active member of the group to take one day of an appointment.
+ */
+export type HelperAskRequest = {
+    /**
+     * Occurrence Id
+     */
+    occurrence_id: string;
+    /**
+     * Asked Member Id
+     */
+    asked_member_id: string;
+};
+
+/**
+ * HelperAskState
+ *
+ * An ask is `open` until it ends in exactly one of the other states; it never reopens.
+ */
+export type HelperAskState = 'open' | 'accepted' | 'declined' | 'withdrawn' | 'lapsed' | 'closed';
 
 /**
  * HelperAssignment
@@ -1201,6 +1285,117 @@ export type MyGroup = {
      * Last Opened
      */
     last_opened: boolean;
+};
+
+/**
+ * NotificationItem
+ *
+ * One notification for the signed-in member, with what the bell needs to show it.
+ */
+export type NotificationItem = {
+    /**
+     * Notification Id
+     */
+    notification_id: string;
+    kind: NotificationKind;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Read
+     */
+    read: boolean;
+    /**
+     * Group Id
+     */
+    group_id: string;
+    /**
+     * Group Label
+     */
+    group_label: string;
+    /**
+     * Ask Id
+     */
+    ask_id: string;
+    ask_state: HelperAskState;
+    /**
+     * Occurrence Id
+     */
+    occurrence_id: string | null;
+    /**
+     * Appointment Title
+     */
+    appointment_title: string;
+    /**
+     * On Date
+     */
+    on_date: string;
+    /**
+     * Start
+     */
+    start: string | null;
+    /**
+     * Asker Name
+     */
+    asker_name: string;
+    /**
+     * Asked Name
+     */
+    asked_name: string;
+    /**
+     * Ended By Name
+     */
+    ended_by_name: string | null;
+    /**
+     * Is Open For Me
+     */
+    is_open_for_me: boolean;
+};
+
+/**
+ * NotificationKind
+ *
+ * What a notification tells its one recipient. Closed: the browser words each one itself.
+ */
+export type NotificationKind = 'ask_received' | 'ask_accepted' | 'ask_declined' | 'ask_withdrawn' | 'ask_lapsed' | 'ask_closed';
+
+/**
+ * NotificationPage
+ *
+ * Newest first, across all the member's family groups. Pass `next_before` as `before` for the
+ * next page; None at the end. `unread_count` counts every unread notification, not just this
+ * page's.
+ */
+export type NotificationPage = {
+    /**
+     * Items
+     */
+    items: Array<NotificationItem>;
+    /**
+     * Unread Count
+     */
+    unread_count: number;
+    /**
+     * Next Before
+     */
+    next_before: string | null;
+};
+
+/**
+ * NotificationReadRequest
+ *
+ * Mark some of your notifications read (`notification_ids`), or all of them (`all`).
+ */
+export type NotificationReadRequest = {
+    /**
+     * Notification Ids
+     */
+    notification_ids?: Array<string>;
+    /**
+     * All
+     */
+    all?: boolean;
 };
 
 /**
@@ -3473,6 +3668,352 @@ export type CreateCheckInV1GroupsGroupIdCheckInsPostResponses = {
 };
 
 export type CreateCheckInV1GroupsGroupIdCheckInsPostResponse = CreateCheckInV1GroupsGroupIdCheckInsPostResponses[keyof CreateCheckInV1GroupsGroupIdCheckInsPostResponses];
+
+export type ListAsksV1GroupsGroupIdAsksGetData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: {
+        /**
+         * State
+         */
+        state?: 'open';
+    };
+    url: '/v1/groups/{group_id}/asks';
+};
+
+export type ListAsksV1GroupsGroupIdAsksGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type ListAsksV1GroupsGroupIdAsksGetError = ListAsksV1GroupsGroupIdAsksGetErrors[keyof ListAsksV1GroupsGroupIdAsksGetErrors];
+
+export type ListAsksV1GroupsGroupIdAsksGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelperAskList;
+};
+
+export type ListAsksV1GroupsGroupIdAsksGetResponse = ListAsksV1GroupsGroupIdAsksGetResponses[keyof ListAsksV1GroupsGroupIdAsksGetResponses];
+
+export type CreateAskV1GroupsGroupIdAsksPostData = {
+    body: HelperAskRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/asks';
+};
+
+export type CreateAskV1GroupsGroupIdAsksPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Conflict
+     */
+    409: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type CreateAskV1GroupsGroupIdAsksPostError = CreateAskV1GroupsGroupIdAsksPostErrors[keyof CreateAskV1GroupsGroupIdAsksPostErrors];
+
+export type CreateAskV1GroupsGroupIdAsksPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: HelperAsk;
+};
+
+export type CreateAskV1GroupsGroupIdAsksPostResponse = CreateAskV1GroupsGroupIdAsksPostResponses[keyof CreateAskV1GroupsGroupIdAsksPostResponses];
+
+export type AcceptAskV1GroupsGroupIdAsksAskIdAcceptPostData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Ask Id
+         */
+        ask_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/asks/{ask_id}/accept';
+};
+
+export type AcceptAskV1GroupsGroupIdAsksAskIdAcceptPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Conflict
+     */
+    409: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type AcceptAskV1GroupsGroupIdAsksAskIdAcceptPostError = AcceptAskV1GroupsGroupIdAsksAskIdAcceptPostErrors[keyof AcceptAskV1GroupsGroupIdAsksAskIdAcceptPostErrors];
+
+export type AcceptAskV1GroupsGroupIdAsksAskIdAcceptPostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type AcceptAskV1GroupsGroupIdAsksAskIdAcceptPostResponse = AcceptAskV1GroupsGroupIdAsksAskIdAcceptPostResponses[keyof AcceptAskV1GroupsGroupIdAsksAskIdAcceptPostResponses];
+
+export type DeclineAskV1GroupsGroupIdAsksAskIdDeclinePostData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Ask Id
+         */
+        ask_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/asks/{ask_id}/decline';
+};
+
+export type DeclineAskV1GroupsGroupIdAsksAskIdDeclinePostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Conflict
+     */
+    409: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type DeclineAskV1GroupsGroupIdAsksAskIdDeclinePostError = DeclineAskV1GroupsGroupIdAsksAskIdDeclinePostErrors[keyof DeclineAskV1GroupsGroupIdAsksAskIdDeclinePostErrors];
+
+export type DeclineAskV1GroupsGroupIdAsksAskIdDeclinePostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeclineAskV1GroupsGroupIdAsksAskIdDeclinePostResponse = DeclineAskV1GroupsGroupIdAsksAskIdDeclinePostResponses[keyof DeclineAskV1GroupsGroupIdAsksAskIdDeclinePostResponses];
+
+export type WithdrawAskV1GroupsGroupIdAsksAskIdWithdrawPostData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Ask Id
+         */
+        ask_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/asks/{ask_id}/withdraw';
+};
+
+export type WithdrawAskV1GroupsGroupIdAsksAskIdWithdrawPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Conflict
+     */
+    409: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type WithdrawAskV1GroupsGroupIdAsksAskIdWithdrawPostError = WithdrawAskV1GroupsGroupIdAsksAskIdWithdrawPostErrors[keyof WithdrawAskV1GroupsGroupIdAsksAskIdWithdrawPostErrors];
+
+export type WithdrawAskV1GroupsGroupIdAsksAskIdWithdrawPostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type WithdrawAskV1GroupsGroupIdAsksAskIdWithdrawPostResponse = WithdrawAskV1GroupsGroupIdAsksAskIdWithdrawPostResponses[keyof WithdrawAskV1GroupsGroupIdAsksAskIdWithdrawPostResponses];
+
+export type MyNotificationsV1MeNotificationsGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Before
+         */
+        before?: string | null;
+    };
+    url: '/v1/me/notifications';
+};
+
+export type MyNotificationsV1MeNotificationsGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type MyNotificationsV1MeNotificationsGetError = MyNotificationsV1MeNotificationsGetErrors[keyof MyNotificationsV1MeNotificationsGetErrors];
+
+export type MyNotificationsV1MeNotificationsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationPage;
+};
+
+export type MyNotificationsV1MeNotificationsGetResponse = MyNotificationsV1MeNotificationsGetResponses[keyof MyNotificationsV1MeNotificationsGetResponses];
+
+export type ReadNotificationsV1MeNotificationsReadPostData = {
+    body: NotificationReadRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/me/notifications/read';
+};
+
+export type ReadNotificationsV1MeNotificationsReadPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type ReadNotificationsV1MeNotificationsReadPostError = ReadNotificationsV1MeNotificationsReadPostErrors[keyof ReadNotificationsV1MeNotificationsReadPostErrors];
+
+export type ReadNotificationsV1MeNotificationsReadPostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type ReadNotificationsV1MeNotificationsReadPostResponse = ReadNotificationsV1MeNotificationsReadPostResponses[keyof ReadNotificationsV1MeNotificationsReadPostResponses];
 
 export type ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetData = {
     body?: never;

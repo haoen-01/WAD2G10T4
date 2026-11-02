@@ -15,6 +15,8 @@ const props = defineProps<{
   appointments: Appointment[];
   /** How many of them still need a helper. */
   uncovered: number;
+  /** Of those, how many have someone asked and waiting for an answer. */
+  asked?: number;
   /** The public holiday on this day, if any. */
   holiday?: string | null;
   /** The day's tasks from the Tasks panel, shown after the appointments. */
@@ -61,6 +63,8 @@ const items = computed(() => [
   })),
 ]);
 
+const allAsked = computed(() => props.uncovered > 0 && (props.asked ?? 0) >= props.uncovered);
+
 const showHeat = computed(() => !!props.heat && !props.past);
 const heatRatio = computed(() =>
   props.heat && props.heatTotal ? props.heat.length / props.heatTotal : 0,
@@ -77,7 +81,9 @@ const label = computed(() => {
       : `${count} ${count === 1 ? 'appointment' : 'appointments'}`;
   const open =
     props.uncovered > 0
-      ? `, ${props.uncovered} ${props.uncovered === 1 ? 'needs' : 'need'} a helper`
+      ? `, ${props.uncovered} ${props.uncovered === 1 ? 'needs' : 'need'} a helper${
+          props.asked ? `, ${props.asked} with someone asked and waiting` : ''
+        }`
       : '';
   const taskCount = props.tasks?.length ?? 0;
   const tasks = taskCount ? `, ${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : '';
@@ -112,7 +118,13 @@ const label = computed(() => {
     >
       <span class="cal-top" aria-hidden="true">
         <span class="cal-num">{{ cell.day }}</span>
-        <span v-if="uncovered" class="cal-open" title="Needs a helper"></span>
+        <!-- Amber when every one still needing a helper has someone asked and waiting. -->
+        <span
+          v-if="uncovered"
+          class="cal-open"
+          :class="{ asked: allAsked }"
+          :title="allAsked ? 'Needs a helper · someone asked, waiting' : 'Needs a helper'"
+        ></span>
       </span>
       <span v-if="holiday" class="cal-holiday" :title="holiday" aria-hidden="true">
         {{ holiday }}
@@ -348,6 +360,13 @@ const label = computed(() => {
   border-top-color: transparent;
   border-radius: 50%;
   transform: rotate(45deg);
+}
+
+/* Asked and waiting: the same open loop in amber, with its gap half filled. */
+.cal-open.asked {
+  border-color: var(--sl-sun-deep);
+  border-top-color: transparent;
+  background: var(--sl-sun-soft);
 }
 
 .cal-dots {

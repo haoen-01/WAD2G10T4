@@ -16,6 +16,7 @@ import WeekAhead from '@/components/home/WeekAhead.vue';
 import Icon from '@/components/ui/Icon.vue';
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue';
 import { useAction } from '@/composables/useAction';
+import { useAsks } from '@/composables/useAsks';
 import { useFamily } from '@/composables/useFamily';
 import { currentGroup, loadMe } from '@/composables/useMe';
 import { useNow } from '@/composables/useNow';
@@ -31,6 +32,8 @@ import { getPersonMetrics, getPersonState, getWearable } from '@/services/careAp
 
 const { error, run } = useAction();
 const family = useFamily();
+// Who has been asked to go along (the amber "Asked Emily · waiting" tags), read fresh on opening.
+useAsks();
 const now = useNow();
 
 // The senior's watch (simulated until a real device): shown in the hero so the family can remind
@@ -179,6 +182,9 @@ const weekTasks = computed(() =>
           :appointments="unhelped"
           :elder="elder"
           :can-volunteer="canVolunteer"
+          :members="state.members"
+          :availability="state.availability"
+          :current-member-id="state.currentMemberId"
           @volunteer="goWith"
         />
       </div>

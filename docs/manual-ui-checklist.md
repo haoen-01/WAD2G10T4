@@ -24,6 +24,14 @@
   Undo), Escape, the close button and the backdrop close it, focus returns to what opened it, and
   the page behind it neither scrolls nor takes focus.
 - The senior and sign-in screens never load the motion chunk (check the network panel).
+- Asking a helper (`apps/e2e/tests/asks.spec.ts`): "Ask someone" sits beside "I'll go" / "I'll help"
+  on a day that needs a helper and nobody is asked; it opens in place, Escape closes it. An asked
+  day keeps counting as needing a helper but shows an amber "Asked Emily · waiting" tag (calendar
+  card and details, month grid and week strip marker, Home's needs list, week ahead and day
+  timeline). The asked member gets "Yes, I'll go" / "Can't go" instead of "I'll go"; the asker
+  gets "Withdraw". The family header's bell (family view only, its own chunk, no motion code)
+  names its unread count ("Notifications, 2 unread"), re-reads every 30 s while visible, marks the
+  shown notifications read when opened, and Escape returns focus to it.
 - Senior-facing secondary text clears WCAG **AAA** (7:1) and control borders clear SC 1.4.11 (3:1),
   computed in the browser from rendered styles rather than from the stylesheet.
 - A reader can change the text size from the senior header (Normal / Large / Largest); the stored
