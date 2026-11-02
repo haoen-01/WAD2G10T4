@@ -41,6 +41,7 @@ from silverloop.db_models import (
 )
 from silverloop.family_activity import ORIGIN_DEMO_SEED, UnknownCursorError, record
 from silverloop.family_groups import FamilyGroupError, senior_name_of
+from silverloop.family_tasks import FamilyTaskStore, seed_demo_tasks
 from silverloop.models import (
     Appointment,
     AppointmentKind,
@@ -815,6 +816,7 @@ class FamilyCalendarStore:
         )
         if unlinked:
             # Children first, in the same order as below, then the groups themselves.
+            FamilyTaskStore.delete_for_groups(session, unlinked)
             for table in (
                 AppointmentNoteRow,
                 FamilyActivityRow,
@@ -855,6 +857,7 @@ class FamilyCalendarStore:
         if group is None:
             return
         group_id = group.group_id
+        FamilyTaskStore.delete_for_groups(session, [group_id])
         # Notes and the feed first: their rows point at appointments and members, which are
         # removed further down.
         for table in (
@@ -899,6 +902,7 @@ class FamilyCalendarStore:
             by_sub[sub] = member
         session.flush()
         _seed_demo_schedule(self, session, group_id, today, by_sub)
+        seed_demo_tasks(session, group_id, today, next(iter(members)))
 
 
 # The demo schedule: the same made-up visits the browser used to hold (`lib/family-sample.ts`).

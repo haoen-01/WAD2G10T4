@@ -28,6 +28,7 @@ from silverloop.error_responses import SERVER_ERROR_RESPONSES, register_server_e
 from silverloop.family_calendar import FamilyCalendarStore
 from silverloop.family_groups import FamilyGroups
 from silverloop.family_routes import check_reader, register_family_routes, reset_demo_family
+from silverloop.family_tasks import FamilyTaskStore
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.logging_config import request_id_var, request_logger
 from silverloop.migrations import apply_rls_posture, upgrade_database
@@ -180,6 +181,7 @@ def create_app(
     sessions = getattr(persistent_repository, "sessions", None)
     family_groups = FamilyGroups(sessions, persistent_repository) if sessions is not None else None
     family_calendar = FamilyCalendarStore(sessions) if sessions is not None else None
+    family_tasks = FamilyTaskStore(sessions) if sessions is not None else None
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -220,6 +222,7 @@ def create_app(
     application.state.settings = config
     application.state.family = family_groups
     application.state.family_calendar = family_calendar
+    application.state.family_tasks = family_tasks
     application.add_middleware(
         CORSMiddleware,
         allow_origins=config.allowed_origins,

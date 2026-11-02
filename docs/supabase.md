@@ -191,6 +191,12 @@ so no RLS change. Safe to run twice and over a schema the API already upgraded. 
 applied to the live project.** Apply it only **after** `202610290025`; it moves the marker to
 `c1e5a8f2d640` only from exactly `f3a9c1e7b254`.
 
+`202610300027_family_tasks.sql` (Alembic `a7d4c2e9f1b3`) creates `tasks` and `task_ticks`, the
+family group's shared reminder list and the days ticked off, the same way (`if not exists`, RLS on,
+guarded `deny_browser_access` policies). Both are listed in `infra/supabase/rls_posture_apply.sql`.
+**It has not been applied to the live project.** Apply it only **after** `202610300026`; it moves
+the marker to `a7d4c2e9f1b3` only from exactly `c1e5a8f2d640`.
+
 ## Schema ownership
 
 Three things can define this schema, and they have drifted from each other three times. The split is:

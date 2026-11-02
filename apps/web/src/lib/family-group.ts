@@ -25,21 +25,13 @@ export function homeSeniorOf(group: GroupLike | null | undefined, fallback: stri
   return group ? seniorOf(group) : fallback;
 }
 
-/**
- * What Tasks are kept under: the senior once linked, else the group itself (so a new group does
- * not show another senior's tasks), else the fallback senior.
- */
-export function taskOwnerOf(group: GroupLike | null | undefined, fallback: string): string {
-  return seniorOf(group) ?? group?.group_id ?? fallback;
-}
-
 export type CalendarSource =
   { kind: 'person'; personId: string } | { kind: 'group'; groupId: string };
 
 /**
- * Which calendar to read. A senior reads their own. A family member in a group reads the group's,
- * which works whether or not its senior is linked. Anyone else reads the fallback senior's (the
- * demo with no group yet), as before.
+ * Which calendar (and task list) to read. A senior reads their own. A family member in a group
+ * reads the group's, which works whether or not its senior is linked. Anyone else reads the
+ * fallback senior's (the demo with no group yet), as before.
  */
 export function calendarSourceFor(
   me: { role?: string | null; person_id?: string | null } | null | undefined,

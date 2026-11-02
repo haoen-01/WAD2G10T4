@@ -52,11 +52,11 @@ def test_readiness_reports_database_backend_without_exposing_connection_details(
         "runtime_profile": "offline",
         "database_connected": True,
         "migration_revision": None,
-        # Bumped by `c1e5a8f2d640_group_member_last_opened`. Pinned
+        # Bumped by `a7d4c2e9f1b3_add_family_tasks`. Pinned
         # literally on purpose: `/ready` compares the live revision against the repo
         # head, and asserting it against `expected_database_revision()` would compare
         # the implementation to itself.
-        "expected_migration_revision": "c1e5a8f2d640",
+        "expected_migration_revision": "a7d4c2e9f1b3",
         # PostgreSQL-only: RLS, `pg_policies` and the Data API roles do not exist on SQLite, so
         # this reads as "nothing to report" rather than as "every table is open".
         "tables_without_rls": [],

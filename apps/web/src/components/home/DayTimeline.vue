@@ -43,7 +43,7 @@ import { minutesOf } from '@/lib/today';
  * feed re-reads every 30 s (`useFamilyActivity`), and this re-reads the calendar every 30 s while
  * the page is visible, and when the tab comes back. Rules: `lib/day-timeline.ts`.
  */
-const props = defineProps<{ personId: string; elder: string }>();
+const props = defineProps<{ elder: string }>();
 
 const family = useFamily();
 const { appointments, state } = family;
@@ -114,7 +114,7 @@ const moments = computed<TimelineMoment[]>(() => {
       place: appointment.location,
     });
   }
-  for (const task of tasks.tasksOn(props.personId, day.value)) {
+  for (const task of tasks.tasksOn(day.value)) {
     const start = clockToMinutes(task.time);
     if (start === null) continue;
     list.push({
@@ -294,7 +294,7 @@ function stepBack(moment: TimelineMoment) {
 }
 function toggleTask(moment: TimelineMoment) {
   if (!moment.taskId) return;
-  tasks.setCompleted(props.personId, moment.taskId, day.value, !moment.done);
+  void tasks.setCompleted(moment.taskId, day.value, !moment.done);
 }
 
 // ---- Live: re-read the calendar every 30 s while visible, and when the tab comes back ----
@@ -305,7 +305,7 @@ const syncedLabel = computed(() =>
 let timer: ReturnType<typeof setInterval> | undefined;
 async function sync(onlyIfVisible = true) {
   if (onlyIfVisible && document.visibilityState !== 'visible') return;
-  await family.refresh();
+  await Promise.all([family.refresh(), tasks.refresh()]);
   lastSynced.value = new Date();
 }
 function onVisible() {

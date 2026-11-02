@@ -1,5 +1,5 @@
-"""HTTP routes for accounts, family groups and the family calendar. The rules live in
-`silverloop.family_groups` and `silverloop.family_calendar`."""
+"""HTTP routes for accounts, family groups, the family calendar and tasks. The rules live in
+`silverloop.family_groups`, `silverloop.family_calendar` and `silverloop.family_tasks`."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from silverloop.auth import Family, PersonReader, Senior, SignedIn
 from silverloop.config import Settings
 from silverloop.family_calendar import FamilyCalendarStore
 from silverloop.family_groups import DEMO_FAMILY, FamilyGroupError, FamilyGroups
+from silverloop.family_tasks import FamilyTaskStore
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.local_time import local_date
 from silverloop.models import (
@@ -39,6 +40,10 @@ from silverloop.models import (
     OnboardRequest,
     PinResponse,
     SeniorNameRequest,
+    Task,
+    TaskDayRequest,
+    TaskList,
+    TaskRequest,
     WearableStatus,
 )
 from silverloop.wearable_status import simulated_wearable
@@ -55,6 +60,13 @@ def _calendar(request: Request) -> FamilyCalendarStore:
     store: FamilyCalendarStore | None = getattr(request.app.state, "family_calendar", None)
     if store is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The calendar is unavailable")
+    return store
+
+
+def _tasks(request: Request) -> FamilyTaskStore:
+    store: FamilyTaskStore | None = getattr(request.app.state, "family_tasks", None)
+    if store is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Tasks are unavailable")
     return store
 
 
@@ -513,6 +525,139 @@ def register_family_routes(application: FastAPI) -> None:
         """Remove one of your own notes. Its feed entry stays."""
         store = _calendar(request)
         _call(lambda: store.delete_note(current_user.sub, group_id, note_id))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # ── Tasks ─────────────────────────────────────────────────────────────────
+
+    @application.get(
+        "/v1/groups/{group_id}/tasks",
+        response_model=TaskList,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def group_tasks(
+        request: Request,
+        group_id: str,
+        current_user: Family,
+        from_date: Annotated[date | None, Query()] = None,
+        to_date: Annotated[date | None, Query()] = None,
+    ) -> TaskList:
+        """The family group's tasks and the days ticked off from `from_date` to `to_date` (default:
+        two months back, six ahead), also before its senior is linked. Active members only."""
+        today = _today()
+        lo = from_date or today - timedelta(days=60)
+        hi = to_date or today + timedelta(days=183)
+        store = _tasks(request)
+        return _call(lambda: store.group_tasks(current_user.sub, group_id, lo, hi))
+
+    @application.get(
+        "/v1/people/{person_id}/tasks",
+        response_model=TaskList,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def person_tasks(
+        request: Request,
+        person_id: str,
+        current_user: PersonReader,
+        from_date: Annotated[date | None, Query()] = None,
+        to_date: Annotated[date | None, Query()] = None,
+    ) -> TaskList:
+        """The senior's tasks, as the group's above. The senior reads their own; a family member
+        the senior whose group they are an active member of."""
+        check_reader(request, person_id, current_user)
+        today = _today()
+        lo = from_date or today - timedelta(days=60)
+        hi = to_date or today + timedelta(days=183)
+        store = _tasks(request)
+        return _call(lambda: store.person_tasks(person_id, lo, hi))
+
+    @application.post(
+        "/v1/groups/{group_id}/tasks",
+        response_model=Task,
+        status_code=status.HTTP_201_CREATED,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}},
+    )
+    def create_task(
+        request: Request, group_id: str, body: TaskRequest, current_user: Family
+    ) -> Task:
+        """Add a task, once or repeating. Any active member can; the senior cannot."""
+        store = _tasks(request)
+        return _call(lambda: store.create_task(current_user.sub, group_id, body))
+
+    @application.put(
+        "/v1/groups/{group_id}/tasks/{task_id}",
+        response_model=Task,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}},
+    )
+    def update_task(
+        request: Request, group_id: str, task_id: str, body: TaskRequest, current_user: Family
+    ) -> Task:
+        """Change a task (every day of it, if it repeats). Days already ticked off stay ticked."""
+        store = _tasks(request)
+        return _call(lambda: store.update_task(current_user.sub, group_id, task_id, body))
+
+    @application.post(
+        "/v1/groups/{group_id}/tasks/{task_id}/delete",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}},
+    )
+    def delete_task(
+        request: Request, group_id: str, task_id: str, current_user: Family
+    ) -> Response:
+        """Remove a task (every day of it) and its ticks."""
+        store = _tasks(request)
+        _call(lambda: store.delete_task(current_user.sub, group_id, task_id))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @application.put(
+        "/v1/groups/{group_id}/tasks/{task_id}/days/{day}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def set_group_task_day(
+        request: Request,
+        group_id: str,
+        task_id: str,
+        day: date,
+        body: TaskDayRequest,
+        current_user: Family,
+    ) -> Response:
+        """Tick one day of a task done, or not done. Today or a past day; never a future one."""
+        store = _tasks(request)
+        _call(
+            lambda: store.set_group_day(
+                current_user.sub, group_id, task_id, day, body.done, _today()
+            )
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @application.put(
+        "/v1/people/{person_id}/tasks/{task_id}/days/{day}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def set_person_task_day(
+        request: Request,
+        person_id: str,
+        task_id: str,
+        day: date,
+        body: TaskDayRequest,
+        current_user: PersonReader,
+    ) -> Response:
+        """The senior ticks one of today's tasks done, or not done. Today only."""
+        check_reader(request, person_id, current_user)
+        store = _tasks(request)
+        _call(
+            lambda: store.set_person_day(
+                current_user.sub, person_id, task_id, day, body.done, _today()
+            )
+        )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ── The senior's watch ────────────────────────────────────────────────────

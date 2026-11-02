@@ -1,7 +1,7 @@
 """The family-group tables (Alembic `a4f6c2e81d37`), the family calendar (`b9d3e5f71a26`), the
 family activity feed (`c4a7e1b93d58`), appointment notes (`d8e2b6a4c917`), groups with no senior
-linked yet (`f3a9c1e7b254`) and each member's last opened group (`c1e5a8f2d640`), stepped through
-the real Alembic chain."""
+linked yet (`f3a9c1e7b254`), each member's last opened group (`c1e5a8f2d640`) and tasks
+(`a7d4c2e9f1b3`), stepped through the real Alembic chain."""
 
 from __future__ import annotations
 
@@ -24,11 +24,13 @@ _ACTIVITY_REVISION = "c4a7e1b93d58"
 _NOTES_REVISION = "d8e2b6a4c917"
 _UNLINKED_REVISION = "f3a9c1e7b254"
 _LAST_OPENED_REVISION = "c1e5a8f2d640"
+_TASKS_REVISION = "a7d4c2e9f1b3"
 _API_ROOT = Path(__file__).resolve().parents[1]
 _TABLES = {"accounts", "care_groups", "group_members", "family_pins", "pin_attempts"}
 _CALENDAR_TABLES = {"appointments", "availability_entries", "helper_assignments"}
 _ACTIVITY_TABLES = {"family_activity"}
 _NOTES_TABLES = {"appointment_notes"}
+_TASK_TABLES = {"tasks", "task_ticks"}
 
 
 def _alembic_config(database_url: str) -> Config:
@@ -47,8 +49,8 @@ def _tables(database_url: str) -> set[str]:
         engine.dispose()
 
 
-def test_the_last_opened_revision_is_the_repository_head() -> None:
-    assert expected_database_revision() == _LAST_OPENED_REVISION
+def test_the_tasks_revision_is_the_repository_head() -> None:
+    assert expected_database_revision() == _TASKS_REVISION
 
 
 def test_upgrade_creates_the_family_tables_and_downgrade_removes_them(tmp_path: Path) -> None:
@@ -73,6 +75,13 @@ def test_upgrade_creates_the_family_tables_and_downgrade_removes_them(tmp_path: 
 
     command.upgrade(config, _UNLINKED_REVISION)
     assert {"senior_name", "linked_at", "linked_by"} <= _care_group_columns(database_url)
+    assert not _TASK_TABLES & _tables(database_url)
+
+    command.upgrade(config, _TASKS_REVISION)
+    assert _tables(database_url) >= _TASK_TABLES
+    command.downgrade(config, _UNLINKED_REVISION)
+    assert not _TASK_TABLES & _tables(database_url)
+
     command.downgrade(config, _NOTES_REVISION)
     assert not {"senior_name", "linked_at", "linked_by"} & _care_group_columns(database_url)
 

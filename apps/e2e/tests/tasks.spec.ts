@@ -1,23 +1,17 @@
 import { expect, test } from '@playwright/test';
 
-import { openSettings, resetDemo } from './support';
+import { clearDemoTasks, openSettings, resetDemo } from './support';
 
-// Tasks live in the browser, and Mdm Lim starts with a sample checklist. These tests start from
-// an empty list instead, so they only see the tasks they add (set once; a reload keeps changes).
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    const key = 'careplus.tasks.v1.mdm-lim';
-    if (localStorage.getItem(key) === null) {
-      localStorage.setItem(key, JSON.stringify({ schedules: [], completions: {} }));
-    }
-  });
+// Tasks are kept by the family group in the API, and the demo reset gives Mdm Lim a sample
+// checklist. These tests start from an empty list instead, so they only see the tasks they add.
+test.beforeEach(async ({ request }) => {
+  await resetDemo(request);
+  await clearDemoTasks(request);
 });
 
 test('caregiver creates a daily task, senior completes it, and changes persist', async ({
   page,
-  request,
 }) => {
-  await resetDemo(request);
   await page.goto('/login/family');
   await page.getByTestId('continue-family').click();
   const panel = page.getByTestId('task-panel');
@@ -35,7 +29,11 @@ test('caregiver creates a daily task, senior completes it, and changes persist',
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByTestId('choose-senior').click();
   await page.getByTestId('continue-senior').click();
-  await expect(panel.getByRole('button', { name: 'Add task' })).toBeVisible();
+  // The senior ticks tasks off; only the family adds and changes them.
+  await expect(
+    panel.getByRole('button', { name: 'Mark Water the balcony plants done' }),
+  ).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Add task' })).toHaveCount(0);
   await panel
     .getByRole('button', { name: 'Mark Water the balcony plants done', exact: true })
     .click();
@@ -46,17 +44,6 @@ test('caregiver creates a daily task, senior completes it, and changes persist',
   await expect(
     panel.getByRole('button', { name: 'Mark Water the balcony plants not done' }),
   ).toHaveAttribute('aria-pressed', 'true');
-  await panel.getByRole('button', { name: 'Add task' }).click();
-  const modal = page.getByRole('dialog');
-  await expect(modal).toBeVisible();
-  await modal.getByLabel('Name', { exact: true }).fill('Water the seedlings');
-  await modal.getByRole('button', { name: 'Add task', exact: true }).click();
-  await expect(modal).toBeHidden();
-  await expect(panel.getByRole('button', { name: 'Mark Water the seedlings done' })).toBeVisible();
-  await panel.getByRole('button', { name: 'Add task' }).click();
-  await page.keyboard.press('Escape');
-  await expect(modal).toBeHidden();
-  await expect(panel.getByTestId('add-task')).toBeFocused();
 
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByTestId('choose-family').click();
@@ -71,8 +58,6 @@ test('caregiver creates a daily task, senior completes it, and changes persist',
   page.on('dialog', () => {
     throw new Error('Deleting a task should not ask for confirmation');
   });
-  await panel.getByRole('button', { name: 'Delete', exact: true }).click();
-  await panel.getByRole('button', { name: 'Edit Water the seedlings', exact: true }).click();
   await panel.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(panel.getByText('No tasks.', { exact: true })).toBeVisible();
   await page.reload();

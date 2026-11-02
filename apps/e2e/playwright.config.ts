@@ -14,6 +14,11 @@ const webPort = process.env.E2E_WEB_PORT ?? '3000';
 const apiUrl = `http://127.0.0.1:${apiPort}`;
 const webUrl = `http://127.0.0.1:${webPort}`;
 const databasePath = path.join(tmpdir(), `silverloop-e2e-${process.pid}.db`);
+// Care+ is for Singapore, and the API names "today" in Singapore time (`APP_TIMEZONE`). Run the
+// browser and the test code (dates the specs work out, such as `isoDay`) on the same clock, so the
+// suite does not fail between midnight and 08:00 in Singapore, when a UTC machine is a day behind.
+const TIMEZONE = 'Asia/Singapore';
+process.env.TZ = TIMEZONE;
 
 export default defineConfig({
   testDir: './tests',
@@ -39,6 +44,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     ...devices['Desktop Chrome'],
+    timezoneId: TIMEZONE,
   },
   webServer: [
     {

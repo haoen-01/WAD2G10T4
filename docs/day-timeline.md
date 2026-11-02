@@ -1,4 +1,4 @@
-# Handover: Day timeline (`feat/day-timeline`)
+# Day timeline
 
 Frontend edits only
 
@@ -58,7 +58,7 @@ Inspired by Life360's day view and Caring Village's shared care calendar: one gl
 
 - Appointments and helpers: `useFamily()` (the family calendar, saved through the API).
   "I'll go" / "Can't go" call the existing `family.volunteer()` / `family.stepBack()`.
-- Tasks: `useTasks()` (browser `localStorage`, as before).
+- Tasks: `useTasks()` (kept by the family group in the API; see `docs/tasks.md`).
 - Family updates: `useFamilyActivity()` (the existing activity feed, polled every 30 s).
 - Clock: `useNow()`; dates in Singapore time.
 

@@ -28,6 +28,36 @@ export async function resetDemo(request: APIRequestContext, personId?: string) {
   expect(response.ok()).toBe(true);
 }
 
+/**
+ * Removes every task from the demo senior's family group (the reset gives it a sample checklist),
+ * so a test sees only the tasks it adds. Returns the group's id for `addDemoTask`.
+ */
+export async function clearDemoTasks(request: APIRequestContext): Promise<string> {
+  const list = await request.get(`${API_URL}/v1/people/mdm-lim/tasks`);
+  expect(list.ok()).toBe(true);
+  const { group_id: groupId, tasks } = (await list.json()) as {
+    group_id: string;
+    tasks: { task_id: string }[];
+  };
+  for (const task of tasks) {
+    const deleted = await request.post(
+      `${API_URL}/v1/groups/${groupId}/tasks/${task.task_id}/delete`,
+    );
+    expect(deleted.ok()).toBe(true);
+  }
+  return groupId;
+}
+
+/** Adds a task to the demo group straight through the API. */
+export async function addDemoTask(
+  request: APIRequestContext,
+  groupId: string,
+  task: { title: string; start_date: string; time: string; repeat?: string },
+) {
+  const response = await request.post(`${API_URL}/v1/groups/${groupId}/tasks`, { data: task });
+  expect(response.ok()).toBe(true);
+}
+
 /** The parts of the API's `AdvanceResponse` these tests read. */
 export interface AdvanceResult {
   state: { last_decision: string };
