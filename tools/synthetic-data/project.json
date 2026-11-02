@@ -7,13 +7,13 @@
     "generate": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "python3 tools/synthetic-data/generate.py --days 28"
+        "command": "uv run --project apps/api python tools/synthetic-data/generate.py --days 28"
       }
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "python3 -m compileall -q tools/synthetic-data/generate.py"
+        "command": "uv run --project apps/api python -m compileall -q tools/synthetic-data/generate.py"
       }
     }
   },
