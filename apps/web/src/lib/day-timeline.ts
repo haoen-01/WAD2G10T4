@@ -117,6 +117,28 @@ export function positionOf(minute: number, window: { from: number; to: number })
   return Math.max(0, Math.min(1, (minute - window.from) / span));
 }
 
+/**
+ * Slides the "Now" label along its line so it always stays over the timeline: its left edge sits on
+ * the line at the start of the day, its right edge at the end. `position` is `positionOf`'s 0 to 1.
+ */
+export function nowLabelTransform(position: number): string {
+  return `translateX(${-Math.max(0, Math.min(1, position)) * 100}%)`;
+}
+
+/**
+ * The keys of the marks a label sits on, or comes within `gap` pixels of. Boxes are in the same
+ * pixels, along the timeline.
+ */
+export function marksUnderLabel<Key>(
+  label: { left: number; right: number },
+  marks: readonly { key: Key; left: number; right: number }[],
+  gap = 4,
+): Key[] {
+  return marks
+    .filter((mark) => mark.left < label.right + gap && mark.right > label.left - gap)
+    .map((mark) => mark.key);
+}
+
 /** Whether a moment has started by `minute` (the "Now" line, today). */
 export function hasHappened(moment: TimelineMoment, minute: number): boolean {
   return moment.start <= minute;

@@ -1,6 +1,8 @@
-<script setup>
-import { nextTick, onMounted, ref } from 'vue';
+<script setup lang="ts">
+import type { DailyMetric, Intervention, OutcomeKind, PersonState } from '@silverloop/api-client';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import ErrorAlert from '@/components/ErrorAlert.vue';
+import BadgeShelf from '@/components/badges/BadgeShelf.vue';
 import SeniorCalendar from '@/components/calendar/SeniorCalendar.vue';
 import SeniorTaskList from '@/components/senior/SeniorTaskList.vue';
 import LinkFamily from '@/components/senior/LinkFamily.vue';
@@ -8,18 +10,21 @@ import MyFamily from '@/components/senior/MyFamily.vue';
 import UpcomingEvents from '@/components/senior/UpcomingEvents.vue';
 import StepsHero from '@/components/senior/StepsHero.vue';
 import SuggestionCard from '@/components/senior/SuggestionCard.vue';
-import { adjacentTab, readTab, saveTab } from '@/components/senior/senior-view.js';
 import Icon from '@/components/ui/Icon.vue';
+import type { IconName } from '@/components/ui/Icon.vue';
 import ShareWalkCard from '@/components/walk/ShareWalkCard.vue';
 import StillnessPrompt from '@/components/walk/StillnessPrompt.vue';
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue';
 import { useAction } from '@/composables/useAction';
+import { useBadges } from '@/composables/useBadges';
 import { useFamily } from '@/composables/useFamily';
 import { loadMe } from '@/composables/useMe';
 import { useNow } from '@/composables/useNow';
 import { AUTH_ENABLED } from '@/lib/config';
 import { formatIsoDay } from '@/lib/format-date';
 import { DEMO_PERSON_ID } from '@/lib/labels';
+import { adjacentTab, readTab, saveTab } from '@/lib/senior-view';
+import type { SeniorTab } from '@/lib/senior-view';
 import { greetingFor } from '@/lib/today';
 import {
   getInterventions,
@@ -30,12 +35,14 @@ import {
 const { busy, error, run } = useAction();
 const family = useFamily();
 const now = useNow();
-const person = ref(null);
-const suggestion = ref(null);
-const thanks = ref(null);
+const person = ref<PersonState | null>(null);
+const suggestion = ref<Intervention | null>(null);
+const thanks = ref<string | null>(null);
 const loading = ref(true);
 // Whose day this is: the signed-in senior's own record. The demo (sign-in off) is always Mdm Lim.
 const personId = ref(DEMO_PERSON_ID);
+// Her walking badges: the tab shows how many are waiting to be claimed.
+const badges = useBadges(personId);
 async function refresh() {
   const [state, interventions] = await Promise.all([
     getPersonState(personId.value),
@@ -54,10 +61,13 @@ async function load() {
     await refresh();
   });
   loading.value = false;
-  if (person.value) void loadWeek();
+  if (person.value) {
+    void loadWeek();
+    void badges.load();
+  }
 }
 // The last week of readings is extra detail: if it fails, the rest of the screen still shows.
-const week = ref(null);
+const week = ref<DailyMetric[] | null>(null);
 async function loadWeek() {
   try {
     week.value = await getPersonMetrics(personId.value, 7);
@@ -65,7 +75,7 @@ async function loadWeek() {
     week.value = null;
   }
 }
-function reply(outcome, message) {
+function reply(outcome: OutcomeKind, message: string) {
   const current = suggestion.value;
   if (!current) return;
   return run(async () => {
@@ -76,18 +86,20 @@ function reply(outcome, message) {
 }
 onMounted(load);
 const { today } = family;
-const activeTab = ref('today');
+const activeTab = ref<SeniorTab>('today');
 try {
   activeTab.value = readTab(localStorage);
 } catch {
   /* Storage access itself may be blocked. */
 }
-const tabs = [
+const tabs: { id: SeniorTab; label: string; icon: IconName }[] = [
   { id: 'today', label: 'Today', icon: 'home' },
   { id: 'calendar', label: 'Calendar', icon: 'calendar' },
+  { id: 'badges', label: 'Badges', icon: 'star' },
   { id: 'family', label: 'Family', icon: 'users' },
 ];
-function selectTab(tab) {
+const readyBadges = computed(() => badges.readyCount.value);
+function selectTab(tab: SeniorTab) {
   activeTab.value = tab;
   try {
     saveTab(localStorage, tab);
@@ -95,7 +107,7 @@ function selectTab(tab) {
     /* Storage access itself may be blocked. */
   }
 }
-async function navigateTabs(event) {
+async function navigateTabs(event: KeyboardEvent) {
   const next = adjacentTab(activeTab.value, event.key);
   if (!next) return;
   event.preventDefault();
@@ -146,6 +158,13 @@ async function seeCalendar() {
           @click="selectTab(tab.id)"
         >
           <Icon :name="tab.icon" />{{ tab.label }}
+          <span
+            v-if="tab.id === 'badges' && readyBadges > 0"
+            class="tab-count"
+            data-testid="badges-ready-count"
+          >
+            {{ readyBadges }}<span class="visually-hidden"> ready to claim</span>
+          </span>
         </button>
       </nav>
       <section
@@ -165,7 +184,7 @@ async function seeCalendar() {
             />
           </div>
           <div class="col-lg-7">
-            <SeniorTaskList :key="personId" :person-id="personId" class="h-100" />
+            <SeniorTaskList class="h-100" />
           </div>
         </div>
         <p v-if="thanks" class="thanks mt-4" role="status" data-testid="thanks">
@@ -188,6 +207,20 @@ async function seeCalendar() {
         tabindex="0"
       >
         <SeniorCalendar id="my-calendar" />
+      </section>
+      <section
+        v-show="activeTab === 'badges'"
+        id="senior-panel-badges"
+        role="tabpanel"
+        aria-labelledby="senior-tab-badges"
+        tabindex="0"
+      >
+        <BadgeShelf
+          :person-id="personId"
+          :can-claim="true"
+          :senior-name="person.display_name"
+          title="My walking badges"
+        />
       </section>
       <section
         v-show="activeTab === 'family'"
@@ -236,6 +269,19 @@ async function seeCalendar() {
   color: var(--sl-ink);
   flex: 1 1 0;
 }
+.tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f8e3a0, #c4953a 55%, #8a6418);
+  color: #2e1f03;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+}
 .senior-tabs .nav-link.active {
   background: var(--sl-jade-soft);
   color: var(--sl-jade-deep);
@@ -269,6 +315,14 @@ async function seeCalendar() {
 }
 @media (max-width: 767.98px) {
   /* Reserve space after the global footer as well as inside this page. */
+  .tab-count {
+    position: absolute;
+    top: 0.3rem;
+    left: calc(50% + 0.55rem);
+    min-width: 1.35rem;
+    height: 1.35rem;
+    font-size: 0.8rem;
+  }
   :global(body:has(.senior-tabs)) {
     padding-bottom: calc(6rem + env(safe-area-inset-bottom));
   }
@@ -286,6 +340,7 @@ async function seeCalendar() {
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)) !important;
   }
   .senior-tabs .nav-link {
+    position: relative;
     flex-direction: column;
     gap: 0.15rem !important;
     padding: 0.5rem 0.25rem;

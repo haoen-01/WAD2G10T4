@@ -8,7 +8,7 @@ import { useNow } from '@/composables/useNow';
 import { needsHelper } from '@/lib/coverage';
 import { KIND_LABELS, type Appointment, type FamilyMember } from '@/lib/family';
 import { formatClockTime, formatIsoDay, parseIsoDay, WEEKDAYS_SHORT } from '@/lib/format-date';
-import { upcomingEvents } from './upcoming.js';
+import { upcomingEvents } from '@/lib/senior-upcoming';
 
 // Read the parent's shared calendar without starting another request.
 const props = defineProps<{ family: ReturnType<typeof useFamily> }>();

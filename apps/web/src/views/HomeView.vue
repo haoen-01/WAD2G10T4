@@ -24,7 +24,7 @@ import { showToast } from '@/composables/useToast';
 import { addDays } from '@/lib/calendar';
 import { needingHelp, upcomingWithin } from '@/lib/coverage';
 import type { Appointment, FamilyMember } from '@/lib/family';
-import { homeSeniorOf, taskOwnerOf } from '@/lib/family-group';
+import { homeSeniorOf } from '@/lib/family-group';
 import { DEMO_PERSON_ID } from '@/lib/labels';
 import { greetingFor, visitWhen } from '@/lib/today';
 import { getPersonMetrics, getPersonState, getWearable } from '@/services/careApi';
@@ -59,8 +59,6 @@ const historyFailed = ref(false);
 // The senior this family member cares for (the one picked in the navbar, if more than one).
 // Null while that group has no senior linked: then nothing about any senior is read.
 const personId = ref<string | null>(DEMO_PERSON_ID);
-// Tasks are kept under the senior once linked, else under the group (lib/family-group.ts).
-const taskOwner = computed(() => taskOwnerOf(currentGroup.value, DEMO_PERSON_ID));
 
 async function load() {
   await run(async () => {
@@ -127,10 +125,7 @@ function goWith(appointment: Appointment) {
 // Tasks from the Tasks panel, so the week ahead shows them beside the appointments.
 const tasks = useTasks();
 const weekTasks = computed(() =>
-  tasks.tasksByDay(
-    taskOwner.value,
-    Array.from({ length: 7 }, (_, offset) => addDays(today, offset)),
-  ),
+  tasks.tasksByDay(Array.from({ length: 7 }, (_, offset) => addDays(today, offset))),
 );
 </script>
 
@@ -150,13 +145,7 @@ const weekTasks = computed(() =>
     <ErrorAlert v-if="error" :message="error" class="mb-4" @retry="load" />
 
     <!-- The senior's day by the hour, live: appointments, tasks and the family. -->
-    <DayTimeline
-      v-if="!loading"
-      id="home-timeline"
-      class="mb-4"
-      :person-id="taskOwner"
-      :elder="elder"
-    />
+    <DayTimeline v-if="!loading" id="home-timeline" class="mb-4" :elder="elder" />
 
     <!-- What the family has been doing, and a one-tap way to say you were in touch. Phones: the
          check-in first; wide screens: the feed on the left, the check-in beside it. -->
@@ -195,13 +184,7 @@ const weekTasks = computed(() =>
       </div>
       <div class="col-12 col-lg-5 d-flex flex-column gap-4">
         <WeatherCard />
-        <TaskPanel
-          id="home-tasks"
-          :key="taskOwner"
-          class="flex-grow-1"
-          :person-id="taskOwner"
-          :can-manage="true"
-        />
+        <TaskPanel id="home-tasks" class="flex-grow-1" :can-manage="true" />
       </div>
 
       <div class="col-12">

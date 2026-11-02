@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import BasePanel from '@/components/ui/BasePanel.vue';
@@ -36,24 +36,12 @@ const firstLoad = computed(() => loading.value && !loaded.value);
             <div
               class="d-flex flex-column align-items-center text-center gap-1 border rounded-3 p-2 h-100"
             >
-              <img
-                v-if="member.photoUrl"
-                :src="member.photoUrl"
-                :alt="member.name"
-                class="member-photo rounded-circle"
-              />
-              <span v-else role="img" :aria-label="member.name">
+              <span role="img" :aria-label="member.name">
                 <MemberAvatar :name="member.name" :colour="member.colour" />
               </span>
               <span class="fw-bold text-break">{{ member.name }}</span>
               <span v-if="member.relationship" class="small text-break">
                 {{ member.relationship }}
-              </span>
-              <span
-                v-if="member.caregiver"
-                class="badge rounded-pill border text-body d-inline-flex align-items-center gap-1"
-              >
-                <Icon name="shield-check" />Caregiver
               </span>
             </div>
           </li>
@@ -65,12 +53,6 @@ const firstLoad = computed(() => loading.value && !loaded.value);
 </template>
 
 <style scoped>
-.member-photo {
-  width: 2.5rem;
-  height: 2.5rem;
-  object-fit: cover;
-}
-
 .last-mb-0:last-child {
   margin-bottom: 0 !important;
 }

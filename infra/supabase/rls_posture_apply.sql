@@ -80,6 +80,8 @@ begin
     'review_threshold_proposals',
     'scenario_runs',
     'simulation_events',
+    'task_ticks',
+    'tasks',
     'week_plan_entries'
   ]
   loop

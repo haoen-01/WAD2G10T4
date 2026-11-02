@@ -191,6 +191,12 @@ so no RLS change. Safe to run twice and over a schema the API already upgraded. 
 applied to the live project.** Apply it only **after** `202610290025`; it moves the marker to
 `c1e5a8f2d640` only from exactly `f3a9c1e7b254`.
 
+`202610300027_family_tasks.sql` (Alembic `a7d4c2e9f1b3`) creates `tasks` and `task_ticks`, the
+family group's shared reminder list and the days ticked off, the same way (`if not exists`, RLS on,
+guarded `deny_browser_access` policies). Both are listed in `infra/supabase/rls_posture_apply.sql`.
+**It has not been applied to the live project.** Apply it only **after** `202610300026`; it moves
+the marker to `a7d4c2e9f1b3` only from exactly `c1e5a8f2d640`.
+
 ## Schema ownership
 
 Three things can define this schema, and they have drifted from each other three times. The split is:
@@ -287,7 +293,8 @@ above. Keep the database password in the deployment secret store and never expos
 transaction pooler only where the hosting environment requires serverless connections.
 
 On startup FastAPI runs `alembic upgrade head`, then `apply_rls_posture` (see above), then seeds a
-deterministic scenario only when no active run exists. The remote schema is currently marked at Alembic revision `c9d3e8f2a1b5`.
+deterministic scenario only when no active run exists. Start-up never touches the family data here:
+the demo family is put back on start only with sign-in off on SQLite. The remote schema is currently marked at Alembic revision `c9d3e8f2a1b5`.
 
 Standard `pnpm dev` and direct FastAPI lifespan startup reject SQLite when
 `CAREPLUS_RUNTIME_PROFILE=shared`. The runtime also rejects the committed placeholder before it
@@ -342,6 +349,83 @@ and a row in `accounts` holding the role and display name. The script creates no
 
 **Passwords are shared privately in the team's group chat, never in this repository, an issue or a
 Claude session.** The script does not print them.
+
+## Demo story
+
+With sign-in on, the logins above belong to no family group. This command gives them the demo's
+starting state, using synthetic data only:
+
+```bash
+pnpm demo:story
+```
+
+Nx loads the repository's `.env` into the command's environment, which is where `SUPABASE_URL`,
+`SUPABASE_SECRET_KEY`, `DATABASE_URL` and `AUTH_ENABLED` come from. The same run without Nx is:
+
+```bash
+cd apps/api
+uv run --env-file ../../.env python -m silverloop.demo_story
+```
+
+Run it on the morning of the demo and before each rehearsal, because the appointments are dated from
+that day. It only reads Supabase Auth, and sets no password or role. It writes nothing and exits
+non-zero if `APP_ENV=production`, if `AUTH_ENABLED=false`, if the database's Alembic revision is not
+the repository's head (start the API once or run `alembic upgrade head`), or if any of `sarah`,
+`john`, `emily`, `weiming`, `aisha` or `senior` is missing (run `setup_demo_accounts` first).
+
+What it does, in order:
+
+1. Starts a new run for Mdm Lim and plays two `activity_declines` days through the real `advance`,
+   with the LLM off whatever the environment says. Day 1's nudge is answered "Maybe later"; day 2's
+   programme suggestion stays waiting. The real ranking picks both, and the command prints their
+   titles. A new run has active consent.
+2. Puts Mdm Lim's family group back to its seeded schedule and feed, with Sarah (owner), John and
+   Emily, and creates the unlinked group for the made-up Mr Tan with Sarah (owner), Wei Ming and
+   Aisha. Sarah lands on Mdm Lim's group.
+3. Reads the end state back and exits non-zero if it is wrong.
+
+Re-running gives the same groups and the same shape of story, though the suggestion can differ (see
+below).
+
+**What a run deletes.** Inside the two demo groups, everything people added goes: other people's
+memberships, their notes, their appointments and availability, and the feed rows. Other unlinked
+groups created by the demo accounts go too, with everything in them. The group link's `linked_by`
+moves to Sarah only if a seeded `demo-*` account made the link; a link someone really made keeps its
+`linked_by`, `linked_via` and `linked_at`.
+
+**What it leaves, and its limits.** Groups created by anyone else keep their members, appointments
+and feed, and a demo login that joined one keeps its place there, because no route lets it leave. A
+group a demo account created with a senior linked stays too, since only unlinked ones are removed. For
+each of these the command prints a warning naming the login, the group's senior and the group's
+creator, then carries on, so the login sees that group as well.
+Two things do reach beyond the demo groups: creating Mr Tan's Join PIN clears every expired or used
+Join PIN in the database, as any PIN creation does, and `reset` re-anchors the fixture activity
+listings' times to the new run.
+
+`POST /v1/demo/reset` with `AUTH_ENABLED=false` still puts the demo family back on PostgreSQL, which
+removes real members from Mdm Lim's group. Only API start-up is limited to SQLite. Keep `AUTH_ENABLED=true`
+whenever the API points at the team's shared Supabase.
+
+The Mdm Lim steps commit one at a time and the group writes are one transaction, so a failure leaves
+either a newer unfinished run for Mdm Lim with the groups unchanged, or no group change at all.
+Running it again repairs both.
+
+**Why the suggestion can differ.** Reset keeps what Mdm Lim said. Her earlier "Yes, I'd like that"
+and "Not for me" answers keep shaping the ranking, because outcomes are append-only, and a suggestion
+left unanswered closes as `no_response` once its reply window passes, which counts too. "Maybe later"
+is recorded but moves the ranking by nothing, so it does not change the next run's suggestion. Three
+"Not for me" answers to one suggestion mute it automatically. In each case the command
+succeeds with the next-ranked suggestion and prints its title. If she has muted every nudge, day 1
+offers none and the command says so.
+
+**When it cannot finish.** If the policy decides anything else on either day, the command exits
+non-zero and names the decision, for example when every programme suggestion is muted. Running it
+again decides the same thing until that changes. Lift a mute with
+`POST /v1/people/mdm-lim/preferences/{candidate_key}` signed in as `senior`. The command cannot remove
+an earlier answer.
+
+The Join PIN in Mr Tan's group lasts 7 days. Any active member gets a fresh one from the group's
+Family page (`POST /v1/groups/{id}/join-pin`). The command does not print the PIN.
 
 ## Operational checks
 

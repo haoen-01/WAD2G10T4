@@ -1,4 +1,5 @@
-<script setup>
+<script setup lang="ts">
+import type { PinResponse } from '@silverloop/api-client';
 import { ref } from 'vue';
 
 import PinDisplay from '@/components/family/PinDisplay.vue';
@@ -12,7 +13,7 @@ import { getSeniorLinkPin } from '@/services/careApi';
  * Showing it is how the senior agrees to being linked, so only the senior's own screen can make one.
  */
 const { busy, error, run } = useAction();
-const code = ref(null);
+const code = ref<PinResponse | null>(null);
 
 function show() {
   void run(async () => {

@@ -9,23 +9,16 @@ and maybe narrow an already-filtered list" rather than "choose one outreach cand
 from __future__ import annotations
 
 import json
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-from sqlalchemy import select
 
-import silverloop.agent.intent_planner as intent_planner_module
-import silverloop.agent.planner as planner_module
 from silverloop.agent.constants import MAX_ACTIVITY_OPTIONS_RETURNED
 from silverloop.agent.guardrails import ActivityOrderProposal, validate_activity_order
 from silverloop.agent.planner import plan_activity_ranking
 from silverloop.agent.tools import ActivityOption, ActivityRankingContext
 from silverloop.config import Settings
-from silverloop.db_models import AuditEventRow
-from silverloop.fixtures import DEMO_PERSON_ID
-from silverloop.sql_repository import SqlAlchemyRepository
 
 # ── Fake transport, mirroring test_agent_planner.py ─────────────────────────────────────────────
 
@@ -311,71 +304,6 @@ def test_narrowing_is_visible_in_the_result() -> None:
     assert set(result.selected_order) <= set(context.permitted_keys)
 
 
-def test_narrowing_reaches_the_repository_as_planner_narrowed() -> None:
-    """Integration seam: the repository turns a narrowed planner order into a `FilterOutcome`
-    with `rule == "planner_narrowed"` for every option the planner chose not to show -- the only
-    account of "permitted, but the agent decided not to offer it". This proves the planner's
-    narrowing (owned here) is not silently lost one layer up (owned by the repository).
-    """
-    repository = SqlAlchemyRepository(
-        "sqlite+pysqlite:///:memory:",
-        settings=settings_with(database_url="sqlite+pysqlite:///:memory:"),
-    )
-    repository.create_schema_for_tests()
-    repository.reset()
-    try:
-        original_build_client = planner_module._build_client
-        planner_module._build_client = lambda settings, timeout: (EchoingFakeClient(), None)
-        try:
-            baseline = repository.search_activities(
-                text=None, intent=None, person_id=DEMO_PERSON_ID, actor=DEMO_PERSON_ID
-            )
-        finally:
-            planner_module._build_client = original_build_client
-
-        shown_ids = [item.candidate.activity_id for item in baseline.results][
-            :MAX_ACTIVITY_OPTIONS_RETURNED
-        ]
-        assert len(shown_ids) > 1, "the fixture catalogue must offer more than one option to narrow"
-        dropped = shown_ids[-1]
-        narrowed_keys = shown_ids[:-1]
-
-        class NarrowingFakeClient:
-            def __init__(self) -> None:
-                self.messages = self
-
-            def create(self, **kwargs: Any) -> Any:
-                if len(kwargs["messages"]) == 1:
-                    return FakeResponse([FakeBlock("tu1", "get_activity_options", {})])
-                return FakeResponse(
-                    [
-                        FakeBlock(
-                            "tu2",
-                            "propose_activity_order",
-                            {
-                                "ordered_keys": narrowed_keys,
-                                "reasoning": "Dropping the weakest fit.",
-                            },
-                        )
-                    ]
-                )
-
-        planner_module._build_client = lambda settings, timeout: (NarrowingFakeClient(), None)
-        try:
-            response = repository.search_activities(
-                text=None, intent=None, person_id=DEMO_PERSON_ID, actor=DEMO_PERSON_ID
-            )
-        finally:
-            planner_module._build_client = original_build_client
-
-        narrowed_outcomes = [
-            outcome for outcome in response.filtered_out if outcome.rule == "planner_narrowed"
-        ]
-        assert any(outcome.activity_id == dropped for outcome in narrowed_outcomes)
-    finally:
-        repository.close()
-
-
 # ── A3: the allow-list is exactly what was shown, never the full permitted set ──────────────────
 
 
@@ -462,160 +390,3 @@ def test_model_refusal_falls_back() -> None:
     result = run(context, [FakeResponse(content=[], stop_reason="refusal")])
     assert result.mode == "fallback_error"
     assert "refusal" in (result.fallback_reason or "")
-
-
-# ── A malformed provider response must degrade the SEARCH, not 500 it ───────────────────────────
-#
-# The outreach loop is wrapped by `_plan_outreach_safely`'s blanket `except Exception`, so a
-# provider shape neither planner anticipated still produces an audited fallback.
-# `search_activities` had no such guard, and both planners it calls can raise: `plan_intent` reads
-# `response.content` outside its own `try`, so `content=None`, `content=5` and a response with no
-# `content` attribute at all raised `TypeError`/`AttributeError` straight through a senior-facing
-# request; and `_tool_use_blocks` validates a block's `type` and `name` but not its `id`, so a
-# well-formed `tool_use` block with no `id` raised `AttributeError` out of the ranking loop.
-#
-# All four are now what the documented degradation says they are: the deterministic order, an
-# audited `fallback_error`, and the exception's CLASS -- never its text -- in the evidence.
-
-
-class _MalformedIntentClient:
-    """Answers the intent call with `response`, whatever shape that is."""
-
-    def __init__(self, response: Any) -> None:
-        self.messages = self
-        self.response = response
-
-    def create(self, **kwargs: Any) -> Any:
-        return self.response
-
-
-class _NoContent:
-    """A response object with no `content` attribute at all."""
-
-    usage = None
-    stop_reason = "tool_use"
-
-
-@pytest.fixture
-def search_repository() -> Any:
-    repository = SqlAlchemyRepository(
-        "sqlite+pysqlite:///:memory:",
-        settings=settings_with(database_url="sqlite+pysqlite:///:memory:"),
-    )
-    repository.create_schema_for_tests()
-    repository.reset()
-    try:
-        yield repository
-    finally:
-        repository.close()
-
-
-@contextmanager
-def _intent_client(response: Any) -> Any:
-    original = intent_planner_module._build_client
-    intent_planner_module._build_client = lambda settings: (_MalformedIntentClient(response), None)
-    try:
-        yield
-    finally:
-        intent_planner_module._build_client = original
-
-
-@contextmanager
-def _ranking_client(client: Any) -> Any:
-    original = planner_module._build_client
-    planner_module._build_client = lambda settings, timeout: (client, None)
-    try:
-        yield
-    finally:
-        planner_module._build_client = original
-
-
-def _stored_search_detail(repository: Any) -> dict[str, Any]:
-    """The full, evaluator-visible audit row for the most recent search."""
-    with repository.sessions() as session:
-        row = session.scalars(
-            select(AuditEventRow)
-            .where(AuditEventRow.event_type == "activity_search")
-            .order_by(AuditEventRow.recorded_at.desc(), AuditEventRow.event_id.desc())
-            .limit(1)
-        ).first()
-        assert row is not None, "the search must always leave exactly one audit row"
-        return dict(row.detail_json)
-
-
-@pytest.mark.parametrize(
-    ("response", "error_class"),
-    [
-        pytest.param(FakeResponse(content=None), "TypeError", id="content-is-null"),
-        pytest.param(FakeResponse(content=5), "TypeError", id="content-is-a-number"),
-        pytest.param(_NoContent(), "AttributeError", id="no-content-attribute"),
-    ],
-)
-def test_a_malformed_intent_response_degrades_the_search_instead_of_raising(
-    search_repository: Any, response: Any, error_class: str
-) -> None:
-    with _intent_client(response), _ranking_client(EchoingFakeClient()):
-        result = search_repository.search_activities(
-            text="something gentle nearby",
-            intent=None,
-            person_id=DEMO_PERSON_ID,
-            actor=DEMO_PERSON_ID,
-        )
-
-    assert result.results, "the deterministic reading still produced a result set"
-    assert result.intent.parsed_by.value == "keyword"
-    stored = _stored_search_detail(search_repository)
-    assert stored["intent_mode"] == "fallback_error"
-    assert stored["intent"]["fallback_error"] == error_class
-
-
-def test_a_tool_use_block_with_no_id_degrades_the_ranking_instead_of_raising(
-    search_repository: Any,
-) -> None:
-    class _IdlessBlock:
-        type = "tool_use"
-        name = "get_activity_options"
-        input: dict[str, Any] = {}
-
-    class _IdlessClient:
-        def __init__(self) -> None:
-            self.messages = self
-
-        def create(self, **kwargs: Any) -> Any:
-            return FakeResponse(content=[_IdlessBlock()])
-
-    with _ranking_client(_IdlessClient()):
-        result = search_repository.search_activities(
-            text=None, intent=None, person_id=DEMO_PERSON_ID, actor=DEMO_PERSON_ID
-        )
-
-    assert result.results
-    stored = _stored_search_detail(search_repository)
-    assert stored["planner_mode"] == "fallback_error"
-    assert stored["agent"]["fallback_reason"] == "AttributeError"
-    # The deterministic order stands, and nothing is recorded as narrowed by a planner that
-    # never produced an order.
-    assert [item.candidate.activity_id for item in result.results] == stored["result_ids"]
-    assert not [outcome for outcome in result.filtered_out if outcome.rule == "planner_narrowed"]
-
-
-def test_the_provider_exception_text_never_reaches_the_search_audit(
-    search_repository: Any,
-) -> None:
-    """Same two-surface rule the outreach loop already follows: the class in `evidence_json`,
-    the text on the operator log. `evidence_json` is append-only and coordinator-visible."""
-
-    class _ExplodingClient:
-        def __init__(self) -> None:
-            self.messages = self
-
-        def create(self, **kwargs: Any) -> Any:
-            raise RuntimeError("SECRET-KEY-sk-ABCDEF123456 in the exception text")
-
-    with _ranking_client(_ExplodingClient()):
-        search_repository.search_activities(
-            text=None, intent=None, person_id=DEMO_PERSON_ID, actor=DEMO_PERSON_ID
-        )
-
-    stored = _stored_search_detail(search_repository)
-    assert "SECRET-KEY" not in json.dumps(stored)

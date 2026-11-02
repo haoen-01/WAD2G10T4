@@ -12,557 +12,6 @@ export type ClientOptions = {
 export type AccountRole = 'senior' | 'family';
 
 /**
- * ActivityAvailability
- */
-export type ActivityAvailability = 'available' | 'full' | 'unknown';
-
-/**
- * ActivityBooking
- *
- * Whether a person can simply turn up, and if not, what they must do first.
- *
- * `UNKNOWN` is a real answer and must render as "Not listed". Telling someone to just turn up to
- * something that needed booking wastes a journey they may have found difficult to make.
- */
-export type ActivityBooking = 'drop_in' | 'register' | 'unknown';
-
-/**
- * ActivityCandidate
- *
- * One thing a person could actually go and do.
- *
- * The rule that governs this model: **the planner may rank candidates; it may never author
- * one.** Every field here is retrieved, and `UNKNOWN` is a real answer that must render as "Not
- * listed" rather than being filled in with something plausible. A fabricated language tag or an
- * invented session time is the failure that would make the whole product untrustworthy, and it
- * is invisible in a demo -- which is exactly why the schema, not the prompt, has to prevent it.
- *
- * `retrieved_at` and `source` travel with the candidate so a card can always say where its
- * facts came from and how stale they are.
- */
-export type ActivityCandidate = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    source: ActivitySource;
-    integration_status: IntegrationStatus;
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Provider
-     */
-    provider: string;
-    /**
-     * Start At
-     */
-    start_at?: string | null;
-    location: ActivityLocation;
-    /**
-     * Category
-     */
-    category?: string | null;
-    activity_type?: ActivityType | null;
-    /**
-     * Activity Families
-     */
-    activity_families?: Array<ActivityFamily>;
-    format?: Format | null;
-    indoor_outdoor?: IndoorOutdoor;
-    intensity?: ActivityIntensity | null;
-    social_shape?: SocialPreference | null;
-    /**
-     * Accessibility Tags
-     */
-    accessibility_tags?: Array<string>;
-    /**
-     * Language Tags
-     */
-    language_tags?: Array<string>;
-    /**
-     * Capacity
-     */
-    capacity?: number | null;
-    availability?: ActivityAvailability;
-    /**
-     * Price
-     */
-    price?: string | null;
-    /**
-     * Source Url
-     */
-    source_url?: string | null;
-    /**
-     * Retrieved At
-     */
-    retrieved_at: string;
-    /**
-     * Distance M
-     */
-    distance_m?: number | null;
-    distance_basis?: DistanceBasis;
-    /**
-     * Description
-     */
-    description?: string | null;
-    /**
-     * Duration Minutes
-     */
-    duration_minutes?: number | null;
-    /**
-     * What To Bring
-     */
-    what_to_bring?: Array<string>;
-    booking?: ActivityBooking;
-    /**
-     * Booking Note
-     */
-    booking_note?: string | null;
-    /**
-     * Contact Phone
-     */
-    contact_phone?: string | null;
-    /**
-     * Contact Note
-     */
-    contact_note?: string | null;
-    /**
-     * Getting There
-     */
-    getting_there?: Array<string>;
-    /**
-     * Good To Know
-     */
-    good_to_know?: Array<string>;
-};
-
-/**
- * ActivityEnvironment
- */
-export type ActivityEnvironment = 'indoor' | 'outdoor' | 'sheltered' | 'either';
-
-/**
- * ActivityFamily
- *
- * The broad kind a type belongs to. Multi-label on purpose -- a tai chi session is genuinely
- * both movement and mind-body, and forcing a single parent would make one of those a lie.
- */
-export type ActivityFamily = 'movement' | 'mind_body' | 'creative' | 'social' | 'learning' | 'nature' | 'volunteering';
-
-/**
- * ActivityGoal
- */
-export type ActivityGoal = {
-    /**
-     * Goal Id
-     */
-    goal_id: string;
-    kind: GoalKind;
-    /**
-     * Text
-     */
-    text: string;
-    /**
-     * Target Per Week
-     */
-    target_per_week?: number | null;
-    /**
-     * Active
-     */
-    active?: boolean;
-    /**
-     * Created At
-     */
-    created_at: string;
-};
-
-/**
- * ActivityGoalRequest
- */
-export type ActivityGoalRequest = {
-    kind: GoalKind;
-    /**
-     * Target Per Week
-     */
-    target_per_week?: number | null;
-    /**
-     * Active
-     */
-    active?: boolean;
-};
-
-/**
- * ActivityIntensity
- */
-export type ActivityIntensity = 'light' | 'moderate' | 'either';
-
-/**
- * ActivityIntent
- *
- * A request for something to do, as structure rather than as a sentence.
- *
- * The model's entire job is to fill this in. It never answers the request, never names an
- * activity and never invents a constraint the person did not express -- which is why every
- * field defaults to "no preference" rather than to a plausible guess.
- *
- * `unparsed_terms` is the honesty valve. Anything the parser did not understand is carried here
- * and shown back to the person, so a misread request is visible before it is acted on rather
- * than silently narrowing the search.
- */
-export type ActivityIntent = {
-    /**
-     * Raw Text
-     */
-    raw_text?: string | null;
-    /**
-     * On Date
-     */
-    on_date?: string | null;
-    time_window?: TimeWindow;
-    /**
-     * Max Distance M
-     */
-    max_distance_m?: number | null;
-    /**
-     * Distance Is Explicit
-     */
-    distance_is_explicit?: boolean;
-    social_preference?: SocialPreference;
-    environment?: ActivityEnvironment;
-    intensity?: ActivityIntensity;
-    /**
-     * Language
-     */
-    language?: string | null;
-    /**
-     * Activity Types
-     */
-    activity_types?: Array<ActivityType>;
-    /**
-     * Excluded Activity Types
-     */
-    excluded_activity_types?: Array<ActivityType>;
-    /**
-     * Excluded Environments
-     */
-    excluded_environments?: Array<IndoorOutdoor>;
-    /**
-     * Excluded Social
-     */
-    excluded_social?: Array<SocialPreference>;
-    parsed_by?: IntentParser;
-    /**
-     * Unparsed Terms
-     */
-    unparsed_terms?: Array<string>;
-};
-
-/**
- * ActivityLocation
- */
-export type ActivityLocation = {
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Address
-     */
-    address?: string | null;
-    /**
-     * Postal Code
-     */
-    postal_code?: string | null;
-    /**
-     * Latitude
-     */
-    latitude?: number | null;
-    /**
-     * Longitude
-     */
-    longitude?: number | null;
-};
-
-/**
- * ActivityOfferResponse
- *
- * The two things a person can say to a search result. `INTERESTED` is a plan, not a booking
- * -- Care+ books nothing -- and `NOT_FOR_ME` is a decline whose optional reason is the one
- * piece of evidence the dimensional learner may learn a *kind* of activity from.
- */
-export type ActivityOfferResponse = 'interested' | 'not_for_me';
-
-/**
- * ActivityPosition
- *
- * Where one usable day sits against the person's own usual level, in the ladder's own terms.
- *
- * Two values, not three, on purpose: the policy has exactly one line -- a day is low below
- * `analytics.LOW_DAY_FRACTION` of the effective baseline -- and no matching "high" line. Inventing
- * one here would be a judgement the ladder never makes, so every usable day at or above the low
- * line is reported as exactly that: usual or higher.
- */
-export type ActivityPosition = 'lower' | 'usual_or_higher';
-
-/**
- * ActivityPreferences
- */
-export type ActivityPreferences = {
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Dimensions
-     */
-    dimensions?: Array<DimensionPreference>;
-    /**
-     * Resolved
-     */
-    resolved?: Array<ResolvedPreference>;
-};
-
-/**
- * ActivityQueryRequest
- *
- * Either free text or an intent assembled from chips. Text wins when both are present.
- */
-export type ActivityQueryRequest = {
-    /**
-     * Text
-     */
-    text?: string | null;
-    intent?: ActivityIntent | null;
-};
-
-/**
- * ActivityQueryResponse
- */
-export type ActivityQueryResponse = {
-    /**
-     * Query Id
-     */
-    query_id: string;
-    intent: ActivityIntent;
-    /**
-     * Understood
-     */
-    understood: Array<string>;
-    /**
-     * Results
-     */
-    results: Array<RankedActivity>;
-    /**
-     * Filtered Out
-     */
-    filtered_out?: Array<FilterOutcome>;
-    /**
-     * Nothing Matched
-     */
-    nothing_matched?: boolean;
-    audit_event: AuditEvent;
-};
-
-/**
- * ActivityRankingTrace
- */
-export type ActivityRankingTrace = {
-    /**
-     * Trace Id
-     */
-    trace_id: string;
-    /**
-     * Generated At
-     */
-    generated_at: string;
-    /**
-     * Variant
-     */
-    variant: 'baseline' | 'variant';
-    /**
-     * Preview
-     */
-    preview: boolean;
-    /**
-     * Saved
-     */
-    saved?: false;
-    person: TracePerson;
-    /**
-     * Today
-     */
-    today: string;
-    /**
-     * Run Id
-     */
-    run_id: string;
-    applied: TraceApplied;
-    request: TraceRequest;
-    parsed_intent: TraceParsedIntent;
-    person_context: TracePersonContext;
-    retrieval: TraceRetrieval;
-    filtering: TraceFiltering;
-    scoring: TraceScoring;
-    sort: TraceSort;
-    post_processing: TracePostProcessing;
-    llm_rerank: TraceLlmRerank;
-    final_recommendations: TraceFinalRecommendations;
-    integrity: TraceIntegrity;
-    /**
-     * Catalogue Unknowns
-     */
-    catalogue_unknowns: Array<TraceCatalogueUnknown>;
-    /**
-     * Evidence Ids
-     */
-    evidence_ids: Array<string>;
-};
-
-/**
- * ActivityReason
- */
-export type ActivityReason = {
-    /**
-     * Text
-     */
-    text: string;
-    basis: ReasonBasis;
-};
-
-/**
- * ActivityRelativeDay
- */
-export type ActivityRelativeDay = {
-    /**
-     * Day
-     */
-    day: string;
-    /**
-     * Reading Usable
-     */
-    reading_usable: boolean;
-    position?: ActivityPosition | null;
-};
-
-/**
- * ActivityRelativeToUsual
- *
- * Recent days relative to the person's own usual level, derived on read for a coordinator.
- *
- * Deliberately carries no step counts, percentages or scores. The classification is the server's
- * -- the ladder's low-day rule, against the same effective baseline today's decision used -- so a
- * browser renders words and never re-derives a policy cut-off.
- */
-export type ActivityRelativeToUsual = {
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * As Of Day
-     */
-    as_of_day: string;
-    /**
-     * Consent Active
-     */
-    consent_active: boolean;
-    /**
-     * Usual Available
-     */
-    usual_available: boolean;
-    /**
-     * Days
-     */
-    days: Array<ActivityRelativeDay>;
-    /**
-     * Lower Days
-     */
-    lower_days: number;
-    /**
-     * Usable Days
-     */
-    usable_days: number;
-};
-
-/**
- * ActivityResponseRequest
- */
-export type ActivityResponseRequest = {
-    response: ActivityOfferResponse;
-    reason?: DeclineReason | null;
-    clarification?: ClarificationScope | null;
-    /**
-     * Query Id
-     */
-    query_id?: string | null;
-    /**
-     * Rank Shown
-     */
-    rank_shown?: number | null;
-    /**
-     * Day
-     */
-    day?: string | null;
-};
-
-/**
- * ActivityResponseResponse
- */
-export type ActivityResponseResponse = {
-    /**
-     * Response Id
-     */
-    response_id: string;
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    response: ActivityOfferResponse;
-    /**
-     * Planned
-     */
-    planned?: boolean;
-    /**
-     * Plan Day
-     */
-    plan_day?: string | null;
-    week?: WeekPlan | null;
-    /**
-     * Preferences Updated
-     */
-    preferences_updated?: Array<DimensionPreference>;
-    /**
-     * Note
-     */
-    note: string;
-    audit_event: AuditEvent;
-};
-
-/**
- * ActivitySource
- *
- * Where a listing came from. Never decorative.
- *
- * Only `AAC_FIXTURE` carries real data in this build. The others exist so the adapter shape is
- * visible in the contract, and a candidate may not claim one of them until that integration
- * actually retrieved it -- see `integration_status`.
- */
-export type ActivitySource = 'aac_fixture' | 'onepa' | 'activesg' | 'healthy365_handoff';
-
-/**
- * ActivityType
- *
- * What a listing actually is, from the person's point of view.
- *
- * Single-valued and closed, so a stated preference can be validated and a "not for me" teaches
- * something a person would recognise. Members are the canonical set in
- * `docs/personalisation-v2-decisions.md` §2.
- */
-export type ActivityType = 'walking' | 'tai_chi' | 'chair_exercise' | 'stretch' | 'dance' | 'swimming' | 'gardening' | 'arts_crafts' | 'cooking' | 'games' | 'karaoke' | 'learning' | 'volunteering' | 'social_meetup' | 'mindfulness' | 'reading' | 'other';
-
-/**
  * AdvanceRequest
  */
 export type AdvanceRequest = {
@@ -783,6 +232,65 @@ export type AppointmentRequest = {
 };
 
 /**
+ * AssistantChatRequest
+ *
+ * The conversation so far (the newest turn last, and it is theirs), which senior it is about,
+ * and the page they are on. Only the last 20 turns are sent.
+ */
+export type AssistantChatRequest = {
+    /**
+     * Messages
+     */
+    messages: Array<AssistantMessage>;
+    /**
+     * Person Id
+     */
+    person_id?: string | null;
+    /**
+     * Page
+     */
+    page?: string | null;
+};
+
+/**
+ * AssistantMessage
+ *
+ * One turn of the chat, as the person saw it.
+ */
+export type AssistantMessage = {
+    /**
+     * Role
+     */
+    role: 'user' | 'assistant';
+    /**
+     * Content
+     */
+    content: string;
+};
+
+/**
+ * AssistantReply
+ *
+ * The assistant's answer. `source` says where it came from: `openai`, the built-in `helper`
+ * (no AI key, the offline demo, or the AI could not be reached), or a fixed `safety` answer
+ * (an emergency or a question about medicines, which never goes to the AI).
+ */
+export type AssistantReply = {
+    /**
+     * Reply
+     */
+    reply: string;
+    /**
+     * Source
+     */
+    source: 'openai' | 'helper' | 'safety';
+    /**
+     * Suggestions
+     */
+    suggestions?: Array<string>;
+};
+
+/**
  * AttentionBand
  */
 export type AttentionBand = 'stable' | 'watch' | 'review';
@@ -883,14 +391,6 @@ export type AvailabilityRequest = {
 export type AvailabilityStatus = 'available' | 'unavailable';
 
 /**
- * BaselineConfirmationDecision
- *
- * Two answers, deliberately not more: this is a yes/no judgement about a person's own life,
- * not a multiple-choice survey, and offering a middle option would misstate what is being asked.
- */
-export type BaselineConfirmationDecision = 'confirm' | 'decline';
-
-/**
  * BaselineConfirmationQuestion
  *
  * Asked only when `analytics.BASELINE_DRIFT_FLOOR`'s clamp has been binding long enough that
@@ -919,29 +419,6 @@ export type BaselineConfirmationQuestion = {
      * Streak Days
      */
     streak_days: number;
-};
-
-/**
- * BaselineConfirmationRequest
- */
-export type BaselineConfirmationRequest = {
-    decision: BaselineConfirmationDecision;
-};
-
-/**
- * BaselineConfirmationResponse
- */
-export type BaselineConfirmationResponse = {
-    /**
-     * Question Id
-     */
-    question_id: string;
-    decision: BaselineConfirmationDecision;
-    /**
-     * Reference Steps
-     */
-    reference_steps: number;
-    audit_event: AuditEvent;
 };
 
 /**
@@ -1005,221 +482,6 @@ export type CalendarMember = {
 };
 
 /**
- * CandidateIntegrity
- */
-export type CandidateIntegrity = {
-    /**
-     * Positive Factors
-     */
-    positive_factors: Array<string>;
-    /**
-     * Findings
-     */
-    findings: Array<IntegrityFinding>;
-    /**
-     * Reasons Without Positive Factor
-     */
-    reasons_without_positive_factor: Array<ReasonWithoutPositiveFactor>;
-};
-
-/**
- * CandidatePreference
- *
- * A durable, person-owned preference about one kind of suggestion.
- *
- * Suppression here is deterministic and separate from the Beta-Bernoulli learner: repeated
- * declines remove an option from the permitted set rather than merely ranking it lower. Keeping
- * it out of the learner preserves the invariant that learning only ever reorders what policy
- * already allowed -- this narrows the set, and narrowing is a safety-preserving direction.
- *
- * The person can always reverse it, which is why `suppressed` is writable by the senior and by
- * nobody else.
- */
-export type CandidatePreference = {
-    /**
-     * Candidate Key
-     */
-    candidate_key: string;
-    /**
-     * Label
-     */
-    label: string;
-    /**
-     * Suppressed
-     */
-    suppressed?: boolean;
-    /**
-     * Suppressed Reason
-     */
-    suppressed_reason?: string | null;
-    /**
-     * Declines
-     */
-    declines?: number;
-    /**
-     * Times Offered
-     */
-    times_offered?: number;
-    /**
-     * Times Accepted
-     */
-    times_accepted?: number;
-    /**
-     * Times Completed
-     */
-    times_completed?: number;
-};
-
-/**
- * CandidatePreferenceRequest
- */
-export type CandidatePreferenceRequest = {
-    /**
-     * Suppressed
-     */
-    suppressed: boolean;
-    /**
-     * Reason
-     */
-    reason?: string | null;
-};
-
-/**
- * CandidatePreferenceResponse
- */
-export type CandidatePreferenceResponse = {
-    preference: CandidatePreference;
-    audit_event: AuditEvent;
-};
-
-/**
- * CandidateTrace
- */
-export type CandidateTrace = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Programme Key
-     */
-    programme_key: string;
-    /**
-     * Provider
-     */
-    provider: string;
-    /**
-     * Location Name
-     */
-    location_name: string;
-    activity_type?: ActivityType | null;
-    /**
-     * Category
-     */
-    category?: string | null;
-    indoor_outdoor: IndoorOutdoor;
-    intensity?: ActivityIntensity | null;
-    social_shape?: SocialPreference | null;
-    /**
-     * Distance M
-     */
-    distance_m?: number | null;
-    /**
-     * Start At
-     */
-    start_at?: string | null;
-    availability: ActivityAvailability;
-    /**
-     * Language Tags
-     */
-    language_tags?: Array<string>;
-    /**
-     * Factors
-     */
-    factors: Array<ScoreFactor>;
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * Tier
-     */
-    tier: number;
-    sort_key: TraceSortKey;
-    /**
-     * Matched Axes
-     */
-    matched_axes: number;
-    /**
-     * Coverage
-     */
-    coverage: number;
-    /**
-     * Request Axes
-     */
-    request_axes: Array<TraceRequestAxis>;
-    /**
-     * Request Constrained
-     */
-    request_constrained: number;
-    /**
-     * Request Judged
-     */
-    request_judged: number;
-    /**
-     * Request Matched
-     */
-    request_matched: number;
-    /**
-     * Preference Axes
-     */
-    preference_axes: Array<TracePreferenceAxis>;
-    engagement?: TraceEngagement | null;
-    /**
-     * Travel Tolerance M
-     */
-    travel_tolerance_m: number;
-    /**
-     * Asked Radius M
-     */
-    asked_radius_m?: number | null;
-    /**
-     * Rain Applied
-     */
-    rain_applied: boolean;
-    /**
-     * Reasons Shown
-     */
-    reasons_shown: Array<ActivityReason>;
-    /**
-     * More Reasons
-     */
-    more_reasons: Array<ActivityReason>;
-    /**
-     * Reasons Before Composition
-     */
-    reasons_before_composition: Array<ActivityReason>;
-    /**
-     * Reasons Suppressed
-     */
-    reasons_suppressed: number;
-    /**
-     * Series Deferred
-     */
-    series_deferred: boolean;
-    /**
-     * Variety Promoted
-     */
-    variety_promoted: boolean;
-    positions: TraceStagePositions;
-    integrity?: CandidateIntegrity | null;
-};
-
-/**
  * CareGroup
  */
 export type CareGroup = {
@@ -1242,131 +504,6 @@ export type CareGroup = {
 };
 
 /**
- * CareNote
- *
- * One thing a caregiver should know before they reach out. A deterministic template, never
- * model-written, and never the content of anything a senior told Care+.
- */
-export type CareNote = {
-    kind: CareNoteKind;
-    /**
-     * Text
-     */
-    text: string;
-};
-
-/**
- * CareNoteKind
- */
-export type CareNoteKind = 'persistence' | 'change' | 'activity_level' | 'outreach_history' | 'context' | 'space' | 'tracker' | 'case';
-
-/**
- * CarePriorityBoard
- */
-export type CarePriorityBoard = {
-    /**
-     * Top K
-     */
-    top_k: number;
-    /**
-     * Follow Up First
-     */
-    follow_up_first: Array<CarePriorityRow>;
-    /**
-     * People
-     */
-    people: Array<CarePriorityRow>;
-    /**
-     * Boundary Note
-     */
-    boundary_note: string;
-    /**
-     * Thresholds
-     */
-    thresholds: Array<ThresholdReference>;
-};
-
-/**
- * CarePriorityRow
- *
- * One person on the care-priority board.
- *
- * Like `CoordinatorPersonRow`, it carries no step count, no percentage and no score. Changes are
- * described in bands inside `take_note`. `position` is a place in the reading order, derived from
- * named facts in a fixed order, not a number about anyone.
- */
-export type CarePriorityRow = {
-    /**
-     * Position
-     */
-    position: number;
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Display Name
-     */
-    display_name: string;
-    follow_up_window: FollowUpWindow;
-    hold?: PriorityHold | null;
-    /**
-     * Headline
-     */
-    headline: string;
-    /**
-     * Suggested Approach
-     */
-    suggested_approach: string;
-    /**
-     * Take Note
-     */
-    take_note: Array<CareNote>;
-    /**
-     * Open Case Id
-     */
-    open_case_id?: string | null;
-    /**
-     * As Of Day
-     */
-    as_of_day: string;
-    /**
-     * Evidence Ids
-     */
-    evidence_ids: Array<string>;
-    care_team_group: CareTeamGroup;
-    care_team_group_reason: CareTeamGroupReason;
-    /**
-     * Review Back On Day
-     */
-    review_back_on_day: string | null;
-    /**
-     * Awaiting Reply Until
-     */
-    awaiting_reply_until: string | null;
-    /**
-     * Review Timing Proposal Waiting
-     */
-    review_timing_proposal_waiting: boolean;
-};
-
-/**
- * CareTeamGroup
- *
- * Which part of the Care Team workflow a person's row belongs in. Decided in `triage.py` from
- * the same facts as the follow-up window, so the two can never disagree; a client only labels it.
- * See `docs/care-priorities.md`.
- */
-export type CareTeamGroup = 'needs_judgement' | 'waiting_for_senior' | 'silverloop_handling' | 'no_attention_needed';
-
-/**
- * CareTeamGroupReason
- *
- * The one fact that placed a row in its `CareTeamGroup`. Each reason belongs to one group.
- */
-export type CareTeamGroupReason = 'open_case' | 'monitoring_due_back' | 'monitoring_until_review_day' | 'keep_an_eye_on' | 'check_in_suggested' | 'awaiting_reply' | 'consent_withdrawn' | 'tracker_unclear' | 'nothing_needed';
-
-/**
  * CaseResolution
  *
  * Why a review case ended. Set once, at the moment it closes, and never inferred.
@@ -1378,20 +515,6 @@ export type CareTeamGroupReason = 'open_case' | 'monitoring_due_back' | 'monitor
  * coordinator reading the card saw "Resolved" with no reason attached at all.
  */
 export type CaseResolution = 'recovered' | 'consent_withdrawn' | 'coordinator_decision';
-
-/**
- * CaseReviewResponse
- */
-export type CaseReviewResponse = {
-    case: ReviewCase;
-    /**
-     * Review Evidence Id
-     */
-    review_evidence_id: string;
-    outcome: OutcomeKind | null;
-    audit_event: AuditEvent;
-    lesson: ReviewLesson;
-};
 
 /**
  * CaseStatus
@@ -1416,26 +539,6 @@ export type CheckInRequest = {
      */
     note?: string | null;
 };
-
-/**
- * ClarificationScope
- *
- * How far a decline reaches, when the person chose to say. Always optional, always skippable.
- *
- * Unclarified means item-level only: one "bad timing" is about the session in front of them,
- * not about mornings in general, and one "not for me" is about that listing, not every walk --
- * the 14-day cooldown already holds that listing back. Both are recorded (`THIS_SLOT`,
- * `THIS_ONE`) and held back from the resolved set until a second answer agrees about a
- * *different programme*: turning the same class down again, on another day or at another of its
- * sessions, is still an answer about that class and widens nothing. A chip (`time_of_day`,
- * `weekday`, `this_activity_type`) is the only thing that widens a single tap into a statement
- * about a *kind* of activity before then. `this_one`, `this_venue` and `this_format` on a "not
- * for me" teach no dimension at all.
- *
- * The ordinal reasons are the exception and take no chip: "too far" and "too tiring" record a
- * ceiling at the listing's own distance or intensity, which applies at once and only narrows.
- */
-export type ClarificationScope = 'time_of_day' | 'weekday' | 'this_slot' | 'this_activity_type' | 'this_format' | 'this_venue' | 'this_one';
 
 /**
  * ConsentRequest
@@ -1482,34 +585,6 @@ export type ContextAnswerOption = {
 };
 
 /**
- * ContextAnswerRequest
- */
-export type ContextAnswerRequest = {
-    /**
-     * Question Id
-     */
-    question_id: string;
-    value: ContextAnswerValue;
-    /**
-     * Note
-     */
-    note?: string | null;
-};
-
-/**
- * ContextAnswerResponse
- */
-export type ContextAnswerResponse = {
-    /**
-     * Question Id
-     */
-    question_id: string;
-    value: ContextAnswerValue;
-    proposed_memory?: ProposedMemory | null;
-    audit_event: AuditEvent;
-};
-
-/**
  * ContextAnswerValue
  *
  * The five answers the one question offers, and the only five it accepts.
@@ -1538,38 +613,6 @@ export type ContextAnswerValue = 'resting' | 'away' | 'other_plans' | 'not_feeli
  * already made.
  */
 export type ContextGapCategory = 'away' | 'already_in_touch' | 'resting_or_recovering' | 'other_known';
-
-/**
- * ContextGapCount
- */
-export type ContextGapCount = {
-    category?: ContextGapCategory | null;
-    /**
-     * Count
-     */
-    count: number;
-};
-
-/**
- * ContextGapTally
- *
- * Known-context overrides for this person in the active run, by category. Shown to the care
- * team; read by no decision, proposal or review setting.
- */
-export type ContextGapTally = {
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * By Category
-     */
-    by_category?: Array<ContextGapCount>;
-    /**
-     * Disclosure
-     */
-    disclosure: string;
-};
 
 /**
  * ContextQuestion
@@ -1622,98 +665,6 @@ export type ContextSignal = {
      * Note
      */
     note?: string | null;
-};
-
-/**
- * CoordinatorFleetMetrics
- *
- * The care team's caseload totals: `OperationalMetrics` counters summed across people.
- *
- * Exactly the sum of `GET /v1/metrics?person_id=...` over the people `GET /v1/coordinator/people`
- * lists (a person with no readings yet is on neither), read once for the whole caseload instead
- * of once per person. Counts only -- no rate, score, step count or percentage about anyone, and
- * `world_model_quality` stays counts by provenance, never a fact.
- */
-export type CoordinatorFleetMetrics = {
-    /**
-     * People
-     */
-    people: number;
-    /**
-     * People Included
-     */
-    people_included: number;
-    /**
-     * No Action Decisions
-     */
-    no_action_decisions: number;
-    /**
-     * Interventions
-     */
-    interventions: number;
-    /**
-     * Awaiting Reply
-     */
-    awaiting_reply: number;
-    /**
-     * No Reply Recorded
-     */
-    no_reply_recorded: number;
-    /**
-     * Coordinator Reviews
-     */
-    coordinator_reviews: number;
-    /**
-     * Coordinator Overrides
-     */
-    coordinator_overrides: number;
-    /**
-     * Device Suspected Days
-     */
-    device_suspected_days: number;
-    world_model_quality?: WorldModelQuality;
-};
-
-/**
- * CoordinatorPersonRow
- *
- * One person on the care team's roster: who they are and whether anything needs doing.
- *
- * Care Team used to lead with a queue of cases and five counts, which meant a coordinator could
- * see who had a case open and nothing else -- not who was fine, not whose tracker had gone dark,
- * not who was being nudged right now. "No one needs human review" is a true sentence that
- * answers a different question from the one a coordinator asks at the start of a shift.
- *
- * What is deliberately absent is the design. No step count, no percentage, no priority score, no
- * ordering that reads as a ranking of people. `attention_band` is a word (`stable` / `watch` /
- * `review`) and every other field is a standing, a small count of missing days, or a class of
- * decision -- each of them already visible on the queue card for anyone with a case, and none of
- * them a number about a person's body. A per-person risk score on this screen would turn a care
- * queue into a leaderboard, which is the one thing this surface must never become.
- */
-export type CoordinatorPersonRow = {
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Display Name
-     */
-    display_name: string;
-    attention_band: AttentionBand;
-    /**
-     * Consent Active
-     */
-    consent_active: boolean;
-    /**
-     * Tracker Not Synced Days
-     */
-    tracker_not_synced_days?: number;
-    /**
-     * Open Case Id
-     */
-    open_case_id?: string | null;
-    last_decision?: Decision | null;
 };
 
 /**
@@ -1829,50 +780,6 @@ export type DataQualityAssessment = {
 };
 
 /**
- * DayDisputeRequest
- *
- * A person correcting Care+'s reading of one of their own days.
- *
- * `accurate=False` does not delete or rewrite the recorded metric -- the observation stays
- * exactly as the device reported it. It attaches a competing account from the person, which the
- * quality assessment weighs and the audit trail keeps. Overwriting sensor data with self-report
- * would destroy the provenance guarantee; ignoring the person entirely would be worse.
- */
-export type DayDisputeRequest = {
-    /**
-     * Day
-     */
-    day: string;
-    /**
-     * Accurate
-     */
-    accurate: boolean;
-    /**
-     * Note
-     */
-    note?: string | null;
-};
-
-/**
- * DayDisputeResponse
- */
-export type DayDisputeResponse = {
-    /**
-     * Day
-     */
-    day: string;
-    /**
-     * Accurate
-     */
-    accurate: boolean;
-    /**
-     * Dispute Evidence Id
-     */
-    dispute_evidence_id: string;
-    audit_event: AuditEvent;
-};
-
-/**
  * Decision
  */
 export type Decision = 'no_action' | 'gentle_nudge' | 'programme_suggestion' | 'coordinator_review' | 'suppress';
@@ -1932,150 +839,6 @@ export type DemoResetResponse = {
      */
     fixture_checksum: string;
 };
-
-/**
- * DimensionPreference
- */
-export type DimensionPreference = {
-    dimension: PreferenceDimension;
-    /**
-     * Value
-     */
-    value: string;
-    /**
-     * Strength
-     */
-    strength: number;
-    /**
-     * Source
-     */
-    source: 'senior_statement' | 'decline_reason' | 'inferred';
-    /**
-     * Confirmed
-     */
-    confirmed?: boolean;
-    /**
-     * Observations
-     */
-    observations?: number;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-    /**
-     * Expires At
-     */
-    expires_at?: string | null;
-    /**
-     * Stated Text
-     */
-    stated_text?: string | null;
-    /**
-     * First Observed At
-     */
-    first_observed_at?: string | null;
-    /**
-     * Positive Evidence
-     */
-    positive_evidence?: number;
-    /**
-     * Negative Evidence
-     */
-    negative_evidence?: number;
-    /**
-     * Pivot
-     */
-    pivot?: number | null;
-    /**
-     * Direction
-     */
-    direction?: 'lower' | 'higher' | null;
-    scope?: ClarificationScope | null;
-    /**
-     * Origin Id
-     */
-    origin_id?: string | null;
-    /**
-     * Superseded By
-     */
-    superseded_by?: string | null;
-};
-
-/**
- * DistanceBasis
- *
- * Where a candidate's `distance_m` came from, so a card never implies a measurement it
- * does not have.
- *
- * `LISTING_STATIC` is the only basis in this build: a fixed figure typed into the listing with
- * no origin and no route behind it. A future routing adapter (walk or public transport from a
- * place the person chose to share) would add its own member here rather than reuse this one.
- * `UNKNOWN` accompanies a `None` distance.
- */
-export type DistanceBasis = 'listing_static' | 'unknown';
-
-/**
- * Enjoyment
- */
-export type Enjoyment = 'enjoyed' | 'okay' | 'not_for_me';
-
-/**
- * EnjoymentRequest
- */
-export type EnjoymentRequest = {
-    enjoyment: Enjoyment;
-    /**
-     * Liked
-     */
-    liked?: Array<LikedAspect>;
-};
-
-/**
- * EnjoymentResponse
- */
-export type EnjoymentResponse = {
-    intervention: Intervention;
-    /**
-     * Enjoyment Evidence Id
-     */
-    enjoyment_evidence_id: string;
-    enjoyment: Enjoyment;
-    /**
-     * Liked
-     */
-    liked: Array<LikedAspect>;
-    /**
-     * Preferences Updated
-     */
-    preferences_updated?: Array<DimensionPreference>;
-    audit_event: AuditEvent;
-};
-
-/**
- * FactCategory
- */
-export type FactCategory = 'identity' | 'routine' | 'activity_preference' | 'interaction' | 'context' | 'learned_response';
-
-/**
- * FactConfidence
- *
- * Qualitative on purpose. A number here would imply a precision the evidence behind most of
- * these facts (one tap, three days) cannot support.
- *
- * Declared here, above the preference models, because a resolved preference and a world-model
- * fact have to grade the same evidence on the same scale -- two vocabularies for "how sure are
- * we" is how the ranker's number and the Privacy screen's wording came to mean different
- * things about the very same row.
- */
-export type FactConfidence = 'low' | 'medium' | 'high';
-
-/**
- * FactSourceType
- *
- * Who or what a fact came from. The distinction the mandate is built on: an inference is
- * never presented as something the person said.
- */
-export type FactSourceType = 'explicit' | 'inferred' | 'external' | 'fixture';
 
 /**
  * FamilyActivityEntry
@@ -2202,187 +965,6 @@ export type FamilyCalendar = {
 };
 
 /**
- * FilterOutcome
- *
- * A candidate the deterministic filter removed, and why.
- *
- * Kept and returned because the filter runs *before* the model sees anything, so this is the
- * only record of what was excluded from its view. Without it, "the agent chose well" is
- * unfalsifiable -- the interesting question is always what it never got to consider.
- */
-export type FilterOutcome = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Rule
-     */
-    rule: string;
-    /**
-     * Detail
-     */
-    detail: string;
-};
-
-/**
- * FollowThrough
- *
- * What happened after someone accepted -- the signal `ACCEPTED` was standing in for.
- *
- * `UNABLE` is recorded as a poor fit for *this option*, never as a fact about the person. It
- * ranks the candidate down so something else is offered next time; it is not a capability
- * judgement, is never shown to a coordinator as one, and can never raise a decision rung.
- */
-export type FollowThrough = 'completed' | 'partial' | 'not_this_time' | 'unable';
-
-/**
- * FollowThroughRequest
- */
-export type FollowThroughRequest = {
-    /**
-     * completed, partial, not_this_time, or unable
-     */
-    follow_through: FollowThrough;
-    /**
-     * Note
-     */
-    note?: string | null;
-};
-
-/**
- * FollowThroughResponse
- */
-export type FollowThroughResponse = {
-    intervention: Intervention;
-    /**
-     * Follow Through Evidence Id
-     */
-    follow_through_evidence_id: string;
-    follow_through: FollowThrough;
-    /**
-     * Preference Before
-     */
-    preference_before: number;
-    /**
-     * Preference After
-     */
-    preference_after: number;
-    /**
-     * Candidate Key
-     */
-    candidate_key: string;
-    audit_event: AuditEvent;
-};
-
-/**
- * FollowUpObservation
- *
- * What the person's activity did in the days after one piece of outreach.
- *
- * This is the question the product could not previously answer -- "does reaching out change
- * anything?" -- and the data to answer it was already on disk, unread.
- *
- * It is deliberately not a claim of cause. One person over a few days cannot establish that a
- * suggestion did anything, and `caveat` says so on every single observation rather than in a
- * footnote somewhere. Causal comparison belongs to the evaluation harness, across many people;
- * this is a description of one person's week and is labelled as one.
- */
-export type FollowUpObservation = {
-    /**
-     * Intervention Id
-     */
-    intervention_id: string;
-    /**
-     * Available
-     */
-    available: boolean;
-    /**
-     * Reason Unavailable
-     */
-    reason_unavailable?: string | null;
-    /**
-     * Observed From
-     */
-    observed_from?: string | null;
-    /**
-     * Observed To
-     */
-    observed_to?: string | null;
-    /**
-     * Days Observed
-     */
-    days_observed?: number;
-    /**
-     * Valid Days Observed
-     */
-    valid_days_observed?: number;
-    /**
-     * Steps Before
-     */
-    steps_before?: number;
-    /**
-     * Steps After
-     */
-    steps_after?: number;
-    /**
-     * Change Percent
-     */
-    change_percent?: number;
-    /**
-     * Reference Steps
-     */
-    reference_steps?: number;
-    /**
-     * Returned Toward Usual
-     */
-    returned_toward_usual?: boolean;
-    /**
-     * Interpretation
-     */
-    interpretation?: string;
-    /**
-     * Caveat
-     */
-    caveat?: string;
-};
-
-/**
- * FollowUpWindow
- *
- * How soon a person, not Care+, should follow up. Outreach timeframes, not triage.
- *
- * The two contact windows are reachable only from a decision `policy.decide` already returned;
- * see `triage.py`. Daily activity data cannot support anything finer than a day, which is why
- * there is no "within the hour".
- */
-export type FollowUpWindow = 'reach_out_today' | 'check_in_within_48h' | 'keep_an_eye_on' | 'no_action_needed';
-
-/**
- * Format
- *
- * How a listing is run -- the structural job the free-text `category` column was doing badly.
- *
- * `category` stays as the display badge and is populated from `FORMAT_LABEL`, so the card still
- * reads in words; nothing ranks or learns from it any more.
- */
-export type Format = 'group_class' | 'group_activity' | 'drop_in_group' | 'self_guided' | 'one_to_one';
-
-/**
- * GoalKind
- *
- * Lifestyle goals only. Never a health target, never a step count, never a quota.
- *
- * A week view that reads as something a person is failing would be worse than no week view at
- * all, which is why `target_per_week` is optional and why nothing here is ever scored.
- */
-export type GoalKind = 'get_out_more' | 'meet_people' | 'morning_activity' | 'less_travel';
-
-/**
  * GroupMember
  */
 export type GroupMember = {
@@ -2479,62 +1061,6 @@ export type HelperAssignment = {
 export type HumanAction = 'agree' | 'hold' | 'override';
 
 /**
- * IndoorOutdoor
- *
- * What a *listing* says about its surroundings, as opposed to what a *request* asks for.
- *
- * Deliberately not `ActivityEnvironment`: a request may say "either", which a listing cannot,
- * and a listing may say "unknown", which a request cannot. `activity_search`'s
- * `_ENVIRONMENT_COMPATIBLE` is the one bridge between them. Declared here, above
- * `ActivityIntent`, because an intent's `excluded_environments` is a list of things the
- * *catalogue* can be, not of things a request can ask for.
- */
-export type IndoorOutdoor = 'indoor' | 'outdoor' | 'sheltered' | 'unknown';
-
-/**
- * IntegrationStatus
- */
-export type IntegrationStatus = 'fixture' | 'future_authorised' | 'live';
-
-/**
- * IntegrityFinding
- */
-export type IntegrityFinding = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    /**
-     * Factor
-     */
-    factor: string;
-    /**
-     * Contribution
-     */
-    contribution: number;
-    /**
-     * Classification
-     */
-    classification: 'grounded' | 'on_expand' | 'silent_by_design' | 'unsupported';
-    /**
-     * Silent Reason
-     */
-    silent_reason?: 'contradicted_avoid_belief' | 'history_silenced_not_enjoyed' | null;
-};
-
-/**
- * IntentParser
- *
- * Which of the two parsers produced an intent.
- *
- * They exist as a pair because the offline profile forbids the planner (`runtime.py`), and the
- * demo has to survive a dead network. `CHIPS` and `KEYWORD` are deterministic and always
- * available; `LLM` is better at real sentences and only runs when the planner is live. All three
- * emit the same `ActivityIntent`, so nothing downstream can tell them apart or needs to.
- */
-export type IntentParser = 'chips' | 'keyword' | 'llm';
-
-/**
  * Intervention
  */
 export type Intervention = {
@@ -2606,17 +1132,6 @@ export type JoinGroupRequest = {
 };
 
 /**
- * LikedAspect
- *
- * What made it good, when the person chooses to say.
- *
- * These map onto `PreferenceDimension`, which is the point: "the people" is evidence about
- * company, "the location" about distance, "the timing" about time of day. It is the only place
- * in the product where a person tells us what worked rather than only what did not.
- */
-export type LikedAspect = 'people' | 'location' | 'activity' | 'timing';
-
-/**
  * LinkSeniorRequest
  */
 export type LinkSeniorRequest = {
@@ -2659,31 +1174,6 @@ export type MeResponse = {
  * MemberStatus
  */
 export type MemberStatus = 'active' | 'pending';
-
-/**
- * MemoryDecision
- */
-export type MemoryDecision = 'remember' | 'just_today' | 'no';
-
-/**
- * MemoryDecisionRequest
- */
-export type MemoryDecisionRequest = {
-    decision: MemoryDecision;
-};
-
-/**
- * MemoryDecisionResponse
- */
-export type MemoryDecisionResponse = {
-    /**
-     * Proposal Id
-     */
-    proposal_id: string;
-    decision: MemoryDecision;
-    preference?: DimensionPreference | null;
-    audit_event: AuditEvent;
-};
 
 /**
  * MyGroup
@@ -2746,274 +1236,6 @@ export type OnboardRequest = {
 };
 
 /**
- * OperationalMetrics
- */
-export type OperationalMetrics = {
-    /**
-     * People
-     */
-    people: number;
-    /**
-     * Scenario Run Id
-     */
-    scenario_run_id: string;
-    /**
-     * Audit Events
-     */
-    audit_events: number;
-    /**
-     * Decision Evidence
-     */
-    decision_evidence: number;
-    /**
-     * Interventions
-     */
-    interventions: number;
-    /**
-     * Outcomes
-     */
-    outcomes: number;
-    /**
-     * Open Cases
-     */
-    open_cases: number;
-    /**
-     * No Action Decisions
-     */
-    no_action_decisions: number;
-    /**
-     * Consent Active
-     */
-    consent_active: boolean;
-    last_decision: Decision | null;
-    /**
-     * Last Observed At
-     */
-    last_observed_at: string | null;
-    /**
-     * Source Classification Counts
-     */
-    source_classification_counts: {
-        [key: string]: number;
-    };
-    /**
-     * Preference Scores
-     */
-    preference_scores: {
-        [key: string]: number;
-    };
-    /**
-     * Candidate Preference Scores
-     */
-    candidate_preference_scores: {
-        [key: string]: number;
-    };
-    /**
-     * Candidate Labels
-     */
-    candidate_labels?: {
-        [key: string]: string;
-    };
-    /**
-     * Candidate Offer Counts
-     */
-    candidate_offer_counts?: {
-        [key: string]: number;
-    };
-    /**
-     * Candidate Accepted Counts
-     */
-    candidate_accepted_counts?: {
-        [key: string]: number;
-    };
-    /**
-     * Planner Runs
-     */
-    planner_runs?: number;
-    /**
-     * Planner Agent Selected
-     */
-    planner_agent_selected?: number;
-    /**
-     * Planner Contested Runs
-     */
-    planner_contested_runs?: number;
-    /**
-     * Planner Agreed With Ranker
-     */
-    planner_agreed_with_ranker?: number;
-    /**
-     * Planner Fallback Modes
-     */
-    planner_fallback_modes?: {
-        [key: string]: number;
-    };
-    /**
-     * Planner Guardrail Rejections
-     */
-    planner_guardrail_rejections?: number;
-    /**
-     * Planner Guardrail Violations
-     */
-    planner_guardrail_violations?: number;
-    /**
-     * Llm Calls
-     */
-    llm_calls?: number;
-    /**
-     * Llm Latency Ms Total
-     */
-    llm_latency_ms_total?: number;
-    /**
-     * Llm Tokens Total
-     */
-    llm_tokens_total?: number;
-    /**
-     * Llm Fallbacks By Mode
-     */
-    llm_fallbacks_by_mode?: {
-        [key: string]: number;
-    };
-    /**
-     * Guardrail Rejections By Rule
-     */
-    guardrail_rejections_by_rule?: {
-        [key: string]: number;
-    };
-    /**
-     * Candidate Followed Counts
-     */
-    candidate_followed_counts?: {
-        [key: string]: number;
-    };
-    /**
-     * Candidate Completed Counts
-     */
-    candidate_completed_counts?: {
-        [key: string]: number;
-    };
-    /**
-     * Follow Through Reported
-     */
-    follow_through_reported?: number;
-    /**
-     * Follow Through Completed
-     */
-    follow_through_completed?: number;
-    /**
-     * Follow Up Observations
-     */
-    follow_up_observations?: number;
-    /**
-     * Follow Up Returned Toward Usual
-     */
-    follow_up_returned_toward_usual?: number;
-    /**
-     * Suppressed Candidates
-     */
-    suppressed_candidates?: number;
-    /**
-     * Day Disputes
-     */
-    day_disputes?: number;
-    /**
-     * Device Suspected Days
-     */
-    device_suspected_days?: number;
-    world_model_quality?: WorldModelQuality;
-    /**
-     * Activity Searches
-     */
-    activity_searches?: number;
-    /**
-     * Activity Results Shown
-     */
-    activity_results_shown?: number;
-    /**
-     * Activity Interested
-     */
-    activity_interested?: number;
-    /**
-     * Activity Not For Me
-     */
-    activity_not_for_me?: number;
-    /**
-     * Activity Decline Reasons
-     */
-    activity_decline_reasons?: {
-        [key: string]: number;
-    };
-    /**
-     * Activities Planned
-     */
-    activities_planned?: number;
-    /**
-     * Plans Due
-     */
-    plans_due?: number;
-    /**
-     * Activity Reports
-     */
-    activity_reports?: number;
-    /**
-     * Activity Went
-     */
-    activity_went?: number;
-    /**
-     * Activity Enjoyed
-     */
-    activity_enjoyed?: number;
-    /**
-     * Replans Offered
-     */
-    replans_offered?: number;
-    /**
-     * Replans Accepted
-     */
-    replans_accepted?: number;
-    /**
-     * Replans Declined
-     */
-    replans_declined?: number;
-    /**
-     * Awaiting Reply
-     */
-    awaiting_reply?: number;
-    /**
-     * No Reply Recorded
-     */
-    no_reply_recorded?: number;
-    /**
-     * Coordinator Reviews
-     */
-    coordinator_reviews?: number;
-    /**
-     * Coordinator Overrides
-     */
-    coordinator_overrides?: number;
-    /**
-     * Typical Response Hour
-     */
-    typical_response_hour?: number | null;
-    /**
-     * Typical Response Hour Sample
-     */
-    typical_response_hour_sample?: number;
-    /**
-     * Policy Version
-     */
-    policy_version: string;
-    /**
-     * Persistence
-     */
-    persistence: string;
-    /**
-     * Offline Ready
-     */
-    offline_ready: boolean;
-};
-
-/**
  * OutcomeKind
  *
  * How a person responded to one piece of outreach.
@@ -3070,118 +1292,6 @@ export type OutcomeResponse = {
 };
 
 /**
- * OutreachDetail
- *
- * What "tell me more" actually shows.
- *
- * Derived deterministically from the intervention's `candidate_key`. No model writes any of
- * this: the wording is fixed, reviewed content, because it is the one screen that tells a
- * person to move their body and it must not vary run to run.
- *
- * `boundary_note` is not decoration. This is general wellbeing content, not exercise
- * prescription, and the screen has to say so in its own words rather than relying on a policy
- * document nobody reading it will ever see.
- */
-export type OutreachDetail = {
-    /**
-     * Kind
-     */
-    kind: 'movement_routine' | 'programme_details' | 'none';
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Intro
-     */
-    intro: string;
-    /**
-     * Steps
-     */
-    steps?: Array<OutreachStep>;
-    /**
-     * Stop Note
-     */
-    stop_note: string;
-    /**
-     * Boundary Note
-     */
-    boundary_note: string;
-    programme?: Programme | null;
-    activity?: ActivityCandidate | null;
-    /**
-     * Source
-     */
-    source?: string | null;
-};
-
-/**
- * OutreachStep
- *
- * One step of a movement option, written to be read aloud off a phone at arm's length.
- */
-export type OutreachStep = {
-    /**
-     * Order
-     */
-    order: number;
-    /**
-     * Text
-     */
-    text: string;
-};
-
-/**
- * OutreachSummary
- *
- * One completed pass of the loop: what was offered, what was said, what happened next.
- *
- * Serves three readers off one shape -- the senior's own history, the coordinator's "what
- * happened after" column, and the operations effectiveness panel -- so the three can never drift
- * into telling different stories about the same event.
- */
-export type OutreachSummary = {
-    /**
-     * Intervention Id
-     */
-    intervention_id: string;
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Created At
-     */
-    created_at: string;
-    decision: Decision;
-    /**
-     * Candidate Key
-     */
-    candidate_key: string;
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Outcome
-     */
-    outcome?: string | null;
-    /**
-     * Outcome Reason
-     */
-    outcome_reason?: string | null;
-    /**
-     * Follow Through
-     */
-    follow_through?: string | null;
-    follow_up?: FollowUpObservation | null;
-    /**
-     * Awaiting Reply Until
-     */
-    awaiting_reply_until?: string | null;
-};
-
-/**
  * OverrideReason
  *
  * Why a coordinator did not do what Care+ suggested.
@@ -3193,71 +1303,6 @@ export type OutreachSummary = {
  * records only that a note exists.
  */
 export type OverrideReason = 'known_context' | 'data_doubt' | 'recent_contact' | 'other' | 'not_a_concern';
-
-/**
- * PersonFact
- */
-export type PersonFact = {
-    /**
-     * Key
-     */
-    key: string;
-    category: FactCategory;
-    /**
-     * Statement
-     */
-    statement: string;
-    /**
-     * Value
-     */
-    value: string;
-    source_type: FactSourceType;
-    /**
-     * Source
-     */
-    source: string;
-    confidence: FactConfidence;
-    /**
-     * Evidence Count
-     */
-    evidence_count: number;
-    /**
-     * First Observed At
-     */
-    first_observed_at?: string | null;
-    /**
-     * Last Observed At
-     */
-    last_observed_at?: string | null;
-    /**
-     * Expires At
-     */
-    expires_at?: string | null;
-    /**
-     * Confirmed
-     */
-    confirmed?: boolean;
-    /**
-     * Evidence Ids
-     */
-    evidence_ids?: Array<string>;
-    /**
-     * Contradicts
-     */
-    contradicts?: Array<string>;
-    /**
-     * Contradiction Outcome
-     */
-    contradiction_outcome?: 'this_applies' | 'other_applies' | 'neither_applies' | 'undecided' | null;
-    /**
-     * In Effect
-     */
-    in_effect?: boolean | null;
-    /**
-     * Stale
-     */
-    stale?: boolean;
-};
 
 /**
  * PersonState
@@ -3311,29 +1356,6 @@ export type PersonState = {
 };
 
 /**
- * PersonWorldModel
- */
-export type PersonWorldModel = {
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * As Of Day
-     */
-    as_of_day: string;
-    /**
-     * Facts
-     */
-    facts?: Array<PersonFact>;
-    /**
-     * Gaps
-     */
-    gaps?: Array<string>;
-    quality: WorldModelQuality;
-};
-
-/**
  * PinResponse
  */
 export type PinResponse = {
@@ -3345,114 +1367,6 @@ export type PinResponse = {
      * Expires At
      */
     expires_at: string;
-};
-
-/**
- * PlanActivityRequest
- */
-export type PlanActivityRequest = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    /**
-     * Day
-     */
-    day: string;
-};
-
-/**
- * PlannedActivity
- */
-export type PlannedActivity = {
-    /**
-     * Plan Id
-     */
-    plan_id: string;
-    /**
-     * Day
-     */
-    day: string;
-    activity: ActivityCandidate;
-    /**
-     * Origin
-     */
-    origin?: 'chosen' | 'suggested';
-    /**
-     * Replaced Reason
-     */
-    replaced_reason?: string | null;
-    follow_through?: PlannedFollowThrough | null;
-    enjoyment?: Enjoyment | null;
-    /**
-     * Awaiting Report
-     */
-    awaiting_report?: boolean;
-};
-
-/**
- * PlannedEnjoymentRequest
- */
-export type PlannedEnjoymentRequest = {
-    enjoyment: Enjoyment;
-    /**
-     * Liked
-     */
-    liked?: Array<LikedAspect>;
-};
-
-/**
- * PlannedEnjoymentResponse
- */
-export type PlannedEnjoymentResponse = {
-    /**
-     * Plan Id
-     */
-    plan_id: string;
-    enjoyment: Enjoyment;
-    /**
-     * Liked
-     */
-    liked: Array<LikedAspect>;
-    /**
-     * Preferences Updated
-     */
-    preferences_updated?: Array<DimensionPreference>;
-    week: WeekPlan;
-    audit_event: AuditEvent;
-};
-
-/**
- * PlannedFollowThrough
- *
- * What happened to a planned activity, in the person's words: they went, they did not, or it
- * was cancelled. Three answers with no right one. `CANCELLED` is a fact about the listing, not
- * the person, and teaches nothing about them.
- */
-export type PlannedFollowThrough = 'went' | 'did_not_go' | 'cancelled';
-
-/**
- * PlannedFollowThroughRequest
- */
-export type PlannedFollowThroughRequest = {
-    follow_through: PlannedFollowThrough;
-    /**
-     * Note
-     */
-    note?: string | null;
-};
-
-/**
- * PlannedFollowThroughResponse
- */
-export type PlannedFollowThroughResponse = {
-    /**
-     * Plan Id
-     */
-    plan_id: string;
-    follow_through: PlannedFollowThrough;
-    week: WeekPlan;
-    audit_event: AuditEvent;
 };
 
 /**
@@ -3472,67 +1386,6 @@ export type PlannedFollowThroughResponse = {
  * more field describing the return it already made.
  */
 export type PolicyGate = 'consent' | 'data_quality' | 'confidence' | 'stated_explanation' | 'rain_context' | 'small_baseline' | 'severity_persistence' | 'review_floor' | 'shadow_check' | 'contact_cap' | 'accepted_cooldown' | 'within_range';
-
-/**
- * PreferenceDimension
- *
- * The axes a decline can teach, as opposed to the single candidate it was about.
- *
- * This is what makes "too far" different from "just not today". A per-candidate posterior can
- * only ever say "not this one"; a dimension transfers to activities that have never been
- * offered, which is the whole point of learning anything.
- *
- * Ranking only, exactly like the per-candidate learner: a dimension can reorder what the policy
- * already permitted and can never permit, escalate or unblock anything.
- *
- * Two of these are *ordinal*: DISTANCE and INTENSITY carry a `pivot` and a `direction` rather
- * than a value from a closed list, because "1.2 km was too far" is a statement about a ceiling
- * and reading it as the nominal bucket the listing happened to fall in taught the opposite
- * ("avoid things near home"). The rest are nominal.
- */
-export type PreferenceDimension = 'distance' | 'intensity' | 'timing' | 'social' | 'environment' | 'category' | 'activity_type';
-
-/**
- * PreferenceStance
- *
- * What a person is telling Care+ about a kind of activity, in their own control.
- *
- * `PREFER` and `AVOID` write a confirmed `senior_statement` preference at full strength (the
- * same tier a confirmed proposed memory reaches). `FORGET` removes every preference the person
- * holds on that (dimension, value) -- learned or stated -- because a person's own belief about
- * themselves outranks anything inferred from their taps. Ranking only, like everything a
- * preference touches: none of this can permit, block or escalate an action.
- */
-export type PreferenceStance = 'prefer' | 'avoid' | 'forget';
-
-/**
- * PreferenceStatementRequest
- */
-export type PreferenceStatementRequest = {
-    stance: PreferenceStance;
-    /**
-     * Until
-     */
-    until?: string | null;
-    /**
-     * Stated Text
-     */
-    stated_text?: string | null;
-};
-
-/**
- * PreferenceStatementResponse
- */
-export type PreferenceStatementResponse = {
-    dimension: PreferenceDimension;
-    /**
-     * Value
-     */
-    value: string;
-    stance: PreferenceStance;
-    preference?: DimensionPreference | null;
-    audit_event: AuditEvent;
-};
 
 /**
  * PriorOutreach
@@ -3573,441 +1426,6 @@ export type PriorOutreach = {
 };
 
 /**
- * PriorityHold
- *
- * Why someone is set aside rather than ranked. Neither is a statement about their wellbeing.
- */
-export type PriorityHold = 'consent_withdrawn' | 'data_not_readable';
-
-/**
- * Programme
- */
-export type Programme = {
-    /**
-     * Programme Id
-     */
-    programme_id: string;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Venue
-     */
-    venue: string;
-    /**
-     * Distance Km
-     */
-    distance_km: number;
-    /**
-     * Next Session
-     */
-    next_session: string;
-    /**
-     * Accessibility
-     */
-    accessibility: Array<string>;
-    /**
-     * Evidence Source
-     */
-    evidence_source?: string;
-};
-
-/**
- * ProposedMemory
- *
- * Something Care+ believes it has learned, held back until the person agrees to it.
- *
- * The alternative -- storing it silently -- is what makes a system feel like it is watching
- * rather than helping. A belief the person never agreed to is also one they can never correct,
- * because they do not know it exists.
- *
- * `statement` and `question` are the exact words shown. They are stored rather than generated at
- * render time so that what a person agreed to is recoverable later, word for word.
- */
-export type ProposedMemory = {
-    /**
-     * Proposal Id
-     */
-    proposal_id: string;
-    dimension: PreferenceDimension;
-    /**
-     * Value
-     */
-    value: string;
-    /**
-     * Statement
-     */
-    statement: string;
-    /**
-     * Question
-     */
-    question: string;
-    /**
-     * Source Text
-     */
-    source_text?: string | null;
-    /**
-     * Created At
-     */
-    created_at: string;
-};
-
-/**
- * RankChange
- *
- * One structured difference between a baseline and a variant trace. No prose: the web
- * view-model words it from these fields.
- */
-export type RankChange = {
-    /**
-     * Kind
-     */
-    kind: 'rank_moved' | 'entered_top_three' | 'left_top_three' | 'filter_status_changed' | 'factor_delta' | 'fact_added' | 'fact_removed' | 'fact_changed';
-    /**
-     * Activity Id
-     */
-    activity_id?: string | null;
-    /**
-     * Baseline Rank
-     */
-    baseline_rank?: number | null;
-    /**
-     * Variant Rank
-     */
-    variant_rank?: number | null;
-    /**
-     * Baseline Rule
-     */
-    baseline_rule?: string | null;
-    /**
-     * Variant Rule
-     */
-    variant_rule?: string | null;
-    /**
-     * Factor
-     */
-    factor?: string | null;
-    /**
-     * Baseline Contribution
-     */
-    baseline_contribution?: number | null;
-    /**
-     * Variant Contribution
-     */
-    variant_contribution?: number | null;
-    /**
-     * Delta
-     */
-    delta?: number | null;
-    /**
-     * Fact Key
-     */
-    fact_key?: string | null;
-    /**
-     * Baseline Strength
-     */
-    baseline_strength?: number | null;
-    /**
-     * Variant Strength
-     */
-    variant_strength?: number | null;
-    /**
-     * Baseline Pivot
-     */
-    baseline_pivot?: number | null;
-    /**
-     * Variant Pivot
-     */
-    variant_pivot?: number | null;
-    /**
-     * Changed Fields
-     */
-    changed_fields?: Array<string>;
-};
-
-/**
- * RankedActivity
- */
-export type RankedActivity = {
-    candidate: ActivityCandidate;
-    /**
-     * Rank
-     */
-    rank: number;
-    /**
-     * Reasons
-     */
-    reasons?: Array<ActivityReason>;
-    /**
-     * More Reasons
-     */
-    more_reasons?: Array<ActivityReason>;
-    /**
-     * Selected By
-     */
-    selected_by?: 'agent' | 'ranker';
-    /**
-     * Series Key
-     */
-    series_key?: string | null;
-};
-
-/**
- * RankerCounterfactual
- */
-export type RankerCounterfactual = {
-    request?: RankerRequestCounterfactual | null;
-    world_model?: RankerWorldModelCounterfactual | null;
-    world?: RankerWorldCounterfactual | null;
-};
-
-/**
- * RankerCounterfactualControls
- */
-export type RankerCounterfactualControls = {
-    /**
-     * Time Windows
-     */
-    time_windows: Array<TimeWindow>;
-    /**
-     * Social Preferences
-     */
-    social_preferences: Array<SocialPreference>;
-    /**
-     * Environments
-     */
-    environments: Array<ActivityEnvironment>;
-    /**
-     * Activity Types
-     */
-    activity_types: Array<ActivityType>;
-    /**
-     * Max Distance M
-     */
-    max_distance_m: number;
-    /**
-     * Travel Ceiling M Min
-     */
-    travel_ceiling_m_min: number;
-    /**
-     * Travel Ceiling M Max
-     */
-    travel_ceiling_m_max: number;
-    /**
-     * Decline Reasons
-     */
-    decline_reasons: Array<DeclineReason>;
-    /**
-     * Clarification Scopes
-     */
-    clarification_scopes: Array<ClarificationScope>;
-    /**
-     * Enjoyments
-     */
-    enjoyments: Array<Enjoyment>;
-    /**
-     * Liked Aspects
-     */
-    liked_aspects: Array<LikedAspect>;
-};
-
-/**
- * RankerFeedbackKind
- */
-export type RankerFeedbackKind = 'not_for_me' | 'interested' | 'enjoyment';
-
-/**
- * RankerFeedbackPreview
- *
- * One response to preview, folded through the production learners and never saved.
- */
-export type RankerFeedbackPreview = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    response: RankerFeedbackKind;
-    reason?: DeclineReason | null;
-    clarification?: ClarificationScope | null;
-    enjoyment?: Enjoyment | null;
-    /**
-     * Liked
-     */
-    liked?: Array<LikedAspect>;
-};
-
-/**
- * RankerHistoryPreset
- */
-export type RankerHistoryPreset = {
-    /**
-     * Preset Id
-     */
-    preset_id: string;
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Events
-     */
-    events: Array<RankerPresetEvent>;
-};
-
-/**
- * RankerInspectRequest
- *
- * One inspection. `text` wins over `intent`, exactly as on `POST /v1/activities/search`.
- *
- * `baseline` is the execution on screen: the person's live state, with `history_preset` folded
- * in when one is given. A `variant` (and `changes`) exists only when a `counterfactual` or a
- * `feedback` preview is given, and is that baseline with them applied -- so `changes` is the
- * preview's effect alone, never the preset's.
- *
- * `compare_preset_to_live` asks instead what the preset itself changed: the baseline is live
- * state and the variant is live state plus the preset. It needs a preset and cannot be combined
- * with a counterfactual or feedback (422).
- */
-export type RankerInspectRequest = {
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Text
-     */
-    text?: string | null;
-    intent?: ActivityIntent | null;
-    /**
-     * History Preset
-     */
-    history_preset?: string | null;
-    counterfactual?: RankerCounterfactual | null;
-    feedback?: RankerFeedbackPreview | null;
-    /**
-     * Compare Preset To Live
-     */
-    compare_preset_to_live?: boolean;
-    /**
-     * Run Planner
-     */
-    run_planner?: boolean;
-};
-
-/**
- * RankerInspectResponse
- */
-export type RankerInspectResponse = {
-    baseline: ActivityRankingTrace;
-    variant?: ActivityRankingTrace | null;
-    /**
-     * Changes
-     */
-    changes?: Array<RankChange> | null;
-};
-
-/**
- * RankerPresetEvent
- */
-export type RankerPresetEvent = {
-    /**
-     * Kind
-     */
-    kind: 'not_for_me' | 'interested' | 'enjoyment';
-    /**
-     * Programme Key
-     */
-    programme_key: string;
-    /**
-     * Days Ago
-     */
-    days_ago: number;
-    reason?: DeclineReason | null;
-    clarification?: ClarificationScope | null;
-    enjoyment?: Enjoyment | null;
-    /**
-     * Liked
-     */
-    liked?: Array<LikedAspect>;
-};
-
-/**
- * RankerPresetsResponse
- */
-export type RankerPresetsResponse = {
-    /**
-     * Presets
-     */
-    presets: Array<RankerHistoryPreset>;
-    controls: RankerCounterfactualControls;
-    /**
-     * People
-     */
-    people: Array<TracePerson>;
-};
-
-/**
- * RankerRequestCounterfactual
- *
- * Changes to the parsed request, applied to a copy of the intent (then re-validated).
- */
-export type RankerRequestCounterfactual = {
-    time_window?: TimeWindow | null;
-    social_preference?: SocialPreference | null;
-    environment?: ActivityEnvironment | null;
-    /**
-     * Activity Types
-     */
-    activity_types?: Array<ActivityType> | null;
-    /**
-     * Max Distance M
-     */
-    max_distance_m?: number | null;
-    /**
-     * Distance Is Explicit
-     */
-    distance_is_explicit?: boolean | null;
-};
-
-/**
- * RankerWorldCounterfactual
- *
- * Changes to the world the ranker reads: today's rain, and listings marked full.
- */
-export type RankerWorldCounterfactual = {
-    /**
-     * Rain
-     */
-    rain?: boolean | null;
-    /**
-     * Mark Full
-     */
-    mark_full?: Array<string>;
-};
-
-/**
- * RankerWorldModelCounterfactual
- *
- * Changes to what is held about the person, appended to the rows and then re-resolved.
- */
-export type RankerWorldModelCounterfactual = {
-    /**
-     * Travel Ceiling M
-     */
-    travel_ceiling_m?: number | null;
-    temporary_avoid_activity_type?: ActivityType | null;
-    /**
-     * Temporary Avoid Until
-     */
-    temporary_avoid_until?: string | null;
-};
-
-/**
  * ReadinessResponse
  */
 export type ReadinessResponse = {
@@ -4044,229 +1462,9 @@ export type ReadinessResponse = {
 };
 
 /**
- * ReasonBasis
- *
- * What a "why this fits you" line is grounded in. No line may exist without one.
- */
-export type ReasonBasis = 'intent' | 'preference' | 'context' | 'catalogue' | 'history' | 'variety';
-
-/**
- * ReasonWithoutPositiveFactor
- */
-export type ReasonWithoutPositiveFactor = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    basis: ReasonBasis;
-    /**
-     * Factor
-     */
-    factor: string;
-    /**
-     * Contribution
-     */
-    contribution: number;
-};
-
-/**
  * RepeatRule
  */
 export type RepeatRule = 'none' | 'daily' | 'weekly' | 'monthly';
-
-/**
- * ReplacePlannedActivityRequest
- *
- * The person's answer to a replan offer: this one instead. The day is not theirs to pass --
- * it is the day the original plan was on.
- */
-export type ReplacePlannedActivityRequest = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-};
-
-/**
- * ReplanNotice
- *
- * A planned activity that can no longer happen, and what Care+ suggests instead.
- *
- * The whole sequence this exists for: goal -> plan -> the world changes -> replan -> ASK -> the
- * person decides. `alternative` is a proposal and nothing else; nothing is ever swapped without
- * the person saying so, because silently substituting a different activity would be the system
- * making a decision about someone's day on their behalf.
- *
- * `offer_id` is the server's own record of this offer. It is what "no thanks" is recorded
- * against: before it existed, declining lived in browser state and the same notice came back on
- * the next reload.
- */
-export type ReplanNotice = {
-    /**
-     * Plan Id
-     */
-    plan_id: string;
-    /**
-     * Original Title
-     */
-    original_title: string;
-    /**
-     * Reason
-     */
-    reason: string;
-    reason_code: ReplanReason;
-    alternative?: RankedActivity | null;
-    /**
-     * Message
-     */
-    message: string;
-    /**
-     * Offer Id
-     */
-    offer_id?: string | null;
-};
-
-/**
- * ReplanOffer
- *
- * One offer to replace a planned activity the world changed under, and what the person said.
- *
- * Written by the simulator's own `advance()` in the same transaction as the change that
- * invalidated the plan, so an offer cannot exist without the fact behind it. `resolution` is
- * `None` while the offer is open.
- */
-export type ReplanOffer = {
-    /**
-     * Offer Id
-     */
-    offer_id: string;
-    /**
-     * Plan Id
-     */
-    plan_id: string;
-    reason: ReplanReason;
-    /**
-     * Alternative Activity Id
-     */
-    alternative_activity_id?: string | null;
-    /**
-     * Offered At
-     */
-    offered_at: string;
-    /**
-     * Resolved At
-     */
-    resolved_at?: string | null;
-    resolution?: ReplanResolution | null;
-};
-
-/**
- * ReplanReason
- *
- * Why a planned activity can no longer happen -- the *code*, never the sentence.
- *
- * The wording a person reads is built in `replanning.py` from the code plus the listing's own
- * title, so a reason can never be phrased as something it is not. `WEATHER` exists precisely so
- * the simulator no longer has to fabricate a catalogue fact ("fully booked") to represent a
- * context one: a forecast that turned is a forecast that turned.
- */
-export type ReplanReason = 'full' | 'cancelled' | 'weather';
-
-/**
- * ReplanResolution
- *
- * How a replan offer ended. `NO_ALTERNATIVE` is not a failure: "this can no longer happen and
- * nothing similar was found" is a complete, honest answer, and recording it is what lets the
- * gap be counted rather than guessed at. `EXPIRED` is the day passing with nothing said.
- */
-export type ReplanResolution = 'accepted' | 'declined' | 'expired' | 'no_alternative';
-
-/**
- * ResolvedPreference
- *
- * What the ranker actually reads: one active belief, with sentiment, confidence and evidence
- * finally separate from one another.
- *
- * **Derived, never persisted.** Rebuilt per request from the rows that already exist, exactly
- * like `PersonWorldModel` -- a read model cannot drift from its evidence, and a second store of
- * the same belief is a second thing to keep true.
- *
- * `strength` says which way the belief leans and `confidence` how much sits behind it; one
- * signed scalar used to carry both, so "nothing known" and "two things that disagree" were the
- * same number. `weight` is the tier's own say, bounded to [0, 1] so the ADR 0005 argument that
- * a social nudge cannot outvote a real acceptance stays structural rather than arithmetical.
- */
-export type ResolvedPreference = {
-    dimension: PreferenceDimension;
-    /**
-     * Value
-     */
-    value?: string | null;
-    /**
-     * Pivot
-     */
-    pivot?: number | null;
-    /**
-     * Direction
-     */
-    direction?: 'lower' | 'higher' | null;
-    /**
-     * Sentiment
-     */
-    sentiment: 'like' | 'avoid';
-    /**
-     * Strength
-     */
-    strength: number;
-    confidence: FactConfidence;
-    /**
-     * Positive Evidence
-     */
-    positive_evidence?: number;
-    /**
-     * Negative Evidence
-     */
-    negative_evidence?: number;
-    /**
-     * Evidence Count
-     */
-    evidence_count?: number;
-    tier: SourceTier;
-    winning_tier: SourceTier;
-    /**
-     * Weight
-     */
-    weight?: number;
-    scope?: ClarificationScope | null;
-    /**
-     * Expires On Day
-     */
-    expires_on_day?: string | null;
-    /**
-     * Source
-     */
-    source: 'senior_statement' | 'decline_reason' | 'inferred';
-    /**
-     * Run Id
-     */
-    run_id?: string | null;
-    /**
-     * Superseded By
-     */
-    superseded_by?: string | null;
-    /**
-     * Stated Text
-     */
-    stated_text?: string | null;
-    /**
-     * Supporting
-     */
-    supporting?: Array<string>;
-    /**
-     * Contradicted By
-     */
-    contradicted_by?: Array<string>;
-};
 
 /**
  * ReviewAction
@@ -4384,374 +1582,6 @@ export type ReviewCase = {
      * Why Human
      */
     why_human?: string;
-    since_last_review?: SinceLastReview | null;
-};
-
-/**
- * ReviewLesson
- *
- * What Care+ learned from one review, derived on read from the stored review.
- *
- * `summary` is fixed template text chosen by `kind` and `reason` -- never the coordinator's note
- * and never an activity figure.
- */
-export type ReviewLesson = {
-    /**
-     * Review Id
-     */
-    review_id: string;
-    kind: ReviewLessonKind;
-    reason: ReviewLessonReason;
-    context_gap_category?: ContextGapCategory | null;
-    /**
-     * Summary
-     */
-    summary: string;
-};
-
-/**
- * ReviewLessonKind
- *
- * What one review can teach Care+.
- *
- * `COUNTS_TOWARD_REVIEW_SETTING` is the only kind the review-threshold calibrator reads.
- * `RECORDS_CONTEXT_GAP` is counted for the care team and changes nothing. `TEACHES_NOTHING` is
- * a first-class answer, not a missing one.
- */
-export type ReviewLessonKind = 'counts_toward_review_setting' | 'records_context_gap' | 'teaches_nothing';
-
-/**
- * ReviewLessonReason
- *
- * Why a review taught what it did. Precedence lives in `review_lessons.classify_review`:
- * `REACHED_TOO_LATE` wins over everything, then a resolved `NOT_A_CONCERN`, then
- * `KNOWN_CONTEXT`; every other value explains a review that teaches nothing.
- */
-export type ReviewLessonReason = 'reached_too_late' | 'not_a_concern' | 'known_context' | 'agreed' | 'on_hold' | 'data_doubt' | 'recent_contact' | 'other_reason' | 'not_resolved' | 'no_structured_choice' | 'system_closure';
-
-/**
- * ReviewReceiptEntry
- *
- * One review and how it stands against the receipt's review setting. No reviewer and no note:
- * the receipt says which judgements moved a setting, not who made them or in what words.
- */
-export type ReviewReceiptEntry = {
-    /**
-     * Review Id
-     */
-    review_id: string;
-    /**
-     * Case Id
-     */
-    case_id: string;
-    /**
-     * Opened Day
-     */
-    opened_day?: string | null;
-    /**
-     * Recorded At
-     */
-    recorded_at: string;
-    lesson: ReviewLesson;
-    status: ReviewReceiptStatus;
-    exclusion?: ReviewReceiptExclusion | null;
-    /**
-     * Cited
-     */
-    cited: boolean;
-    /**
-     * Led To Proposal Id
-     */
-    led_to_proposal_id?: string | null;
-    /**
-     * Led To Decision Id
-     */
-    led_to_decision_id?: string | null;
-};
-
-/**
- * ReviewReceiptExclusion
- *
- * Why a review did not count toward the receipt's review setting.
- */
-export type ReviewReceiptExclusion = 'not_eligible_to_loosen' | 'before_current_setting' | 'outside_window' | 'after_proposal' | 'no_opening_day';
-
-/**
- * ReviewReceiptStatus
- *
- * How one review stands against the review setting a receipt describes.
- */
-export type ReviewReceiptStatus = 'counted_toward_loosening' | 'asked_sooner' | 'excluded';
-
-/**
- * ReviewRequest
- */
-export type ReviewRequest = {
-    status: CaseStatus;
-    /**
-     * Reviewer Note
-     */
-    reviewer_note: string;
-    human_action?: HumanAction | null;
-    override_reason?: OverrideReason | null;
-    /**
-     * Reached Too Late
-     */
-    reached_too_late?: boolean;
-    context_gap_category?: ContextGapCategory | null;
-    /**
-     * Recorded By Demo Script
-     */
-    recorded_by_demo_script?: boolean;
-};
-
-/**
- * ReviewSettingReceipt
- *
- * Which reviews counted toward a review setting, which were excluded and why.
- *
- * Derived on read from existing review, proposal and decision rows. `subject` names what the
- * receipt is about: the open proposal, the proposal behind the live approval, or -- with neither
- * -- the next proposal the fixed rule would make as of today ("`counted` of `needed`").
- */
-export type ReviewSettingReceipt = {
-    /**
-     * Subject
-     */
-    subject: 'open_proposal' | 'live_setting' | 'next_proposal';
-    /**
-     * Proposal Id
-     */
-    proposal_id?: string | null;
-    /**
-     * As Of Day
-     */
-    as_of_day: string;
-    /**
-     * Counted From Day
-     */
-    counted_from_day?: string | null;
-    /**
-     * Window Start Day
-     */
-    window_start_day: string;
-    /**
-     * Needed
-     */
-    needed: number;
-    /**
-     * Counted
-     */
-    counted: number;
-    /**
-     * Entries
-     */
-    entries?: Array<ReviewReceiptEntry>;
-    /**
-     * Rule
-     */
-    rule: string;
-};
-
-/**
- * ReviewThresholdApproveRequest
- */
-export type ReviewThresholdApproveRequest = {
-    /**
-     * Cause Confirmed
-     */
-    cause_confirmed: boolean;
-    /**
-     * Shown On Day
-     */
-    shown_on_day: string;
-    /**
-     * Note
-     */
-    note?: string | null;
-    /**
-     * Recorded By Demo Script
-     */
-    recorded_by_demo_script?: boolean;
-};
-
-/**
- * ReviewThresholdBounds
- */
-export type ReviewThresholdBounds = {
-    default: ReviewThresholdValue;
-    minimum: ReviewThresholdValue;
-    maximum: ReviewThresholdValue;
-    floor: ReviewThresholdFloor;
-    /**
-     * Severity Step Pct
-     */
-    severity_step_pct: number;
-    /**
-     * Persistence Step Days
-     */
-    persistence_step_days: number;
-    /**
-     * Grace Days
-     */
-    grace_days: number;
-    /**
-     * Checking Period Days
-     */
-    checking_period_days: number;
-    /**
-     * Expiry Days
-     */
-    expiry_days: number;
-    /**
-     * Cooldown Days
-     */
-    cooldown_days: number;
-    /**
-     * Weekly Proposal Cap
-     */
-    weekly_proposal_cap: number;
-    /**
-     * Proposals Per Round
-     */
-    proposals_per_round: number;
-};
-
-/**
- * ReviewThresholdCause
- *
- * Why a false alarm happened. Only `TOO_TIGHT_FOR_PERSON` can justify loosening; the other
- * three are expected to end in no change.
- */
-export type ReviewThresholdCause = 'too_tight_for_person' | 'one_off_event' | 'bad_data' | 'worked_as_intended';
-
-/**
- * ReviewThresholdCheck
- */
-export type ReviewThresholdCheck = {
-    /**
-     * Approval Decision Id
-     */
-    approval_decision_id: string;
-    /**
-     * Checking Until Day
-     */
-    checking_until_day: string;
-    /**
-     * False Alarms Since
-     */
-    false_alarms_since: number;
-    /**
-     * Status
-     */
-    status: 'checking' | 'confirmed' | 'unresolved' | 'reverted';
-};
-
-/**
- * ReviewThresholdDecisionKind
- */
-export type ReviewThresholdDecisionKind = 'approved' | 'rejected' | 'reverted' | 'expired' | 'reconfirmed' | 'check_confirmed' | 'check_unresolved';
-
-/**
- * ReviewThresholdDecisionRecord
- */
-export type ReviewThresholdDecisionRecord = {
-    /**
-     * Decision Id
-     */
-    decision_id: string;
-    kind: ReviewThresholdDecisionKind;
-    /**
-     * Proposal Id
-     */
-    proposal_id?: string | null;
-    /**
-     * Ends Approval Id
-     */
-    ends_approval_id?: string | null;
-    /**
-     * Affects Decision Id
-     */
-    affects_decision_id?: string | null;
-    revert_trigger?: ReviewThresholdRevertTrigger | null;
-    before: ReviewThresholdValue;
-    after?: ReviewThresholdValue | null;
-    /**
-     * Decided By
-     */
-    decided_by: string;
-    rejection_reason?: ReviewThresholdRejectionReason | null;
-    /**
-     * Note
-     */
-    note?: string | null;
-    /**
-     * Cause Confirmed
-     */
-    cause_confirmed?: boolean | null;
-    replay?: ReviewThresholdReplay | null;
-    /**
-     * Trigger Case Id
-     */
-    trigger_case_id?: string | null;
-    /**
-     * Trigger Review Id
-     */
-    trigger_review_id?: string | null;
-    /**
-     * Decided On Day
-     */
-    decided_on_day: string;
-    /**
-     * Effective From Day
-     */
-    effective_from_day: string;
-    /**
-     * Decided At
-     */
-    decided_at: string;
-};
-
-/**
- * ReviewThresholdDecisionResponse
- */
-export type ReviewThresholdDecisionResponse = {
-    state: ReviewThresholdState;
-    decision: ReviewThresholdDecisionRecord;
-    audit_event: AuditEvent;
-};
-
-/**
- * ReviewThresholdFloor
- *
- * The absolute review floor (60% for three days). Not a point on the allowed grid -- no one
- * can choose it -- so it is deliberately a separate shape from `ReviewThresholdValue`, whose
- * range validation it would fail.
- */
-export type ReviewThresholdFloor = {
-    /**
-     * Severity Pct
-     */
-    severity_pct: number;
-    /**
-     * Persistence Days
-     */
-    persistence_days: number;
-};
-
-/**
- * ReviewThresholdManualSetRequest
- */
-export type ReviewThresholdManualSetRequest = {
-    threshold: ReviewThresholdValue;
-    /**
-     * Note
-     */
-    note: string;
-    /**
-     * Shown On Day
-     */
-    shown_on_day: string;
 };
 
 /**
@@ -4782,335 +1612,6 @@ export type ReviewThresholdNotice = {
  * the care team know a little `SOONER` again.
  */
 export type ReviewThresholdNoticeKind = 'later' | 'sooner';
-
-/**
- * ReviewThresholdOutputKind
- */
-export type ReviewThresholdOutputKind = 'proposal' | 'no_change' | 'write_up';
-
-/**
- * ReviewThresholdProposal
- *
- * One calibrator output: a proposed change, a considered no-change, or a write-up of a revert.
- *
- * `reasoning` and `agent_run` are shown to coordinators only and never copied into the audit
- * trail. `proposed` is `None` for `no_change` and `write_up`.
- */
-export type ReviewThresholdProposal = {
-    /**
-     * Proposal Id
-     */
-    proposal_id: string;
-    output_kind: ReviewThresholdOutputKind;
-    proposer: ReviewThresholdProposer;
-    /**
-     * Round Id
-     */
-    round_id?: string | null;
-    /**
-     * Round Index
-     */
-    round_index?: number | null;
-    previous: ReviewThresholdValue;
-    proposed?: ReviewThresholdValue | null;
-    cause?: ReviewThresholdCause | null;
-    /**
-     * Reasoning
-     */
-    reasoning: string;
-    /**
-     * Cited Evidence Ids
-     */
-    cited_evidence_ids?: Array<string>;
-    /**
-     * Trigger Case Id
-     */
-    trigger_case_id?: string | null;
-    /**
-     * Trigger Review Ids
-     */
-    trigger_review_ids?: Array<string>;
-    /**
-     * Reported By
-     */
-    reported_by?: string | null;
-    coordinator_reason?: OverrideReason | null;
-    /**
-     * Write Up For Decision Id
-     */
-    write_up_for_decision_id?: string | null;
-    /**
-     * Proposed On Day
-     */
-    proposed_on_day: string;
-    /**
-     * Status
-     */
-    status: 'open' | 'approved' | 'rejected' | 'not_applicable';
-    /**
-     * Agent Run
-     */
-    agent_run?: {
-        [key: string]: unknown;
-    } | null;
-};
-
-/**
- * ReviewThresholdProposer
- */
-export type ReviewThresholdProposer = 'agent' | 'fixed_rule' | 'coordinator' | 'starting_setting';
-
-/**
- * ReviewThresholdRejectRequest
- */
-export type ReviewThresholdRejectRequest = {
-    reason: ReviewThresholdRejectionReason;
-    /**
-     * Note
-     */
-    note?: string | null;
-};
-
-/**
- * ReviewThresholdRejectionReason
- *
- * Why a proposal was not approved.
- *
- * `CONSENT_WITHDRAWN` and `SUPERSEDED` are written only by the system -- the first when a person
- * withdraws consent mid-round, the second when a revert or expiry changed the value a proposal
- * was made against -- and a coordinator request carrying either is refused. Neither counts as a
- * coordinator's rejection: not toward a round, and not as a value that may not be proposed again.
- */
-export type ReviewThresholdRejectionReason = 'cause_disputed' | 'need_more_evidence' | 'prefer_other_change' | 'other' | 'consent_withdrawn' | 'superseded';
-
-/**
- * ReviewThresholdReplay
- *
- * Calculated by code from stored synthetic history; never written by a model.
- *
- * `episodes` lists every episode in the window in which either setting asked, the trailing
- * unfinished one included (`ongoing=True`). `reviews_with_current` and `reviews_with_candidate`
- * count **finished episodes only**: an ongoing episode's missing review is "not yet", so it can
- * never be read as a review the candidate would have saved. `max_days_later` likewise reads
- * finished episodes only.
- */
-export type ReviewThresholdReplay = {
-    current: ReviewThresholdValue;
-    candidate: ReviewThresholdValue;
-    /**
-     * Window Start Day
-     */
-    window_start_day: string;
-    /**
-     * Window End Day
-     */
-    window_end_day: string;
-    /**
-     * Episodes
-     */
-    episodes?: Array<ReviewThresholdReplayEpisode>;
-    /**
-     * Reviews With Current
-     */
-    reviews_with_current: number;
-    /**
-     * Reviews With Candidate
-     */
-    reviews_with_candidate: number;
-    /**
-     * Max Days Later
-     */
-    max_days_later?: number | null;
-    /**
-     * Disclosure
-     */
-    disclosure: string;
-};
-
-/**
- * ReviewThresholdReplayEpisode
- */
-export type ReviewThresholdReplayEpisode = {
-    /**
-     * First Low Day
-     */
-    first_low_day: string;
-    /**
-     * Ongoing
-     */
-    ongoing?: boolean;
-    /**
-     * Current Review Day
-     */
-    current_review_day?: string | null;
-    /**
-     * Candidate Review Day
-     */
-    candidate_review_day?: string | null;
-    /**
-     * Days Later
-     */
-    days_later?: number | null;
-    /**
-     * Candidate Reached Via
-     */
-    candidate_reached_via?: 'threshold' | 'floor' | 'shadow_check' | null;
-};
-
-/**
- * ReviewThresholdRevertTrigger
- */
-export type ReviewThresholdRevertTrigger = 'shadow_check' | 'reached_too_late' | 'far_more_severe';
-
-/**
- * ReviewThresholdShownRequest
- */
-export type ReviewThresholdShownRequest = {
-    /**
-     * Shown On Day
-     */
-    shown_on_day: string;
-};
-
-/**
- * ReviewThresholdState
- */
-export type ReviewThresholdState = {
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Current Day
-     */
-    current_day: string;
-    /**
-     * Consent Active
-     */
-    consent_active: boolean;
-    live: ReviewThresholdValue;
-    /**
-     * Live Source
-     */
-    live_source: 'starting_setting' | 'approved' | 'reverted' | 'expired';
-    /**
-     * Live Decision Id
-     */
-    live_decision_id?: string | null;
-    /**
-     * Starting Setting Confirmed
-     */
-    starting_setting_confirmed: boolean;
-    /**
-     * Expires On Day
-     */
-    expires_on_day?: string | null;
-    /**
-     * Cooldown Until Day
-     */
-    cooldown_until_day?: string | null;
-    bounds: ReviewThresholdBounds;
-    open_proposal?: ReviewThresholdProposal | null;
-    /**
-     * Round Rejections
-     */
-    round_rejections: number;
-    /**
-     * Manual Set Allowed
-     */
-    manual_set_allowed: boolean;
-    /**
-     * Proposals This Week By You
-     */
-    proposals_this_week_by_you: number;
-    check?: ReviewThresholdCheck | null;
-    /**
-     * Proposals
-     */
-    proposals?: Array<ReviewThresholdProposal>;
-    /**
-     * Decisions
-     */
-    decisions?: Array<ReviewThresholdDecisionRecord>;
-    senior_notice_preview?: ReviewThresholdNotice | null;
-    senior_notice_if_approved?: ReviewThresholdNotice | null;
-    receipt: ReviewSettingReceipt;
-    context_gaps: ContextGapTally;
-};
-
-/**
- * ReviewThresholdValue
- *
- * One point on the allowed grid: review when activity is at least `severity_pct` below the
- * personal baseline for at least `persistence_days` valid-wear days.
- *
- * Fourteen points: 40..55% in steps of 5 for 3..5 days, plus 30% and 35% at three days only.
- * Persistence cannot go below three days, so asking sooner is severity-only, and the "mixed"
- * values (30%/35% for four or five days) are refused: every allowed setting stays componentwise
- * comparable with the starting setting, so going back can never ask later in either dimension.
- */
-export type ReviewThresholdValue = {
-    /**
-     * Severity Pct
-     */
-    severity_pct: number;
-    /**
-     * Persistence Days
-     */
-    persistence_days: number;
-};
-
-/**
- * ScoreFactor
- *
- * One named, bounded component of a candidate's deterministic rank.
- *
- * `value` is in [-1, 1] and `contribution = value * weight`. The names are fixed
- * (`activity_search.RANKING_WEIGHTS`) so an evaluator can compare the same factor across
- * candidates and searches; `note` says, in words, what the value was grounded in.
- */
-export type ScoreFactor = {
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Value
-     */
-    value: number;
-    /**
-     * Weight
-     */
-    weight: number;
-    /**
-     * Contribution
-     */
-    contribution: number;
-    /**
-     * Note
-     */
-    note: string;
-};
-
-/**
- * SeniorHomePreview
- *
- * One persona's senior home content for an evaluator.
- *
- * Read-only; not the senior's own screen.
- */
-export type SeniorHomePreview = {
-    /**
-     * Person Id
-     */
-    person_id: string;
-    state: PersonState;
-    latest_intervention?: Intervention | null;
-    /**
-     * Disclosure
-     */
-    disclosure: string;
-};
 
 /**
  * SeniorNameRequest
@@ -5185,131 +1686,6 @@ export type SignalSummary = {
 };
 
 /**
- * SimulationHistoryEntry
- *
- * One stored `advance()` result, replayed for a multi-day narrative timeline.
- */
-export type SimulationHistoryEntry = {
-    /**
-     * Day
-     */
-    day: string;
-    /**
-     * Event Name
-     */
-    event_name: string;
-    decision: Decision;
-    /**
-     * Loop Trace
-     */
-    loop_trace: Array<DecisionTraceStep>;
-};
-
-/**
- * SinceLastReview
- *
- * What changed on an unresolved case since a human last looked at it (UX audit P1-6).
- *
- * Server-produced so the Care Team never infers a delta in the browser. Derived on read by
- * `case_delta.since_last_review` from append-only rows; nothing new is stored. `anchor_day` is
- * the simulated day the anchor happened on (`None` only for a legacy case with no opening day
- * and no decision recorded before it); `anchor_recorded_at` is its wall-clock timestamp.
- * `nothing_new` is true exactly when `items` is empty.
- */
-export type SinceLastReview = {
-    anchor_kind: SinceLastReviewAnchorKind;
-    /**
-     * Anchor Day
-     */
-    anchor_day?: string | null;
-    /**
-     * Anchor Recorded At
-     */
-    anchor_recorded_at: string;
-    /**
-     * Nothing New
-     */
-    nothing_new: boolean;
-    /**
-     * Items
-     */
-    items?: Array<SinceLastReviewItem>;
-};
-
-/**
- * SinceLastReviewAnchorKind
- *
- * What "since" is measured from: the latest human review of the case, or -- before anyone has
- * reviewed it -- the moment it opened. A `system` closure is never an anchor: no human looked.
- */
-export type SinceLastReviewAnchorKind = 'last_review' | 'case_opened';
-
-/**
- * SinceLastReviewItem
- *
- * One thing that happened on a case since its anchor, as a fixed sentence over stored rows.
- *
- * `text` is a template filled only with counts and ISO days -- no note, no free text, no step
- * count or percentage. `count` is set on the three day-count kinds; `day` on events that belong
- * to one simulated day. `evidence_ids` name the rows the sentence was read from.
- */
-export type SinceLastReviewItem = {
-    kind: SinceLastReviewKind;
-    /**
-     * Text
-     */
-    text: string;
-    /**
-     * Count
-     */
-    count?: number | null;
-    /**
-     * Day
-     */
-    day?: string | null;
-    /**
-     * Evidence Ids
-     */
-    evidence_ids?: Array<string>;
-};
-
-/**
- * SinceLastReviewKind
- *
- * One kind of stored fact a case delta may report. Closed on purpose: each value has exactly
- * one fixed sentence template in `case_delta.py`, and a new kind of fact needs a new value.
- *
- * Deliberately absent: anything the person told Care+ (a stated explanation, a disputed
- * day, a decline reason, a baseline confirmation) -- nothing the senior said reaches a
- * coordinator surface, not even the fact that they said something (`docs/care-priorities.md`).
- * Case status changes are absent too: on an unresolved case every status change is either a
- * human review, which becomes the anchor, or a system closure, which resolves the case.
- */
-export type SinceLastReviewKind = 'days_recorded' | 'usable_data_days' | 'below_usual_range_days' | 'rain_started' | 'rain_ended' | 'holiday_started' | 'holiday_ended' | 'outreach_offered' | 'outreach_accepted' | 'outreach_declined' | 'outreach_deferred' | 'outreach_no_response' | 'review_timing_proposed' | 'review_timing_approved' | 'review_timing_rejected' | 'review_timing_reverted' | 'review_timing_expired';
-
-/**
- * SocialPreference
- */
-export type SocialPreference = 'social' | 'solo' | 'either';
-
-/**
- * SourceTier
- *
- * How a belief came to be held, ordered. The higher tier wins an axis **outright**.
- *
- * Averaging a person's own words with what Care+ guessed from their taps is how three
- * stated preferences came to be a constant offset that changed nothing, and how a guess could
- * halve something someone said in plain words. Within one axis only the highest active tier
- * contributes; across axes, contributions sum.
- *
- * `CURRENT_REQUEST` never enters preference utility at all. An axis the person constrained
- * *today* belongs to the filter (if it is a hard ask) or to request fit (if it is soft), and
- * scoring it a second time from history is the double count that made "indoor" worth four
- * separate nudges.
- */
-export type SourceTier = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-
-/**
  * StatedContextExplanation
  *
  * The person's own account of a quiet stretch, while it is still in force.
@@ -5346,1152 +1722,158 @@ export type StatedContextExplanation = {
 };
 
 /**
- * ThresholdReference
+ * Task
  */
-export type ThresholdReference = {
-    /**
-     * Label
-     */
-    label: string;
-    /**
-     * Rule
-     */
-    rule: string;
-    /**
-     * Source
-     */
-    source: string;
-};
-
-/**
- * TimeWindow
- */
-export type TimeWindow = 'morning' | 'afternoon' | 'evening' | 'any';
-
-/**
- * TraceApplied
- */
-export type TraceApplied = {
-    history_preset?: TraceScriptedHistory | null;
-    counterfactual?: RankerCounterfactual | null;
-    /**
-     * World Model Effects
-     */
-    world_model_effects?: Array<TraceWorldModelEffect>;
-    learning_preview?: TraceLearningPreview | null;
-};
-
-/**
- * TraceCatalogueUnknown
- */
-export type TraceCatalogueUnknown = {
-    /**
-     * Field
-     */
-    field: 'start_at' | 'distance_m' | 'indoor_outdoor' | 'intensity' | 'social_shape' | 'activity_type' | 'language_tags' | 'availability';
-    /**
-     * Activity Ids
-     */
-    activity_ids: Array<string>;
-};
-
-/**
- * TraceEngagement
- */
-export type TraceEngagement = {
-    series: TraceEngagementCounts;
-    own: TraceEngagementCounts;
-    /**
-     * Last Not For Me
-     */
-    last_not_for_me?: string | null;
-    /**
-     * In Cooldown
-     */
-    in_cooldown?: boolean;
-};
-
-/**
- * TraceEngagementCounts
- */
-export type TraceEngagementCounts = {
-    /**
-     * Interested
-     */
-    interested?: number;
-    /**
-     * Not For Me
-     */
-    not_for_me?: number;
-    /**
-     * Went
-     */
-    went?: number;
-    /**
-     * Did Not Go
-     */
-    did_not_go?: number;
-    /**
-     * Enjoyed
-     */
-    enjoyed?: number;
-    /**
-     * Not Enjoyed
-     */
-    not_enjoyed?: number;
-};
-
-/**
- * TraceFact
- *
- * One belief about the person as the ranker read it (or, for `recorded_not_applied`, a stored
- * row the resolver held back). Never carries the person's own words.
- */
-export type TraceFact = {
-    /**
-     * Fact Key
-     */
-    fact_key: string;
-    dimension: PreferenceDimension;
-    /**
-     * Value
-     */
-    value?: string | null;
-    /**
-     * Pivot
-     */
-    pivot?: number | null;
-    /**
-     * Direction
-     */
-    direction?: 'lower' | 'higher' | null;
-    /**
-     * Sentiment
-     */
-    sentiment: 'like' | 'avoid';
-    /**
-     * Strength
-     */
-    strength: number;
-    confidence?: FactConfidence | null;
-    /**
-     * Positive Evidence
-     */
-    positive_evidence?: number;
-    /**
-     * Negative Evidence
-     */
-    negative_evidence?: number;
-    /**
-     * Evidence Count
-     */
-    evidence_count?: number;
-    /**
-     * Tier
-     */
-    tier?: string | null;
-    /**
-     * Winning
-     */
-    winning?: boolean;
-    /**
-     * Provenance
-     */
-    provenance: 'person_said' | 'learned' | 'temporary' | 'goal' | 'scripted_history';
-    /**
-     * Scripted Contribution
-     */
-    scripted_contribution?: boolean;
-    /**
-     * Source
-     */
-    source: 'senior_statement' | 'decline_reason' | 'inferred';
-    scope?: ClarificationScope | null;
-    /**
-     * Expires On Day
-     */
-    expires_on_day?: string | null;
-    /**
-     * Status
-     */
-    status?: 'applied' | 'recorded_not_applied';
-    /**
-     * Not Applied Reason
-     */
-    not_applied_reason?: 'held_back_item_level' | 'expired' | 'no_evidence' | null;
-    /**
-     * Used In Scoring
-     */
-    used_in_scoring: boolean;
-    /**
-     * Not Used Reason
-     */
-    not_used_reason?: 'constrained_by_request' | 'not_winning_tier' | 'zero_strength' | 'deprecated_axis' | 'recorded_not_applied' | 'never_widens' | 'no_distance_line' | null;
-    /**
-     * Contradicted By
-     */
-    contradicted_by?: Array<string>;
-    /**
-     * Changed By Preview
-     */
-    changed_by_preview?: boolean;
-};
-
-/**
- * TraceFilterOutcome
- */
-export type TraceFilterOutcome = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
+export type Task = {
     /**
      * Title
      */
     title: string;
+    kind?: TaskKind;
     /**
-     * Status
+     * Start Date
      */
-    status: 'kept' | 'removed';
+    start_date: string;
     /**
-     * Rule
+     * Time
      */
-    rule?: string | null;
+    time: string;
+    repeat?: TaskRepeat;
     /**
-     * Detail
+     * Repeat Until
      */
-    detail?: string | null;
+    repeat_until?: string | null;
+    /**
+     * Notes
+     */
+    notes?: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Added By Name
+     */
+    added_by_name: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
 };
 
 /**
- * TraceFiltering
+ * TaskDayRequest
  */
-export type TraceFiltering = {
+export type TaskDayRequest = {
     /**
-     * Rules In Order
+     * Done
      */
-    rules_in_order: Array<string>;
-    /**
-     * Kept Count
-     */
-    kept_count: number;
-    /**
-     * Removed Count
-     */
-    removed_count: number;
-    /**
-     * By Rule
-     */
-    by_rule: {
-        [key: string]: number;
-    };
-    /**
-     * Outcomes
-     */
-    outcomes: Array<TraceFilterOutcome>;
+    done: boolean;
 };
 
 /**
- * TraceFinalRecommendations
+ * TaskKind
  */
-export type TraceFinalRecommendations = {
-    /**
-     * Shown Limit
-     */
-    shown_limit: number;
-    /**
-     * Result Count
-     */
-    result_count: number;
-    /**
-     * Nothing Matched
-     */
-    nothing_matched: boolean;
-    /**
-     * Top
-     */
-    top: Array<TraceRecommendation>;
-    /**
-     * Web Cards
-     */
-    web_cards: Array<TraceWebCard>;
-    /**
-     * Web Grouping Changes Top Three
-     */
-    web_grouping_changes_top_three: boolean;
-};
+export type TaskKind = 'task' | 'medicine';
 
 /**
- * TraceIntegrity
+ * TaskList
  */
-export type TraceIntegrity = {
+export type TaskList = {
     /**
-     * Grounded
+     * Person Id
      */
-    grounded: number;
+    person_id: string | null;
     /**
-     * On Expand
+     * Group Id
      */
-    on_expand: number;
+    group_id: string | null;
     /**
-     * Silent By Design
+     * From Date
      */
-    silent_by_design: {
-        [key: string]: number;
-    };
+    from_date: string;
     /**
-     * Unsupported
+     * To Date
      */
-    unsupported: number;
+    to_date: string;
     /**
-     * Reason Without Positive Factor
+     * Tasks
      */
-    reason_without_positive_factor: number;
+    tasks: Array<Task>;
     /**
-     * Findings
+     * Ticks
      */
-    findings: Array<IntegrityFinding>;
+    ticks: Array<TaskTick>;
 };
 
 /**
- * TraceIntentAxis
+ * TaskRepeat
+ */
+export type TaskRepeat = 'none' | 'daily' | 'weekly';
+
+/**
+ * TaskRequest
  *
- * One field of the parsed request and how the pipeline treats it: `hard` filters, `soft`
- * only ranks, `exclusion` filters out what was ruled out, `open` was not asked about.
+ * A new or changed task. A repeating one is stored once and happens on every day it repeats,
+ * until `repeat_until` (inclusive) or forever.
  */
-export type TraceIntentAxis = {
-    /**
-     * Axis
-     */
-    axis: string;
-    /**
-     * Values
-     */
-    values?: Array<string>;
-    /**
-     * Kind
-     */
-    kind: 'hard' | 'soft' | 'exclusion' | 'open';
-};
-
-/**
- * TraceIntentPlanner
- */
-export type TraceIntentPlanner = {
-    /**
-     * Ran
-     */
-    ran: boolean;
-    /**
-     * Mode
-     */
-    mode: string;
-};
-
-/**
- * TraceLearningPreview
- */
-export type TraceLearningPreview = {
-    feedback: RankerFeedbackPreview;
-    /**
-     * Activity Title
-     */
-    activity_title: string;
-    /**
-     * Consent Active
-     */
-    consent_active: boolean;
-    /**
-     * Duplicate Same Day
-     */
-    duplicate_same_day: boolean;
-    /**
-     * Teaches Dimension
-     */
-    teaches_dimension: boolean;
-    /**
-     * Facts Before
-     */
-    facts_before: Array<TraceFact>;
-    engagement_before?: TraceEngagement | null;
-    engagement_after?: TraceEngagement | null;
-};
-
-/**
- * TraceLlmRerank
- */
-export type TraceLlmRerank = {
-    /**
-     * Status
-     */
-    status: 'agent' | 'fallback_disabled' | 'fallback_error' | 'fallback_exhausted' | 'fallback_no_proposal' | 'not_run_in_preview' | 'no_candidates';
-    /**
-     * Ran
-     */
-    ran: boolean;
-    /**
-     * Planner Enabled
-     */
-    planner_enabled: boolean;
-    /**
-     * Transport
-     */
-    transport: 'live' | 'recorded' | 'off';
-    /**
-     * Provider
-     */
-    provider: string;
-    /**
-     * Recording May Miss
-     */
-    recording_may_miss?: boolean;
-    /**
-     * Model
-     */
-    model?: string | null;
-    /**
-     * Window Size
-     */
-    window_size: number;
-    /**
-     * Max Promotion
-     */
-    max_promotion: number;
-    /**
-     * Min Shown After Narrowing
-     */
-    min_shown_after_narrowing: number;
-    /**
-     * Max Iterations
-     */
-    max_iterations: number;
-    /**
-     * Deterministic Window
-     */
-    deterministic_window: Array<string>;
-    /**
-     * Iterations
-     */
-    iterations?: number;
-    /**
-     * Tool Calls
-     */
-    tool_calls?: Array<TraceToolCall>;
-    /**
-     * Guardrail Rule Counts
-     */
-    guardrail_rule_counts?: {
-        [key: string]: number;
-    };
-    /**
-     * Rejected Proposal Count
-     */
-    rejected_proposal_count?: number;
-    /**
-     * Fallback Error Class
-     */
-    fallback_error_class?: string | null;
-    /**
-     * Final Order
-     */
-    final_order?: Array<string>;
-    /**
-     * Narrowed
-     */
-    narrowed?: Array<string>;
-    /**
-     * Movements
-     */
-    movements?: Array<TracePlannerMovement>;
-    intent_planner: TraceIntentPlanner;
-    /**
-     * Evidence Id
-     */
-    evidence_id?: string | null;
-};
-
-/**
- * TraceParsedIntent
- */
-export type TraceParsedIntent = {
-    intent: ActivityIntent;
-    parser: IntentParser;
-    /**
-     * Intent Mode
-     */
-    intent_mode: string;
-    /**
-     * Axes
-     */
-    axes: Array<TraceIntentAxis>;
-    /**
-     * Unparsed Terms
-     */
-    unparsed_terms?: Array<string>;
-    /**
-     * Unparsed Terms Withheld
-     */
-    unparsed_terms_withheld?: number;
-    /**
-     * Language Model Supplied Ungrounded
-     */
-    language_model_supplied_ungrounded?: boolean;
-    /**
-     * Understood
-     */
-    understood?: Array<string>;
-};
-
-/**
- * TracePerson
- */
-export type TracePerson = {
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Display Name
-     */
-    display_name: string;
-};
-
-/**
- * TracePersonContext
- */
-export type TracePersonContext = {
-    /**
-     * Facts
-     */
-    facts: Array<TraceFact>;
-    /**
-     * Unknown Axes
-     */
-    unknown_axes: Array<UnknownAxis>;
-    /**
-     * Travel Tolerance M
-     */
-    travel_tolerance_m: number;
-    /**
-     * Travel Tolerance Basis
-     */
-    travel_tolerance_basis: 'default' | 'learned_ceiling' | 'learned_floor' | 'stated_near';
-    /**
-     * Travel Cost Starts M
-     */
-    travel_cost_starts_m: number;
-    /**
-     * Travel Cost Start Basis
-     */
-    travel_cost_start_basis: 'default' | 'learned_ceiling' | 'learned_floor' | 'stated_near' | 'asked_radius';
-    /**
-     * Asked Radius M
-     */
-    asked_radius_m?: number | null;
-    /**
-     * Nearby Radius M
-     */
-    nearby_radius_m: number;
-    /**
-     * Consent Active
-     */
-    consent_active: boolean;
-};
-
-/**
- * TracePlannerMovement
- */
-export type TracePlannerMovement = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    /**
-     * Deterministic Rank
-     */
-    deterministic_rank: number;
-    /**
-     * Final Rank
-     */
-    final_rank?: number | null;
-};
-
-/**
- * TracePostProcessing
- */
-export type TracePostProcessing = {
-    series_dedupe: TraceSeriesDedupe;
-    variety: TraceVariety;
-};
-
-/**
- * TracePreferenceAxis
- */
-export type TracePreferenceAxis = {
-    /**
-     * Fact Key
-     */
-    fact_key: string;
-    dimension: PreferenceDimension;
-    /**
-     * Value
-     */
-    value?: string | null;
-    /**
-     * Pivot
-     */
-    pivot?: number | null;
-    /**
-     * Direction
-     */
-    direction?: 'lower' | 'higher' | null;
-    /**
-     * Strength
-     */
-    strength: number;
-    /**
-     * Tier
-     */
-    tier: string;
-    /**
-     * Outcome
-     */
-    outcome: 'match' | 'mismatch' | 'unknown';
-    /**
-     * Unknown Reason
-     */
-    unknown_reason?: 'listing_silent' | 'mismatch_not_counted' | null;
-    /**
-     * Contribution
-     */
-    contribution: number;
-};
-
-/**
- * TraceRecommendation
- */
-export type TraceRecommendation = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    /**
-     * Rank
-     */
-    rank: number;
-    /**
-     * Selection Stage
-     */
-    selection_stage: 'sort' | 'series_dedupe' | 'variety' | 'planner';
-    /**
-     * Selected By
-     */
-    selected_by: 'agent' | 'ranker';
-};
-
-/**
- * TraceRequest
- */
-export type TraceRequest = {
-    /**
-     * Raw Text
-     */
-    raw_text?: string | null;
-    /**
-     * Source
-     */
-    source: 'text' | 'chips' | 'none';
-};
-
-/**
- * TraceRequestAxis
- */
-export type TraceRequestAxis = {
-    /**
-     * Axis
-     */
-    axis: string;
-    dimension?: PreferenceDimension | null;
-    /**
-     * Outcome
-     */
-    outcome: 'match' | 'mismatch' | 'unknown' | 'not_applicable';
-    /**
-     * Unknown Reason
-     */
-    unknown_reason?: 'listing_silent' | 'mismatch_not_counted' | null;
-};
-
-/**
- * TraceRetrieval
- */
-export type TraceRetrieval = {
-    /**
-     * Catalogue Count
-     */
-    catalogue_count: number;
-    /**
-     * Sources
-     */
-    sources: Array<ActivitySource>;
-    /**
-     * Integration Statuses
-     */
-    integration_statuses: Array<IntegrationStatus>;
-    /**
-     * Rain Forecast
-     */
-    rain_forecast: boolean;
-    /**
-     * Rain Source
-     */
-    rain_source: 'simulation_context' | 'counterfactual';
-    /**
-     * Pre Filter Stage
-     */
-    pre_filter_stage?: boolean;
-};
-
-/**
- * TraceScoring
- */
-export type TraceScoring = {
-    /**
-     * Weights
-     */
-    weights: {
-        [key: string]: number;
-    };
-    /**
-     * Factor Order
-     */
-    factor_order: Array<string>;
-    /**
-     * Factor Descriptions
-     */
-    factor_descriptions: {
-        [key: string]: string;
-    };
-    /**
-     * Engagement Weights
-     */
-    engagement_weights: {
-        [key: string]: number;
-    };
-    /**
-     * Top N
-     */
-    top_n: number;
-    /**
-     * Bounded
-     */
-    bounded?: boolean;
-    /**
-     * Diversity Score Margin
-     */
-    diversity_score_margin: number;
-    /**
-     * Decline Cooldown Days
-     */
-    decline_cooldown_days: number;
-    /**
-     * Candidates
-     */
-    candidates: Array<CandidateTrace>;
-};
-
-/**
- * TraceScriptedEvent
- */
-export type TraceScriptedEvent = {
-    /**
-     * Origin Id
-     */
-    origin_id: string;
-    /**
-     * Kind
-     */
-    kind: 'not_for_me' | 'interested' | 'enjoyment';
-    /**
-     * Programme Key
-     */
-    programme_key: string;
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    /**
-     * Days Ago
-     */
-    days_ago: number;
-    reason?: DeclineReason | null;
-    clarification?: ClarificationScope | null;
-    enjoyment?: Enjoyment | null;
-    /**
-     * Liked
-     */
-    liked?: Array<LikedAspect>;
-};
-
-/**
- * TraceScriptedHistory
- */
-export type TraceScriptedHistory = {
-    /**
-     * Preset Id
-     */
-    preset_id: string;
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Events
-     */
-    events: Array<TraceScriptedEvent>;
-};
-
-/**
- * TraceSeriesDedupe
- */
-export type TraceSeriesDedupe = {
-    /**
-     * Ran
-     */
-    ran: boolean;
-    /**
-     * Changed
-     */
-    changed: boolean;
-    /**
-     * Deferred
-     */
-    deferred: Array<TraceSeriesDeferral>;
-    /**
-     * Refilled
-     */
-    refilled: Array<string>;
-    /**
-     * Order After
-     */
-    order_after: Array<string>;
-};
-
-/**
- * TraceSeriesDeferral
- */
-export type TraceSeriesDeferral = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    /**
-     * Series Holder Id
-     */
-    series_holder_id: string;
-    /**
-     * From Position
-     */
-    from_position: number;
-    /**
-     * To Position
-     */
-    to_position: number;
-};
-
-/**
- * TraceSort
- */
-export type TraceSort = {
-    /**
-     * Keys
-     */
-    keys: Array<TraceSortKeyField>;
-    /**
-     * Order Before Postprocess
-     */
-    order_before_postprocess: Array<string>;
-};
-
-/**
- * TraceSortKey
- */
-export type TraceSortKey = {
-    /**
-     * Tier
-     */
-    tier: number;
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * Matched Axes
-     */
-    matched_axes: number;
-    /**
-     * Distance M
-     */
-    distance_m?: number | null;
+export type TaskRequest = {
     /**
      * Title
      */
     title: string;
+    kind?: TaskKind;
     /**
-     * Start At
+     * Start Date
      */
-    start_at?: string | null;
+    start_date: string;
     /**
-     * Activity Id
+     * Time
      */
-    activity_id: string;
+    time: string;
+    repeat?: TaskRepeat;
+    /**
+     * Repeat Until
+     */
+    repeat_until?: string | null;
+    /**
+     * Notes
+     */
+    notes?: string;
 };
 
 /**
- * TraceSortKeyField
+ * TaskTick
+ *
+ * One day of a task ticked done.
  */
-export type TraceSortKeyField = {
+export type TaskTick = {
     /**
-     * Name
+     * Task Id
      */
-    name: 'tier' | 'total' | 'matched_axes' | 'distance_m' | 'title' | 'start_at' | 'activity_id';
+    task_id: string;
     /**
-     * Direction
+     * Day
      */
-    direction: 'descending' | 'ascending';
-};
-
-/**
- * TraceStagePositions
- */
-export type TraceStagePositions = {
+    day: string;
     /**
-     * After Sort
+     * Done By Name
      */
-    after_sort: number;
+    done_by_name: string | null;
     /**
-     * After Series Dedupe
+     * Done At
      */
-    after_series_dedupe: number;
-    /**
-     * After Variety
-     */
-    after_variety: number;
-    /**
-     * Final
-     */
-    final?: number | null;
+    done_at: string;
 };
 
 /**
  * TraceStatus
  */
 export type TraceStatus = 'completed' | 'blocked' | 'pending' | 'not_applicable';
-
-/**
- * TraceToolCall
- *
- * One planner tool call, stripped to names and keys. A read tool's arguments and every
- * summary are withheld; a proposal carries only the keys it offered that were permitted.
- */
-export type TraceToolCall = {
-    /**
-     * Iteration
-     */
-    iteration: number;
-    /**
-     * Tool Name
-     */
-    tool_name: string;
-    /**
-     * Ok
-     */
-    ok: boolean;
-    /**
-     * Proposed Keys
-     */
-    proposed_keys?: Array<string>;
-    /**
-     * Unknown Key Count
-     */
-    unknown_key_count?: number;
-};
-
-/**
- * TraceVariety
- */
-export type TraceVariety = {
-    /**
-     * Status
-     */
-    status: 'not_enough_candidates' | 'top_three_mixed' | 'top_three_unkinded' | 'no_candidate_within_margin' | 'swapped';
-    /**
-     * Shared Kind
-     */
-    shared_kind?: string | null;
-    /**
-     * Considered
-     */
-    considered?: Array<TraceVarietyConsidered>;
-    swap?: TraceVarietySwap | null;
-    /**
-     * Order After
-     */
-    order_after: Array<string>;
-};
-
-/**
- * TraceVarietyConsidered
- */
-export type TraceVarietyConsidered = {
-    /**
-     * Activity Id
-     */
-    activity_id: string;
-    /**
-     * Kind
-     */
-    kind: string;
-    /**
-     * Tier
-     */
-    tier: number;
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * Outcome
-     */
-    outcome: 'different_tier' | 'outside_margin';
-};
-
-/**
- * TraceVarietySwap
- */
-export type TraceVarietySwap = {
-    /**
-     * Promoted Id
-     */
-    promoted_id: string;
-    /**
-     * Displaced Id
-     */
-    displaced_id: string;
-    /**
-     * From Position
-     */
-    from_position: number;
-    /**
-     * To Position
-     */
-    to_position: number;
-    /**
-     * Shared Kind
-     */
-    shared_kind: string;
-    /**
-     * Promoted Kind
-     */
-    promoted_kind: string;
-    /**
-     * Tier
-     */
-    tier: number;
-    /**
-     * Third Total
-     */
-    third_total: number;
-    /**
-     * Promoted Total
-     */
-    promoted_total: number;
-    /**
-     * Margin
-     */
-    margin: number;
-    /**
-     * Reasons Before
-     */
-    reasons_before: Array<ActivityReason>;
-    /**
-     * Reasons After
-     */
-    reasons_after: Array<ActivityReason>;
-    /**
-     * More Reasons After
-     */
-    more_reasons_after: Array<ActivityReason>;
-    /**
-     * Reasons Suppressed Recorded
-     */
-    reasons_suppressed_recorded: number;
-};
-
-/**
- * TraceWebCard
- *
- * How the senior screen's presentation-only grouping (one card per `series_key`, headlining
- * the best-ranked session) would fold the final order into its first three cards.
- */
-export type TraceWebCard = {
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Location Name
-     */
-    location_name: string;
-    /**
-     * Headline Activity Id
-     */
-    headline_activity_id: string;
-    /**
-     * Member Ids
-     */
-    member_ids: Array<string>;
-};
-
-/**
- * TraceWorldModelEffect
- */
-export type TraceWorldModelEffect = {
-    /**
-     * Control
-     */
-    control: 'travel_ceiling_m' | 'temporary_avoid_activity_type';
-    /**
-     * Effect
-     */
-    effect: 'applied' | 'no_effect';
-    /**
-     * No Effect Reason
-     */
-    no_effect_reason?: 'outranked_by_higher_tier' | 'not_below_tolerance' | null;
-};
-
-/**
- * UnknownAxis
- *
- * A preference axis nothing is known about and the request left open. Materiality is measured
- * by re-running the ranker once per tested value with a hypothetical stated like.
- */
-export type UnknownAxis = {
-    dimension: PreferenceDimension;
-    /**
-     * Tested Values
-     */
-    tested_values: Array<string>;
-    /**
-     * Changing Values
-     */
-    changing_values: Array<string>;
-    /**
-     * Changes Top Three
-     */
-    changes_top_three: boolean;
-};
 
 /**
  * ValidationError
@@ -6548,84 +1930,6 @@ export type WearableStatus = {
      * Source
      */
     source: 'synthetic';
-};
-
-/**
- * WeekPlan
- */
-export type WeekPlan = {
-    /**
-     * Person Id
-     */
-    person_id: string;
-    /**
-     * Week Starting
-     */
-    week_starting: string;
-    /**
-     * Entries
-     */
-    entries?: Array<PlannedActivity>;
-    /**
-     * Goals
-     */
-    goals?: Array<ActivityGoal>;
-    /**
-     * Gap Prompt
-     */
-    gap_prompt?: string | null;
-};
-
-/**
- * WorldModelQuality
- *
- * Is the model becoming richer, or merely larger? Counts, never rates.
- */
-export type WorldModelQuality = {
-    /**
-     * Facts
-     */
-    facts?: number;
-    /**
-     * Explicit
-     */
-    explicit?: number;
-    /**
-     * Inferred
-     */
-    inferred?: number;
-    /**
-     * External
-     */
-    external?: number;
-    /**
-     * Fixture
-     */
-    fixture?: number;
-    /**
-     * Confirmed
-     */
-    confirmed?: number;
-    /**
-     * Single Evidence
-     */
-    single_evidence?: number;
-    /**
-     * Temporary
-     */
-    temporary?: number;
-    /**
-     * Expired Excluded
-     */
-    expired_excluded?: number;
-    /**
-     * Contradictions
-     */
-    contradictions?: number;
-    /**
-     * Stale
-     */
-    stale?: number;
 };
 
 export type HealthHealthGetData = {
@@ -6706,56 +2010,6 @@ export type MeV1AuthMeGetResponses = {
 };
 
 export type MeV1AuthMeGetResponse = MeV1AuthMeGetResponses[keyof MeV1AuthMeGetResponses];
-
-export type MetricsV1MetricsGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Person Id
-         */
-        person_id?: string | null;
-    };
-    url: '/v1/metrics';
-};
-
-export type MetricsV1MetricsGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type MetricsV1MetricsGetError = MetricsV1MetricsGetErrors[keyof MetricsV1MetricsGetErrors];
-
-export type MetricsV1MetricsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: OperationalMetrics;
-};
-
-export type MetricsV1MetricsGetResponse = MetricsV1MetricsGetResponses[keyof MetricsV1MetricsGetResponses];
 
 export type ResetDemoV1DemoResetPostData = {
     body?: never;
@@ -7037,1423 +2291,6 @@ export type InterventionOutcomeV1InterventionsInterventionIdOutcomePostResponses
 
 export type InterventionOutcomeV1InterventionsInterventionIdOutcomePostResponse = InterventionOutcomeV1InterventionsInterventionIdOutcomePostResponses[keyof InterventionOutcomeV1InterventionsInterventionIdOutcomePostResponses];
 
-export type InterventionDetailV1InterventionsInterventionIdDetailGetData = {
-    body?: never;
-    path: {
-        /**
-         * Intervention Id
-         */
-        intervention_id: string;
-    };
-    query?: never;
-    url: '/v1/interventions/{intervention_id}/detail';
-};
-
-export type InterventionDetailV1InterventionsInterventionIdDetailGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type InterventionDetailV1InterventionsInterventionIdDetailGetError = InterventionDetailV1InterventionsInterventionIdDetailGetErrors[keyof InterventionDetailV1InterventionsInterventionIdDetailGetErrors];
-
-export type InterventionDetailV1InterventionsInterventionIdDetailGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: OutreachDetail;
-};
-
-export type InterventionDetailV1InterventionsInterventionIdDetailGetResponse = InterventionDetailV1InterventionsInterventionIdDetailGetResponses[keyof InterventionDetailV1InterventionsInterventionIdDetailGetResponses];
-
-export type InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostData = {
-    body: FollowThroughRequest;
-    path: {
-        /**
-         * Intervention Id
-         */
-        intervention_id: string;
-    };
-    query?: never;
-    url: '/v1/interventions/{intervention_id}/follow-through';
-};
-
-export type InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostError = InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostErrors[keyof InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostErrors];
-
-export type InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: FollowThroughResponse;
-};
-
-export type InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostResponse = InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostResponses[keyof InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostResponses];
-
-export type InterventionFollowUpV1InterventionsInterventionIdFollowUpGetData = {
-    body?: never;
-    path: {
-        /**
-         * Intervention Id
-         */
-        intervention_id: string;
-    };
-    query?: never;
-    url: '/v1/interventions/{intervention_id}/follow-up';
-};
-
-export type InterventionFollowUpV1InterventionsInterventionIdFollowUpGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type InterventionFollowUpV1InterventionsInterventionIdFollowUpGetError = InterventionFollowUpV1InterventionsInterventionIdFollowUpGetErrors[keyof InterventionFollowUpV1InterventionsInterventionIdFollowUpGetErrors];
-
-export type InterventionFollowUpV1InterventionsInterventionIdFollowUpGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: FollowUpObservation;
-};
-
-export type InterventionFollowUpV1InterventionsInterventionIdFollowUpGetResponse = InterventionFollowUpV1InterventionsInterventionIdFollowUpGetResponses[keyof InterventionFollowUpV1InterventionsInterventionIdFollowUpGetResponses];
-
-export type InterventionHistoryV1InterventionsHistoryGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/interventions/history';
-};
-
-export type InterventionHistoryV1InterventionsHistoryGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type InterventionHistoryV1InterventionsHistoryGetError = InterventionHistoryV1InterventionsHistoryGetErrors[keyof InterventionHistoryV1InterventionsHistoryGetErrors];
-
-export type InterventionHistoryV1InterventionsHistoryGetResponses = {
-    /**
-     * Response Intervention History V1 Interventions History Get
-     *
-     * Successful Response
-     */
-    200: Array<OutreachSummary>;
-};
-
-export type InterventionHistoryV1InterventionsHistoryGetResponse = InterventionHistoryV1InterventionsHistoryGetResponses[keyof InterventionHistoryV1InterventionsHistoryGetResponses];
-
-export type PersonPreferencesV1PeoplePersonIdPreferencesGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/preferences';
-};
-
-export type PersonPreferencesV1PeoplePersonIdPreferencesGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PersonPreferencesV1PeoplePersonIdPreferencesGetError = PersonPreferencesV1PeoplePersonIdPreferencesGetErrors[keyof PersonPreferencesV1PeoplePersonIdPreferencesGetErrors];
-
-export type PersonPreferencesV1PeoplePersonIdPreferencesGetResponses = {
-    /**
-     * Response Person Preferences V1 People  Person Id  Preferences Get
-     *
-     * Successful Response
-     */
-    200: Array<CandidatePreference>;
-};
-
-export type PersonPreferencesV1PeoplePersonIdPreferencesGetResponse = PersonPreferencesV1PeoplePersonIdPreferencesGetResponses[keyof PersonPreferencesV1PeoplePersonIdPreferencesGetResponses];
-
-export type SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostData = {
-    body: CandidatePreferenceRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        /**
-         * Candidate Key
-         */
-        candidate_key: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/preferences/{candidate_key}';
-};
-
-export type SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostError = SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostErrors[keyof SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostErrors];
-
-export type SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: CandidatePreferenceResponse;
-};
-
-export type SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostResponse = SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostResponses[keyof SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostResponses];
-
-export type DisputeDayV1PeoplePersonIdDayDisputePostData = {
-    body: DayDisputeRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/day-dispute';
-};
-
-export type DisputeDayV1PeoplePersonIdDayDisputePostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type DisputeDayV1PeoplePersonIdDayDisputePostError = DisputeDayV1PeoplePersonIdDayDisputePostErrors[keyof DisputeDayV1PeoplePersonIdDayDisputePostErrors];
-
-export type DisputeDayV1PeoplePersonIdDayDisputePostResponses = {
-    /**
-     * Successful Response
-     */
-    200: DayDisputeResponse;
-};
-
-export type DisputeDayV1PeoplePersonIdDayDisputePostResponse = DisputeDayV1PeoplePersonIdDayDisputePostResponses[keyof DisputeDayV1PeoplePersonIdDayDisputePostResponses];
-
-export type SearchActivitiesV1ActivitiesSearchPostData = {
-    body: ActivityQueryRequest;
-    path?: never;
-    query?: never;
-    url: '/v1/activities/search';
-};
-
-export type SearchActivitiesV1ActivitiesSearchPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type SearchActivitiesV1ActivitiesSearchPostError = SearchActivitiesV1ActivitiesSearchPostErrors[keyof SearchActivitiesV1ActivitiesSearchPostErrors];
-
-export type SearchActivitiesV1ActivitiesSearchPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ActivityQueryResponse;
-};
-
-export type SearchActivitiesV1ActivitiesSearchPostResponse = SearchActivitiesV1ActivitiesSearchPostResponses[keyof SearchActivitiesV1ActivitiesSearchPostResponses];
-
-export type RespondToActivityV1ActivitiesActivityIdResponsePostData = {
-    body: ActivityResponseRequest;
-    path: {
-        /**
-         * Activity Id
-         */
-        activity_id: string;
-    };
-    query?: never;
-    url: '/v1/activities/{activity_id}/response';
-};
-
-export type RespondToActivityV1ActivitiesActivityIdResponsePostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type RespondToActivityV1ActivitiesActivityIdResponsePostError = RespondToActivityV1ActivitiesActivityIdResponsePostErrors[keyof RespondToActivityV1ActivitiesActivityIdResponsePostErrors];
-
-export type RespondToActivityV1ActivitiesActivityIdResponsePostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ActivityResponseResponse;
-};
-
-export type RespondToActivityV1ActivitiesActivityIdResponsePostResponse = RespondToActivityV1ActivitiesActivityIdResponsePostResponses[keyof RespondToActivityV1ActivitiesActivityIdResponsePostResponses];
-
-export type ListActivitiesV1ActivitiesGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/activities';
-};
-
-export type ListActivitiesV1ActivitiesGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ListActivitiesV1ActivitiesGetError = ListActivitiesV1ActivitiesGetErrors[keyof ListActivitiesV1ActivitiesGetErrors];
-
-export type ListActivitiesV1ActivitiesGetResponses = {
-    /**
-     * Response List Activities V1 Activities Get
-     *
-     * Successful Response
-     */
-    200: Array<ActivityCandidate>;
-};
-
-export type ListActivitiesV1ActivitiesGetResponse = ListActivitiesV1ActivitiesGetResponses[keyof ListActivitiesV1ActivitiesGetResponses];
-
-export type ActivityDetailV1ActivitiesActivityIdGetData = {
-    body?: never;
-    path: {
-        /**
-         * Activity Id
-         */
-        activity_id: string;
-    };
-    query?: never;
-    url: '/v1/activities/{activity_id}';
-};
-
-export type ActivityDetailV1ActivitiesActivityIdGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ActivityDetailV1ActivitiesActivityIdGetError = ActivityDetailV1ActivitiesActivityIdGetErrors[keyof ActivityDetailV1ActivitiesActivityIdGetErrors];
-
-export type ActivityDetailV1ActivitiesActivityIdGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: ActivityCandidate;
-};
-
-export type ActivityDetailV1ActivitiesActivityIdGetResponse = ActivityDetailV1ActivitiesActivityIdGetResponses[keyof ActivityDetailV1ActivitiesActivityIdGetResponses];
-
-export type PersonWorldModelV1PeoplePersonIdWorldModelGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/world-model';
-};
-
-export type PersonWorldModelV1PeoplePersonIdWorldModelGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PersonWorldModelV1PeoplePersonIdWorldModelGetError = PersonWorldModelV1PeoplePersonIdWorldModelGetErrors[keyof PersonWorldModelV1PeoplePersonIdWorldModelGetErrors];
-
-export type PersonWorldModelV1PeoplePersonIdWorldModelGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: PersonWorldModel;
-};
-
-export type PersonWorldModelV1PeoplePersonIdWorldModelGetResponse = PersonWorldModelV1PeoplePersonIdWorldModelGetResponses[keyof PersonWorldModelV1PeoplePersonIdWorldModelGetResponses];
-
-export type PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/activity-preferences';
-};
-
-export type PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetError = PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetErrors[keyof PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetErrors];
-
-export type PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: ActivityPreferences;
-};
-
-export type PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetResponse = PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetResponses[keyof PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetResponses];
-
-export type InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostData = {
-    body: EnjoymentRequest;
-    path: {
-        /**
-         * Intervention Id
-         */
-        intervention_id: string;
-    };
-    query?: never;
-    url: '/v1/interventions/{intervention_id}/enjoyment';
-};
-
-export type InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostError = InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostErrors[keyof InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostErrors];
-
-export type InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: EnjoymentResponse;
-};
-
-export type InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostResponse = InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostResponses[keyof InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostResponses];
-
-export type PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/proposed-memories';
-};
-
-export type PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetError = PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetErrors[keyof PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetErrors];
-
-export type PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetResponses = {
-    /**
-     * Response Person Proposed Memories V1 People  Person Id  Proposed Memories Get
-     *
-     * Successful Response
-     */
-    200: Array<ProposedMemory>;
-};
-
-export type PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetResponse = PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetResponses[keyof PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetResponses];
-
-export type DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostData = {
-    body: MemoryDecisionRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        /**
-         * Proposal Id
-         */
-        proposal_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/proposed-memories/{proposal_id}';
-};
-
-export type DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostError = DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostErrors[keyof DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostErrors];
-
-export type DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: MemoryDecisionResponse;
-};
-
-export type DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostResponse = DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostResponses[keyof DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostResponses];
-
-export type AnswerContextQuestionV1PeoplePersonIdContextAnswerPostData = {
-    body: ContextAnswerRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/context-answer';
-};
-
-export type AnswerContextQuestionV1PeoplePersonIdContextAnswerPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type AnswerContextQuestionV1PeoplePersonIdContextAnswerPostError = AnswerContextQuestionV1PeoplePersonIdContextAnswerPostErrors[keyof AnswerContextQuestionV1PeoplePersonIdContextAnswerPostErrors];
-
-export type AnswerContextQuestionV1PeoplePersonIdContextAnswerPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ContextAnswerResponse;
-};
-
-export type AnswerContextQuestionV1PeoplePersonIdContextAnswerPostResponse = AnswerContextQuestionV1PeoplePersonIdContextAnswerPostResponses[keyof AnswerContextQuestionV1PeoplePersonIdContextAnswerPostResponses];
-
-export type DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostData = {
-    body: BaselineConfirmationRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/baseline-confirmation';
-};
-
-export type DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostError = DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostErrors[keyof DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostErrors];
-
-export type DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: BaselineConfirmationResponse;
-};
-
-export type DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostResponse = DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostResponses[keyof DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostResponses];
-
-export type PersonGoalsV1PeoplePersonIdGoalsGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/goals';
-};
-
-export type PersonGoalsV1PeoplePersonIdGoalsGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PersonGoalsV1PeoplePersonIdGoalsGetError = PersonGoalsV1PeoplePersonIdGoalsGetErrors[keyof PersonGoalsV1PeoplePersonIdGoalsGetErrors];
-
-export type PersonGoalsV1PeoplePersonIdGoalsGetResponses = {
-    /**
-     * Response Person Goals V1 People  Person Id  Goals Get
-     *
-     * Successful Response
-     */
-    200: Array<ActivityGoal>;
-};
-
-export type PersonGoalsV1PeoplePersonIdGoalsGetResponse = PersonGoalsV1PeoplePersonIdGoalsGetResponses[keyof PersonGoalsV1PeoplePersonIdGoalsGetResponses];
-
-export type SetPersonGoalV1PeoplePersonIdGoalsPostData = {
-    body: ActivityGoalRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/goals';
-};
-
-export type SetPersonGoalV1PeoplePersonIdGoalsPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type SetPersonGoalV1PeoplePersonIdGoalsPostError = SetPersonGoalV1PeoplePersonIdGoalsPostErrors[keyof SetPersonGoalV1PeoplePersonIdGoalsPostErrors];
-
-export type SetPersonGoalV1PeoplePersonIdGoalsPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ActivityGoal;
-};
-
-export type SetPersonGoalV1PeoplePersonIdGoalsPostResponse = SetPersonGoalV1PeoplePersonIdGoalsPostResponses[keyof SetPersonGoalV1PeoplePersonIdGoalsPostResponses];
-
-export type PersonWeekV1PeoplePersonIdWeekGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/week';
-};
-
-export type PersonWeekV1PeoplePersonIdWeekGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PersonWeekV1PeoplePersonIdWeekGetError = PersonWeekV1PeoplePersonIdWeekGetErrors[keyof PersonWeekV1PeoplePersonIdWeekGetErrors];
-
-export type PersonWeekV1PeoplePersonIdWeekGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: WeekPlan;
-};
-
-export type PersonWeekV1PeoplePersonIdWeekGetResponse = PersonWeekV1PeoplePersonIdWeekGetResponses[keyof PersonWeekV1PeoplePersonIdWeekGetResponses];
-
-export type PlanActivityV1PeoplePersonIdWeekPostData = {
-    body: PlanActivityRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/week';
-};
-
-export type PlanActivityV1PeoplePersonIdWeekPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PlanActivityV1PeoplePersonIdWeekPostError = PlanActivityV1PeoplePersonIdWeekPostErrors[keyof PlanActivityV1PeoplePersonIdWeekPostErrors];
-
-export type PlanActivityV1PeoplePersonIdWeekPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: WeekPlan;
-};
-
-export type PlanActivityV1PeoplePersonIdWeekPostResponse = PlanActivityV1PeoplePersonIdWeekPostResponses[keyof PlanActivityV1PeoplePersonIdWeekPostResponses];
-
-export type PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostData = {
-    body: PlannedFollowThroughRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        /**
-         * Plan Id
-         */
-        plan_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/week/{plan_id}/follow-through';
-};
-
-export type PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostError = PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostErrors[keyof PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostErrors];
-
-export type PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: PlannedFollowThroughResponse;
-};
-
-export type PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostResponse = PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostResponses[keyof PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostResponses];
-
-export type PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostData = {
-    body: PlannedEnjoymentRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        /**
-         * Plan Id
-         */
-        plan_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/week/{plan_id}/enjoyment';
-};
-
-export type PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostError = PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostErrors[keyof PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostErrors];
-
-export type PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: PlannedEnjoymentResponse;
-};
-
-export type PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostResponse = PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostResponses[keyof PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostResponses];
-
-export type StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutData = {
-    body: PreferenceStatementRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        dimension: PreferenceDimension;
-        /**
-         * Value
-         */
-        value: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/activity-preferences/{dimension}/{value}';
-};
-
-export type StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutError = StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutErrors[keyof StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutErrors];
-
-export type StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutResponses = {
-    /**
-     * Successful Response
-     */
-    200: PreferenceStatementResponse;
-};
-
-export type StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutResponse = StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutResponses[keyof StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutResponses];
-
-export type PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/replan-notices';
-};
-
-export type PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetError = PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetErrors[keyof PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetErrors];
-
-export type PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetResponses = {
-    /**
-     * Response Person Replan Notices V1 People  Person Id  Replan Notices Get
-     *
-     * Successful Response
-     */
-    200: Array<ReplanNotice>;
-};
-
-export type PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetResponse = PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetResponses[keyof PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetResponses];
-
-export type ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostData = {
-    body: ReplacePlannedActivityRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        /**
-         * Plan Id
-         */
-        plan_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/week/{plan_id}/replace';
-};
-
-export type ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostError = ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostErrors[keyof ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostErrors];
-
-export type ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostResponses = {
-    /**
-     * Successful Response
-     */
-    200: WeekPlan;
-};
-
-export type ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostResponse = ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostResponses[keyof ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostResponses];
-
-export type DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        /**
-         * Offer Id
-         */
-        offer_id: string;
-    };
-    query?: never;
-    url: '/v1/people/{person_id}/replan-offers/{offer_id}/decline';
-};
-
-export type DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostError = DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostErrors[keyof DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostErrors];
-
-export type DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReplanOffer;
-};
-
-export type DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostResponse = DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostResponses[keyof DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostResponses];
-
-export type ProgrammesV1ProgrammesGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/programmes';
-};
-
-export type ProgrammesV1ProgrammesGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ProgrammesV1ProgrammesGetError = ProgrammesV1ProgrammesGetErrors[keyof ProgrammesV1ProgrammesGetErrors];
-
-export type ProgrammesV1ProgrammesGetResponses = {
-    /**
-     * Response Programmes V1 Programmes Get
-     *
-     * Successful Response
-     */
-    200: Array<Programme>;
-};
-
-export type ProgrammesV1ProgrammesGetResponse = ProgrammesV1ProgrammesGetResponses[keyof ProgrammesV1ProgrammesGetResponses];
-
 export type AdvanceV1SimulationAdvancePostData = {
     body: AdvanceRequest;
     path?: never;
@@ -8498,1026 +2335,6 @@ export type AdvanceV1SimulationAdvancePostResponses = {
 };
 
 export type AdvanceV1SimulationAdvancePostResponse = AdvanceV1SimulationAdvancePostResponses[keyof AdvanceV1SimulationAdvancePostResponses];
-
-export type EventsV1SimulationEventsGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Person Id
-         */
-        person_id?: string | null;
-    };
-    url: '/v1/simulation/events';
-};
-
-export type EventsV1SimulationEventsGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type EventsV1SimulationEventsGetError = EventsV1SimulationEventsGetErrors[keyof EventsV1SimulationEventsGetErrors];
-
-export type EventsV1SimulationEventsGetResponses = {
-    /**
-     * Response Events V1 Simulation Events Get
-     *
-     * Successful Response
-     */
-    200: Array<AuditEvent>;
-};
-
-export type EventsV1SimulationEventsGetResponse = EventsV1SimulationEventsGetResponses[keyof EventsV1SimulationEventsGetResponses];
-
-export type LatestAdvanceV1SimulationLatestGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Person Id
-         */
-        person_id?: string | null;
-    };
-    url: '/v1/simulation/latest';
-};
-
-export type LatestAdvanceV1SimulationLatestGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type LatestAdvanceV1SimulationLatestGetError = LatestAdvanceV1SimulationLatestGetErrors[keyof LatestAdvanceV1SimulationLatestGetErrors];
-
-export type LatestAdvanceV1SimulationLatestGetResponses = {
-    /**
-     * Response Latest Advance V1 Simulation Latest Get
-     *
-     * Successful Response
-     */
-    200: AdvanceResponse | null;
-};
-
-export type LatestAdvanceV1SimulationLatestGetResponse = LatestAdvanceV1SimulationLatestGetResponses[keyof LatestAdvanceV1SimulationLatestGetResponses];
-
-export type SimulationHistoryV1SimulationHistoryGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Person Id
-         */
-        person_id?: string | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-    };
-    url: '/v1/simulation/history';
-};
-
-export type SimulationHistoryV1SimulationHistoryGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type SimulationHistoryV1SimulationHistoryGetError = SimulationHistoryV1SimulationHistoryGetErrors[keyof SimulationHistoryV1SimulationHistoryGetErrors];
-
-export type SimulationHistoryV1SimulationHistoryGetResponses = {
-    /**
-     * Response Simulation History V1 Simulation History Get
-     *
-     * Successful Response
-     */
-    200: Array<SimulationHistoryEntry>;
-};
-
-export type SimulationHistoryV1SimulationHistoryGetResponse = SimulationHistoryV1SimulationHistoryGetResponses[keyof SimulationHistoryV1SimulationHistoryGetResponses];
-
-export type InspectRankerV1EvaluatorRankerInspectPostData = {
-    body: RankerInspectRequest;
-    path?: never;
-    query?: never;
-    url: '/v1/evaluator/ranker/inspect';
-};
-
-export type InspectRankerV1EvaluatorRankerInspectPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type InspectRankerV1EvaluatorRankerInspectPostError = InspectRankerV1EvaluatorRankerInspectPostErrors[keyof InspectRankerV1EvaluatorRankerInspectPostErrors];
-
-export type InspectRankerV1EvaluatorRankerInspectPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: RankerInspectResponse;
-};
-
-export type InspectRankerV1EvaluatorRankerInspectPostResponse = InspectRankerV1EvaluatorRankerInspectPostResponses[keyof InspectRankerV1EvaluatorRankerInspectPostResponses];
-
-export type RankerPresetsV1EvaluatorRankerPresetsGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/evaluator/ranker/presets';
-};
-
-export type RankerPresetsV1EvaluatorRankerPresetsGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type RankerPresetsV1EvaluatorRankerPresetsGetError = RankerPresetsV1EvaluatorRankerPresetsGetErrors[keyof RankerPresetsV1EvaluatorRankerPresetsGetErrors];
-
-export type RankerPresetsV1EvaluatorRankerPresetsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: RankerPresetsResponse;
-};
-
-export type RankerPresetsV1EvaluatorRankerPresetsGetResponse = RankerPresetsV1EvaluatorRankerPresetsGetResponses[keyof RankerPresetsV1EvaluatorRankerPresetsGetResponses];
-
-export type SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/evaluator/people/{person_id}/senior-home';
-};
-
-export type SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetError = SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetErrors[keyof SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetErrors];
-
-export type SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: SeniorHomePreview;
-};
-
-export type SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetResponse = SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetResponses[keyof SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetResponses];
-
-export type CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/coordinator/people/{person_id}/outreach-history';
-};
-
-export type CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetError = CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetErrors[keyof CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetErrors];
-
-export type CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetResponses = {
-    /**
-     * Response Coordinator Outreach History V1 Coordinator People  Person Id  Outreach History Get
-     *
-     * Successful Response
-     */
-    200: Array<OutreachSummary>;
-};
-
-export type CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetResponse = CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetResponses[keyof CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetResponses];
-
-export type CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: {
-        /**
-         * Days
-         */
-        days?: number;
-    };
-    url: '/v1/coordinator/people/{person_id}/activity-relative';
-};
-
-export type CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetError = CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetErrors[keyof CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetErrors];
-
-export type CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: ActivityRelativeToUsual;
-};
-
-export type CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetResponse = CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetResponses[keyof CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetResponses];
-
-export type CoordinatorPeopleV1CoordinatorPeopleGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/coordinator/people';
-};
-
-export type CoordinatorPeopleV1CoordinatorPeopleGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type CoordinatorPeopleV1CoordinatorPeopleGetError = CoordinatorPeopleV1CoordinatorPeopleGetErrors[keyof CoordinatorPeopleV1CoordinatorPeopleGetErrors];
-
-export type CoordinatorPeopleV1CoordinatorPeopleGetResponses = {
-    /**
-     * Response Coordinator People V1 Coordinator People Get
-     *
-     * Successful Response
-     */
-    200: Array<CoordinatorPersonRow>;
-};
-
-export type CoordinatorPeopleV1CoordinatorPeopleGetResponse = CoordinatorPeopleV1CoordinatorPeopleGetResponses[keyof CoordinatorPeopleV1CoordinatorPeopleGetResponses];
-
-export type CoordinatorPrioritiesV1CoordinatorPrioritiesGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Top K
-         */
-        top_k?: number;
-        /**
-         * Person Id
-         */
-        person_id?: string | null;
-    };
-    url: '/v1/coordinator/priorities';
-};
-
-export type CoordinatorPrioritiesV1CoordinatorPrioritiesGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type CoordinatorPrioritiesV1CoordinatorPrioritiesGetError = CoordinatorPrioritiesV1CoordinatorPrioritiesGetErrors[keyof CoordinatorPrioritiesV1CoordinatorPrioritiesGetErrors];
-
-export type CoordinatorPrioritiesV1CoordinatorPrioritiesGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: CarePriorityBoard;
-};
-
-export type CoordinatorPrioritiesV1CoordinatorPrioritiesGetResponse = CoordinatorPrioritiesV1CoordinatorPrioritiesGetResponses[keyof CoordinatorPrioritiesV1CoordinatorPrioritiesGetResponses];
-
-export type CoordinatorMetricsV1CoordinatorMetricsGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/v1/coordinator/metrics';
-};
-
-export type CoordinatorMetricsV1CoordinatorMetricsGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type CoordinatorMetricsV1CoordinatorMetricsGetError = CoordinatorMetricsV1CoordinatorMetricsGetErrors[keyof CoordinatorMetricsV1CoordinatorMetricsGetErrors];
-
-export type CoordinatorMetricsV1CoordinatorMetricsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: CoordinatorFleetMetrics;
-};
-
-export type CoordinatorMetricsV1CoordinatorMetricsGetResponse = CoordinatorMetricsV1CoordinatorMetricsGetResponses[keyof CoordinatorMetricsV1CoordinatorMetricsGetResponses];
-
-export type CoordinatorQueueV1CoordinatorQueueGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Status
-         */
-        status?: string | null;
-    };
-    url: '/v1/coordinator/queue';
-};
-
-export type CoordinatorQueueV1CoordinatorQueueGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type CoordinatorQueueV1CoordinatorQueueGetError = CoordinatorQueueV1CoordinatorQueueGetErrors[keyof CoordinatorQueueV1CoordinatorQueueGetErrors];
-
-export type CoordinatorQueueV1CoordinatorQueueGetResponses = {
-    /**
-     * Response Coordinator Queue V1 Coordinator Queue Get
-     *
-     * Successful Response
-     */
-    200: Array<ReviewCase>;
-};
-
-export type CoordinatorQueueV1CoordinatorQueueGetResponse = CoordinatorQueueV1CoordinatorQueueGetResponses[keyof CoordinatorQueueV1CoordinatorQueueGetResponses];
-
-export type GetCaseV1CasesCaseIdGetData = {
-    body?: never;
-    path: {
-        /**
-         * Case Id
-         */
-        case_id: string;
-    };
-    query?: never;
-    url: '/v1/cases/{case_id}';
-};
-
-export type GetCaseV1CasesCaseIdGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type GetCaseV1CasesCaseIdGetError = GetCaseV1CasesCaseIdGetErrors[keyof GetCaseV1CasesCaseIdGetErrors];
-
-export type GetCaseV1CasesCaseIdGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReviewCase;
-};
-
-export type GetCaseV1CasesCaseIdGetResponse = GetCaseV1CasesCaseIdGetResponses[keyof GetCaseV1CasesCaseIdGetResponses];
-
-export type ReviewCaseV1CasesCaseIdReviewPostData = {
-    body: ReviewRequest;
-    path: {
-        /**
-         * Case Id
-         */
-        case_id: string;
-    };
-    query?: never;
-    url: '/v1/cases/{case_id}/review';
-};
-
-export type ReviewCaseV1CasesCaseIdReviewPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ReviewCaseV1CasesCaseIdReviewPostError = ReviewCaseV1CasesCaseIdReviewPostErrors[keyof ReviewCaseV1CasesCaseIdReviewPostErrors];
-
-export type ReviewCaseV1CasesCaseIdReviewPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: CaseReviewResponse;
-};
-
-export type ReviewCaseV1CasesCaseIdReviewPostResponse = ReviewCaseV1CasesCaseIdReviewPostResponses[keyof ReviewCaseV1CasesCaseIdReviewPostResponses];
-
-export type ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/coordinator/people/{person_id}/review-threshold';
-};
-
-export type ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetError = ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetErrors[keyof ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetErrors];
-
-export type ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReviewThresholdState;
-};
-
-export type ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetResponse = ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetResponses[keyof ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetResponses];
-
-export type ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetData = {
-    body?: never;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query: {
-        /**
-         * Severity Pct
-         */
-        severity_pct: number;
-        /**
-         * Persistence Days
-         */
-        persistence_days: number;
-    };
-    url: '/v1/coordinator/people/{person_id}/review-threshold/replay';
-};
-
-export type ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetError = ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetErrors[keyof ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetErrors];
-
-export type ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReviewThresholdReplay;
-};
-
-export type ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetResponse = ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetResponses[keyof ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetResponses];
-
-export type ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostData = {
-    body: ReviewThresholdApproveRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        /**
-         * Proposal Id
-         */
-        proposal_id: string;
-    };
-    query?: never;
-    url: '/v1/coordinator/people/{person_id}/review-threshold/proposals/{proposal_id}/approve';
-};
-
-export type ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostError = ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostErrors[keyof ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostErrors];
-
-export type ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReviewThresholdDecisionResponse;
-};
-
-export type ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostResponse = ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostResponses[keyof ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostResponses];
-
-export type RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostData = {
-    body: ReviewThresholdRejectRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        /**
-         * Proposal Id
-         */
-        proposal_id: string;
-    };
-    query?: never;
-    url: '/v1/coordinator/people/{person_id}/review-threshold/proposals/{proposal_id}/reject';
-};
-
-export type RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostError = RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostErrors[keyof RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostErrors];
-
-export type RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReviewThresholdDecisionResponse;
-};
-
-export type RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostResponse = RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostResponses[keyof RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostResponses];
-
-export type SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostData = {
-    body: ReviewThresholdManualSetRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/coordinator/people/{person_id}/review-threshold/manual';
-};
-
-export type SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostError = SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostErrors[keyof SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostErrors];
-
-export type SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReviewThresholdDecisionResponse;
-};
-
-export type SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostResponse = SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostResponses[keyof SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostResponses];
-
-export type ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostData = {
-    body: ReviewThresholdShownRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-    };
-    query?: never;
-    url: '/v1/coordinator/people/{person_id}/review-threshold/confirm-starting';
-};
-
-export type ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostError = ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostErrors[keyof ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostErrors];
-
-export type ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReviewThresholdDecisionResponse;
-};
-
-export type ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostResponse = ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostResponses[keyof ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostResponses];
-
-export type ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostData = {
-    body: ReviewThresholdShownRequest;
-    path: {
-        /**
-         * Person Id
-         */
-        person_id: string;
-        /**
-         * Decision Id
-         */
-        decision_id: string;
-    };
-    query?: never;
-    url: '/v1/coordinator/people/{person_id}/review-threshold/decisions/{decision_id}/reconfirm';
-};
-
-export type ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * Not Found
-     */
-    404: unknown;
-    /**
-     * Conflict
-     */
-    409: unknown;
-    /**
-     * Unprocessable Content
-     */
-    422: unknown;
-    /**
-     * Classified server error
-     */
-    500: ServerErrorBody;
-};
-
-export type ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostError = ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostErrors[keyof ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostErrors];
-
-export type ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReviewThresholdDecisionResponse;
-};
-
-export type ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostResponse = ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostResponses[keyof ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostResponses];
 
 export type MeV1MeGetData = {
     body?: never;
@@ -10818,6 +3635,370 @@ export type DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses =
 
 export type DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponse = DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses[keyof DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses];
 
+export type GroupTasksV1GroupsGroupIdTasksGetData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: {
+        /**
+         * From Date
+         */
+        from_date?: string | null;
+        /**
+         * To Date
+         */
+        to_date?: string | null;
+    };
+    url: '/v1/groups/{group_id}/tasks';
+};
+
+export type GroupTasksV1GroupsGroupIdTasksGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type GroupTasksV1GroupsGroupIdTasksGetError = GroupTasksV1GroupsGroupIdTasksGetErrors[keyof GroupTasksV1GroupsGroupIdTasksGetErrors];
+
+export type GroupTasksV1GroupsGroupIdTasksGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskList;
+};
+
+export type GroupTasksV1GroupsGroupIdTasksGetResponse = GroupTasksV1GroupsGroupIdTasksGetResponses[keyof GroupTasksV1GroupsGroupIdTasksGetResponses];
+
+export type CreateTaskV1GroupsGroupIdTasksPostData = {
+    body: TaskRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/tasks';
+};
+
+export type CreateTaskV1GroupsGroupIdTasksPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type CreateTaskV1GroupsGroupIdTasksPostError = CreateTaskV1GroupsGroupIdTasksPostErrors[keyof CreateTaskV1GroupsGroupIdTasksPostErrors];
+
+export type CreateTaskV1GroupsGroupIdTasksPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: Task;
+};
+
+export type CreateTaskV1GroupsGroupIdTasksPostResponse = CreateTaskV1GroupsGroupIdTasksPostResponses[keyof CreateTaskV1GroupsGroupIdTasksPostResponses];
+
+export type PersonTasksV1PeoplePersonIdTasksGetData = {
+    body?: never;
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: {
+        /**
+         * From Date
+         */
+        from_date?: string | null;
+        /**
+         * To Date
+         */
+        to_date?: string | null;
+    };
+    url: '/v1/people/{person_id}/tasks';
+};
+
+export type PersonTasksV1PeoplePersonIdTasksGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type PersonTasksV1PeoplePersonIdTasksGetError = PersonTasksV1PeoplePersonIdTasksGetErrors[keyof PersonTasksV1PeoplePersonIdTasksGetErrors];
+
+export type PersonTasksV1PeoplePersonIdTasksGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskList;
+};
+
+export type PersonTasksV1PeoplePersonIdTasksGetResponse = PersonTasksV1PeoplePersonIdTasksGetResponses[keyof PersonTasksV1PeoplePersonIdTasksGetResponses];
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutData = {
+    body: TaskRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/tasks/{task_id}';
+};
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutError = UpdateTaskV1GroupsGroupIdTasksTaskIdPutErrors[keyof UpdateTaskV1GroupsGroupIdTasksTaskIdPutErrors];
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponse = UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponses[keyof UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponses];
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/tasks/{task_id}/delete';
+};
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostError = DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostErrors[keyof DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostErrors];
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponse = DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponses[keyof DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponses];
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutData = {
+    body: TaskDayRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Day
+         */
+        day: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/tasks/{task_id}/days/{day}';
+};
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutError = SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutErrors[keyof SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutErrors];
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponse = SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponses[keyof SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponses];
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutData = {
+    body: TaskDayRequest;
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+        /**
+         * Task Id
+         */
+        task_id: string;
+        /**
+         * Day
+         */
+        day: string;
+    };
+    query?: never;
+    url: '/v1/people/{person_id}/tasks/{task_id}/days/{day}';
+};
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutError = SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutErrors[keyof SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutErrors];
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponse = SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponses[keyof SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponses];
+
 export type PersonWearableV1PeoplePersonIdWearableGetData = {
     body?: never;
     path: {
@@ -10863,3 +4044,48 @@ export type PersonWearableV1PeoplePersonIdWearableGetResponses = {
 };
 
 export type PersonWearableV1PeoplePersonIdWearableGetResponse = PersonWearableV1PeoplePersonIdWearableGetResponses[keyof PersonWearableV1PeoplePersonIdWearableGetResponses];
+
+export type AssistantChatV1AssistantChatPostData = {
+    body: AssistantChatRequest;
+    path?: never;
+    query?: never;
+    url: '/v1/assistant/chat';
+};
+
+export type AssistantChatV1AssistantChatPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Too Many Requests
+     */
+    429: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type AssistantChatV1AssistantChatPostError = AssistantChatV1AssistantChatPostErrors[keyof AssistantChatV1AssistantChatPostErrors];
+
+export type AssistantChatV1AssistantChatPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssistantReply;
+};
+
+export type AssistantChatV1AssistantChatPostResponse = AssistantChatV1AssistantChatPostResponses[keyof AssistantChatV1AssistantChatPostResponses];

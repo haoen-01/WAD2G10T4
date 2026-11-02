@@ -1,5 +1,7 @@
 import type {
   AccountRole,
+  AssistantChatRequest,
+  AssistantReply,
   AppointmentNote,
   AppointmentNoteRequest,
   AppointmentRequest,
@@ -23,6 +25,9 @@ import type {
   PersonState,
   PinResponse,
   SeniorNameRequest,
+  Task,
+  TaskList,
+  TaskRequest,
   WearableStatus,
 } from '@silverloop/api-client';
 
@@ -223,6 +228,60 @@ export async function stepBackFrom(groupId: string, occurrenceId: string): Promi
   await http.post(`/v1/groups/${groupId}/helpers/step-back`, { occurrence_id: occurrenceId });
 }
 
+// ── Tasks ────────────────────────────────────────────────────────────────────
+
+/** The family group's tasks and the days ticked off, also before its senior is linked. */
+export async function getGroupTasks(groupId: string): Promise<TaskList> {
+  const response = await http.get<TaskList>(`/v1/groups/${groupId}/tasks`);
+  return response.data;
+}
+
+/** The senior's tasks: what the senior's own screen reads. */
+export async function getPersonTasks(personId: string): Promise<TaskList> {
+  const response = await http.get<TaskList>(`/v1/people/${personId}/tasks`);
+  return response.data;
+}
+
+export async function createTask(groupId: string, task: TaskRequest): Promise<Task> {
+  const response = await http.post<Task>(`/v1/groups/${groupId}/tasks`, task);
+  return response.data;
+}
+
+/** Changes a task (every day of it, if it repeats). Days already ticked off stay ticked off. */
+export async function updateTask(
+  groupId: string,
+  taskId: string,
+  task: TaskRequest,
+): Promise<Task> {
+  const response = await http.put<Task>(`/v1/groups/${groupId}/tasks/${taskId}`, task);
+  return response.data;
+}
+
+/** Removes the task, every day of it, and its ticks. */
+export async function deleteTask(groupId: string, taskId: string): Promise<void> {
+  await http.post(`/v1/groups/${groupId}/tasks/${taskId}/delete`);
+}
+
+/** A family member ticks one day of a task done (or not): today or a past day. */
+export async function setGroupTaskDay(
+  groupId: string,
+  taskId: string,
+  day: string,
+  done: boolean,
+): Promise<void> {
+  await http.put(`/v1/groups/${groupId}/tasks/${taskId}/days/${day}`, { done });
+}
+
+/** The senior ticks one of today's tasks done (or not). */
+export async function setPersonTaskDay(
+  personId: string,
+  taskId: string,
+  day: string,
+  done: boolean,
+): Promise<void> {
+  await http.put(`/v1/people/${personId}/tasks/${taskId}/days/${day}`, { done });
+}
+
 /** The senior's watch: connected or not, last sync and battery. Simulated until a real device. */
 export async function getWearable(personId: string): Promise<WearableStatus> {
   const response = await http.get<WearableStatus>(`/v1/people/${personId}/wearable`);
@@ -279,4 +338,16 @@ export async function addAppointmentNote(
 /** Removes your own note; another member's note answers 403. */
 export async function deleteAppointmentNote(groupId: string, noteId: string): Promise<void> {
   await http.post(`/v1/groups/${groupId}/notes/${noteId}/delete`);
+}
+
+/**
+ * One answer from the Care+ assistant. The AI is called by the API with its own key (never from
+ * here); emergencies and questions about medicines get a fixed answer. Too many questions in a
+ * short time answers 429.
+ */
+export async function askAssistant(request: AssistantChatRequest): Promise<AssistantReply> {
+  const response = await http.post<AssistantReply>('/v1/assistant/chat', request, {
+    timeout: 30_000,
+  });
+  return response.data;
 }

@@ -13,16 +13,15 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 
 from silverloop.agent import AgentProposal, validate_proposal
 from silverloop.config import Settings
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.learning import PreferenceLearner
 from silverloop.logging_config import agent_logger, request_id_var
-from silverloop.main import create_app
-from silverloop.models import Decision, DeclineReason, PreferenceDimension, PreferenceStance
+from silverloop.models import Decision, DeclineReason, FollowThrough, PreferenceDimension
 from silverloop.sql_repository import SqlAlchemyRepository
+from tests.row_fixtures import audit_events, record_follow_through, state_preference
 from tests.test_agent_planner import FakeBlock, FakeClient, FakeResponse
 
 AGENT_MESSAGE = (
@@ -36,18 +35,12 @@ PROVIDER_ERROR_TEXT = f"gateway timeout: 401 Unauthorized for key {PROVIDER_SENT
 
 
 def _events_over(repository: SqlAlchemyRepository) -> list[dict[str, Any]]:
-    """`GET /v1/simulation/events` for this repository, through the real HTTP contract.
-
-    The app is built without entering the `TestClient` context manager on purpose: the lifespan
-    would run `validate_runtime`, which correctly refuses SQLite under the default `shared`
-    profile, and the runtime guard is not what is under test here.
-    """
-    application = create_app(repository, settings=enabled_settings(), migrate_on_start=False)
-    response = TestClient(application).get(
-        "/v1/simulation/events", params={"person_id": DEMO_PERSON_ID}
-    )
-    assert response.status_code == 200, response.text
-    return list(response.json())
+    """The active run's audit trail as `GET /v1/simulation/events` served it (removed in
+    step 7), serialised the same way."""
+    return [
+        event.model_dump(mode="json")
+        for event in audit_events(repository, person_id=DEMO_PERSON_ID)
+    ]
 
 
 @pytest.fixture
@@ -442,7 +435,7 @@ def test_social_nudge_cannot_override_a_single_real_acceptance(
     original_state = first.state
 
     offline_repository.record_outcome(intervention.intervention_id, "accepted")
-    offline_repository.record_follow_through(intervention.intervention_id, "completed")
+    record_follow_through(offline_repository, intervention.intervention_id, FollowThrough.COMPLETED)
 
     with offline_repository.sessions() as session:
         run = offline_repository._active_run(session, DEMO_PERSON_ID)
@@ -452,18 +445,18 @@ def test_social_nudge_cannot_override_a_single_real_acceptance(
     accepted_shape = next(c for c in ranked if c.key == accepted_key).social_shape.value
     opposing_shape = _opposing_social_shape(accepted_shape)
 
-    offline_repository.state_preference(
+    state_preference(
+        offline_repository,
         PreferenceDimension.SOCIAL,
         accepted_shape,
-        PreferenceStance.AVOID,
-        actor="senior",
+        prefer=False,
         person_id=DEMO_PERSON_ID,
     )
-    offline_repository.state_preference(
+    state_preference(
+        offline_repository,
         PreferenceDimension.SOCIAL,
         opposing_shape,
-        PreferenceStance.PREFER,
-        actor="senior",
+        prefer=True,
         person_id=DEMO_PERSON_ID,
     )
 
@@ -507,18 +500,18 @@ def test_social_nudge_cannot_lift_a_single_real_decline_to_the_top(
     declined_shape = next(c for c in ranked if c.key == declined_key).social_shape.value
     opposing_shape = _opposing_social_shape(declined_shape)
 
-    offline_repository.state_preference(
+    state_preference(
+        offline_repository,
         PreferenceDimension.SOCIAL,
         declined_shape,
-        PreferenceStance.PREFER,
-        actor="senior",
+        prefer=True,
         person_id=DEMO_PERSON_ID,
     )
-    offline_repository.state_preference(
+    state_preference(
+        offline_repository,
         PreferenceDimension.SOCIAL,
         opposing_shape,
-        PreferenceStance.AVOID,
-        actor="senior",
+        prefer=False,
         person_id=DEMO_PERSON_ID,
     )
 

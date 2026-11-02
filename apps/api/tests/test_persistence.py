@@ -20,6 +20,11 @@ from silverloop.logging_config import agent_logger, request_logger
 from silverloop.main import create_app
 from silverloop.migrations import upgrade_database
 from silverloop.sql_repository import SqlAlchemyRepository, _sync_database_url
+from tests.row_fixtures import (
+    activity_preferences,
+    decide_baseline_confirmation,
+    state_preference,
+)
 
 
 def file_repository(path: Path) -> SqlAlchemyRepository:
@@ -108,9 +113,7 @@ def test_confirmed_baseline_reference_survives_a_repository_restart(tmp_path: Pa
     assert response is not None and response.state.pending_baseline_confirmation is not None
     person_id = response.state.person_id
     rolling_median = response.state.baseline.median_steps
-    first.decide_baseline_confirmation(
-        BaselineConfirmationDecision.CONFIRM, "senior", person_id=person_id
-    )
+    decide_baseline_confirmation(first, BaselineConfirmationDecision.CONFIRM, person_id=person_id)
     first.close()
 
     restarted = SqlAlchemyRepository(f"sqlite+pysqlite:///{database}")
@@ -155,20 +158,26 @@ def test_reset_no_longer_deletes_activity_dimension_preferences(tmp_path: Path) 
     from datetime import timedelta
 
     from silverloop.db_models import ActivityDimensionPreferenceRow
-    from silverloop.models import PreferenceDimension, PreferenceStance
+    from silverloop.fixtures import DEMO_PERSON_ID
+    from silverloop.models import PreferenceDimension
 
     repository = file_repository(tmp_path / "reset-preferences.db")
     repository.reset()
-    repository.state_preference(
-        PreferenceDimension.ENVIRONMENT, "outdoor", PreferenceStance.AVOID, actor="senior"
+    state_preference(
+        repository,
+        PreferenceDimension.ENVIRONMENT,
+        "outdoor",
+        prefer=False,
+        person_id=DEMO_PERSON_ID,
     )
     until = repository.person_state().current_day + timedelta(days=3)
-    repository.state_preference(
+    state_preference(
+        repository,
         PreferenceDimension.ACTIVITY_TYPE,
         "walking",
-        PreferenceStance.AVOID,
+        prefer=False,
+        person_id=DEMO_PERSON_ID,
         until=until,
-        actor="senior",
     )
     with repository.sessions() as session:
         rows_before = session.scalar(
@@ -186,7 +195,9 @@ def test_reset_no_longer_deletes_activity_dimension_preferences(tmp_path: Path) 
 
     # The standing preference survives; the time-boxed one does not, whether or not it had
     # already lapsed by the wall clock -- it belonged to a run that is no longer active.
-    assert [d.value for d in repository.activity_preferences().dimensions] == ["outdoor"]
+    assert [
+        d.value for d in activity_preferences(repository, person_id=DEMO_PERSON_ID).dimensions
+    ] == ["outdoor"]
     repository.close()
 
 
@@ -230,8 +241,8 @@ def test_schema_compiles_for_postgresql() -> None:
     # `review_threshold_decisions` (ADR 0008); +5 for family groups: `accounts`, `care_groups`,
     # `group_members`, `family_pins` and `pin_attempts`; +3 for the family calendar:
     # `appointments`, `availability_entries` and `helper_assignments`; +1 for `family_activity`,
-    # the family feed; +1 for `appointment_notes`.
-    assert len(compiled) == 40
+    # the family feed; +1 for `appointment_notes`; +2 for `tasks` and `task_ticks`.
+    assert len(compiled) == 42
     assert any("decision_evidence" in statement for statement in compiled)
     assert any("simulation_events" in statement for statement in compiled)
     for table in (
@@ -262,6 +273,8 @@ def test_schema_compiles_for_postgresql() -> None:
         "helper_assignments",
         "family_activity",
         "appointment_notes",
+        "tasks",
+        "task_ticks",
     ):
         assert any(table in statement for statement in compiled), f"{table} missing from schema"
 

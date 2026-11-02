@@ -9,8 +9,10 @@ import {
   focusAt,
   hasHappened,
   isUnderway,
+  marksUnderLabel,
   minutesToLabel,
   momentInZone,
+  nowLabelTransform,
   positionOf,
   sortMoments,
 } from './day-timeline';
@@ -84,6 +86,30 @@ describe('the timeline', () => {
     assert.equal(positionOf(420, window), 0);
     assert.equal(positionOf(870, window), 0.5);
     assert.equal(positionOf(2000, window), 1);
+  });
+});
+
+describe('the Now label', () => {
+  it('finds every mark it touches, even by a letter, and no others', () => {
+    const marks = [
+      { key: 'clear', left: 0, right: 30 },
+      { key: 'one letter', left: 95, right: 125 },
+      { key: 'under', left: 130, right: 150 },
+      { key: 'other side', left: 195, right: 220 },
+      { key: 'far', left: 240, right: 270 },
+    ];
+    assert.deepEqual(marksUnderLabel({ left: 120, right: 200 }, marks), [
+      'one letter',
+      'under',
+      'other side',
+    ]);
+  });
+
+  it('stays over the timeline at both ends of the day', () => {
+    assert.equal(nowLabelTransform(0), 'translateX(0%)');
+    assert.equal(nowLabelTransform(0.5), 'translateX(-50%)');
+    assert.equal(nowLabelTransform(1), 'translateX(-100%)');
+    assert.equal(nowLabelTransform(1.4), 'translateX(-100%)');
   });
 });
 

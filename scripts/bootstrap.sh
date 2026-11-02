@@ -17,6 +17,8 @@ if [[ ! -f .env ]]; then
 fi
 
 pnpm install --frozen-lockfile
+# Shared git hooks: rejects commits authored or co-authored by Claude (CONTRIBUTING.md).
+git config core.hooksPath .githooks
 pnpm exec playwright install chromium
 (
   cd apps/api

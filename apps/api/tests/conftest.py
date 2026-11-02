@@ -44,6 +44,8 @@ _NEUTRAL_LLM_ENV = {
 }
 os.environ.update(_NEUTRAL_LLM_ENV)
 os.environ["EXTERNAL_CONTEXT_ENABLED"] = "false"
+# The assistant's OpenAI key: never a developer's real one in the suite.
+os.environ["OPENAI_API_KEY"] = ""
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 
 # ruff: noqa: E402 -- these imports are deliberately below the environment block above. Importing

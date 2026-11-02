@@ -14,20 +14,18 @@ product of two Beta posteriors (engagement x experience), so its neutral no-hist
 not the 0.5 it was before -- a before/after pair recorded across that change is not comparable on
 the same scale.
 
-**Free text the senior typed never reaches the audit trail.** A follow-through note, a day
-dispute, a context-question note, a candidate-preference reason and a consent reason are each the
-person's own words; every one of them stays on its own domain row, readable back only to the
-person who wrote it (or, for a day dispute, folded into `PersonState.signal.quality` they can also
-read), and never in `GET /v1/simulation/events`, which any `demo_operator` can read for any
-person. The corresponding audit event instead records presence (`note_present` / `reason_present`)
-or, when the field is required rather than optional, its length (`reason_length`). See
-[api.md](api.md#the-follow-through-loop) for the exact fields this applies to.
+**Free text the senior typed never reaches the audit trail.** A consent reason is the person's own
+words; it stays on its own domain row (`consent_evidence`) and never in the audit trail, which is
+an operator surface. The audit event records its length (`reason_length`) instead. (The
+follow-through note, day dispute, context-question note and candidate-preference reason were held
+to the same rule; their routes, and `GET /v1/simulation/events` that read the trail back, went in
+step 7.)
 
 ## Structured request logs
 
 FastAPI emits one compact JSON record per request with timestamp, level, request ID, method, the
-matched **route template** (`/v1/people/{person_id}/activity-preferences/{dimension}/{value}`,
-never the concrete path, because a path segment can carry a person's own words), status and
+matched **route template** (`/v1/people/{person_id}/state`, never the concrete path, because a
+path segment can carry a person's own words), status and
 duration. It does not log bodies, senior notes, wearable values or credentials. A caller
 may supply `X-Request-ID`; otherwise the API creates one and returns it in the response header.
 
@@ -42,22 +40,12 @@ audit trail sees the provider's words.
 
 ## Operational metrics
 
-The web app no longer has an operations or System Health screen. The API still serves what that
-screen showed: `GET /v1/metrics` (evidence, outcome and open-review counts; consent; last decision;
-audited no-action count; policy version; source classifications) and `GET /ready` (the active
-runtime -- Supabase PostgreSQL, SQLite offline fallback or not ready -- and the connected and
-expected schema revisions). See `docs/api.md`. This is intentionally a small demo surface, not a
+The web app no longer has an operations or System Health screen, and step 7 removed `GET
+/v1/metrics`. `repository.metrics()` stays (`supabase_smoke.py` reads it): evidence, outcome and
+open-review counts; consent; last decision; audited no-action count; policy version; source
+classifications. `GET /ready` reports the active runtime -- Supabase PostgreSQL, SQLite offline
+fallback or not ready -- and the connected and expected schema revisions. See `docs/api.md`. This is intentionally a small demo surface, not a
 production monitoring platform.
-
-## Coordinator queue hygiene (no screen)
-
-`GET /v1/coordinator/queue` accepts an optional `?status=` filter (comma-separated `open`,
-`acknowledged`, `resolved`). Omitting it returns the default view -- open and acknowledged cases
-only -- so a resolved case never interleaves with an active one on screen; pass `?status=resolved`
-(or `?status=open,acknowledged,resolved`) to see closed cases on request. Results are always
-ordered open before acknowledged before resolved, newest first within each status.
-`ReviewCase.priority` is not part of that ordering: every case is opened with the same hard-coded
-value, so it carries no signal to sort by.
 
 ## Planner fallback visibility
 
@@ -67,7 +55,7 @@ fallback -- distinct from `GET /ready`, which only reports whether the database 
 
 ## Counts, never rates
 
-`/v1/metrics` carries numerators and denominators as separate counts; every rate a surface shows
+`repository.metrics()` carries numerators and denominators as separate counts; every rate a surface shows
 is built from two of them with the denominator printed beside it.
 
 - **Outreach planner:** `planner_runs`, `planner_agent_selected`, `planner_contested_runs`

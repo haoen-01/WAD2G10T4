@@ -1,10 +1,10 @@
 /**
  * Shared tasks ("Take morning medicine", "Water the plants") and their rules. Pure and free of Vue,
  * so `lib/tasks.test.ts` can run it under Node's type stripping; `composables/useTasks.ts` wraps it
- * in reactive state and keeps it in the browser.
+ * in reactive state read from the API.
  *
- * The API has no tasks yet, so tasks live in this browser only (`localStorage`, one list per
- * senior). Another browser or device has its own list.
+ * The API keeps one list per family group (`silverloop.family_tasks`, which mirrors `occursOn`).
+ * These rules work out each day of it and change the list straight away while a save is on its way.
  */
 
 export type TaskRepeat = 'none' | 'daily' | 'weekly';
@@ -26,7 +26,7 @@ export interface TaskInput {
   /** `YYYY-MM-DD`: the last day a repeating task happens, or `null` for no end. */
   repeat_until: string | null;
   notes: string;
-  /** Medicine gets its own tag in the list. Older saved tasks have none: a plain to-do. */
+  /** Medicine gets its own tag in the list. None: a plain to-do. */
   kind?: TaskKind;
 }
 
@@ -158,38 +158,36 @@ export function setCompleted(
   };
 }
 
-/**
- * Reads a stored list back. Anything unreadable (an old shape, a hand edit) is dropped rather than
- * breaking the page, so the worst case is an empty list.
- */
-export function parseStore(raw: string | null): TaskStore {
-  if (!raw) return emptyStore();
-  try {
-    const value = JSON.parse(raw) as Partial<TaskStore>;
-    const schedules = Array.isArray(value.schedules)
-      ? value.schedules.filter(
-          (task): task is TaskSchedule =>
-            typeof task?.task_id === 'string' &&
-            typeof task.title === 'string' &&
-            ['none', 'daily', 'weekly'].includes(task.repeat) &&
-            checkTask({ ...task, notes: String(task.notes ?? '') }) === null,
-        )
-      : [];
-    const completions: Record<string, string[]> = {};
-    if (value.completions && typeof value.completions === 'object') {
-      for (const [taskId, days] of Object.entries(value.completions)) {
-        if (Array.isArray(days)) completions[taskId] = days.filter((day) => ISO_DAY.test(day));
-      }
-    }
-    return {
-      schedules: schedules.map((task) => ({
-        ...task,
-        notes: String(task.notes ?? ''),
-        kind: task.kind === 'medicine' ? 'medicine' : 'task',
-      })),
-      completions,
-    };
-  } catch {
-    return emptyStore();
-  }
+/** The parts of the API's task list (`TaskList`) these rules need. */
+export interface TaskListLike {
+  tasks: ReadonlyArray<{
+    task_id: string;
+    title: string;
+    kind?: string;
+    start_date: string;
+    time: string;
+    repeat?: string;
+    repeat_until?: string | null;
+    notes?: string;
+  }>;
+  ticks: ReadonlyArray<{ task_id: string; day: string }>;
+}
+
+/** The API's task list as the store the screens read. */
+export function storeFromList(list: TaskListLike): TaskStore {
+  const completions: Record<string, string[]> = {};
+  for (const tick of list.ticks) (completions[tick.task_id] ??= []).push(tick.day);
+  return {
+    schedules: list.tasks.map((task) => ({
+      task_id: task.task_id,
+      title: task.title,
+      start_date: task.start_date,
+      time: task.time,
+      repeat: task.repeat === 'daily' || task.repeat === 'weekly' ? task.repeat : 'none',
+      repeat_until: task.repeat_until ?? null,
+      notes: task.notes ?? '',
+      kind: task.kind === 'medicine' ? 'medicine' : 'task',
+    })),
+    completions,
+  };
 }

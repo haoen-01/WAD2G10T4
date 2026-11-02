@@ -55,6 +55,7 @@ test('the senior shows a code, and a senior already in a group cannot get a seco
   await page.getByRole('tab', { name: 'Family', exact: true }).click();
   await page.getByTestId('add-family-member').click();
   await page.getByTestId('show-family-code').click();
+  // The code on screen is always the live one: the old one left as soon as a new one was asked for.
   const code = await digitsOf(page, 'senior-link-pin');
   expect(code).toMatch(/^[0-9]{6}$/);
 
@@ -67,6 +68,143 @@ test('the senior shows a code, and a senior already in a group cannot get a seco
   await page.getByTestId('senior-pin-input').fill(code);
   await page.getByRole('button', { name: 'Start the group' }).click();
   await expect(page.getByRole('alert')).toContainText('already has a family group');
+});
+
+test('a senior never sees a code that a newer request has ended', async ({ page }) => {
+  await enterAs(page, 'senior');
+  await page.getByRole('tab', { name: 'Family', exact: true }).click();
+  const pinRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/v1/me/link-pin')) pinRequests.push(request.method());
+  });
+
+  // A quick close and reopen while the first code is on its way asks only once.
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/v1/me/link-pin', async (route) => {
+    await held;
+    await route.continue();
+  });
+  const open = page.getByTestId('add-family-member');
+  await open.click();
+  await open.click();
+  await open.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Getting your code' })).toBeVisible();
+  release();
+  await expect(page.getByTestId('senior-link-pin')).toBeVisible();
+  expect(pinRequests.filter((method) => method === 'POST')).toHaveLength(1);
+  await page.unroute('**/v1/me/link-pin');
+
+  // Asking for a new code takes the old one off the screen before the answer comes back.
+  const first = await digitsOf(page, 'senior-link-pin');
+  let finish: () => void = () => {};
+  const waiting = new Promise<void>((resolve) => (finish = resolve));
+  await page.route('**/v1/me/link-pin', async (route) => {
+    await waiting;
+    await route.continue();
+  });
+  await page.getByTestId('show-family-code').click();
+  await expect(page.getByTestId('senior-link-pin')).toHaveCount(0);
+  finish();
+  await expect(page.getByTestId('senior-link-pin')).toBeVisible();
+  expect(await digitsOf(page, 'senior-link-pin')).not.toBe(first);
+  await page.unroute('**/v1/me/link-pin');
+
+  // If the answer never arrives, the screen says so and offers to try again, with no old code left.
+  await page.route('**/v1/me/link-pin', (route) => route.abort());
+  await page.getByTestId('show-family-code').click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByTestId('senior-link-pin')).toHaveCount(0);
+  await expect(page.getByTestId('show-family-code')).toHaveText('Try getting a code again');
+});
+
+// The smallest the digits may be at each size: the same as at 100% wherever the panel has room.
+const NARROW_PHONE_DIGITS = 29; // 320 px at 150%: short of room, still above its 25.5 px body text.
+const PHONE_DIGITS = 35.2;
+const DESKTOP_DIGITS = 48;
+
+for (const [width, zoom, smallestDigits] of [
+  [320, 125, PHONE_DIGITS],
+  [320, 150, NARROW_PHONE_DIGITS],
+  [375, 100, PHONE_DIGITS],
+  [375, 125, PHONE_DIGITS],
+  [375, 150, PHONE_DIGITS],
+  [1440, 100, DESKTOP_DIGITS],
+  [1440, 150, DESKTOP_DIGITS],
+]) {
+  test(`at ${width}px and ${zoom}% a new code keeps the page still and the focus on the button`, async ({
+    page,
+  }) => {
+    await page.addInitScript(
+      (percent) => window.localStorage.setItem('careplus.zoom.v1', String(percent)),
+      zoom,
+    );
+    await page.setViewportSize({ width, height: 900 });
+    await enterAs(page, 'senior');
+    await page.getByRole('tab', { name: 'Family', exact: true }).click();
+    await page.getByTestId('add-family-member').click();
+    await expect(page.getByTestId('senior-link-pin')).toBeVisible();
+
+    const button = page.getByTestId('show-family-code');
+    const top = () =>
+      button.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
+    const before = await top();
+
+    let finish: () => void = () => {};
+    const waiting = new Promise<void>((resolve) => (finish = resolve));
+    await page.route('**/v1/me/link-pin', async (route) => {
+      await waiting;
+      await route.continue();
+    });
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status').filter({ hasText: 'Getting your code' })).toBeAttached();
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(button).toBeFocused();
+    expect(await top()).toBe(before);
+
+    finish();
+    await expect(page.getByTestId('senior-link-pin')).toBeVisible();
+    await expect(button).toBeFocused();
+    expect(await top()).toBe(before);
+    await expect(page.getByRole('status').filter({ hasText: 'Your code is ready' })).toBeAttached();
+
+    // The six digits stay on one line, whole, inside their panel.
+    const digits = await page.getByTestId('senior-link-pin').evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const text = range.getBoundingClientRect();
+      const panel = (element.parentElement as HTMLElement).getBoundingClientRect();
+      return {
+        height: text.height,
+        fontSize: parseFloat(getComputedStyle(element).fontSize),
+        bodySize: parseFloat(getComputedStyle(document.body).fontSize),
+        fits: text.left >= panel.left && text.right <= panel.right,
+      };
+    });
+    expect(digits.height).toBeLessThan(digits.fontSize * 2);
+    expect(digits.fits).toBe(true);
+    expect(digits.fontSize).toBeGreaterThanOrEqual(smallestDigits);
+    expect(digits.fontSize).toBeGreaterThan(digits.bodySize);
+    await page.unroute('**/v1/me/link-pin');
+  });
+}
+
+test('the family join PIN keeps its full size on a desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await enterAs(page, 'family');
+  await page.goto('/family');
+  await page.getByTestId('new-join-pin').click();
+  const pin = page.getByTestId('join-pin');
+  await expect(pin).toBeVisible();
+  await expect(pin).toHaveCSS('font-size', '48px');
+  await pin.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const text = range.getBoundingClientRect();
+    const panel = (element.parentElement as HTMLElement).getBoundingClientRect();
+    if (text.right > panel.right) throw new Error('the PIN runs out of its panel');
+  });
 });
 
 test('a wrong join PIN is turned down in plain words', async ({ page }) => {

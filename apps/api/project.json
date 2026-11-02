@@ -97,6 +97,13 @@
         "command": "uv run python -m silverloop.seed"
       }
     },
+    "demo-story": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/api",
+        "command": "uv run python -m silverloop.demo_story"
+      }
+    },
     "demo-reset": {
       "executor": "nx:run-commands",
       "options": {

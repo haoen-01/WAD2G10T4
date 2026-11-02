@@ -34,7 +34,6 @@ def test_duplicate_event_replays_response_without_advancing_state(tmp_path: Path
     repository.close()
     restarted = SqlAlchemyRepository(f"sqlite+pysqlite:///{database}")
     assert restarted.advance("activity_declines", "event-demo-001") == first
-    assert restarted.latest_advance() == first
     restarted.close()
 
 

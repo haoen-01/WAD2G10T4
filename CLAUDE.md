@@ -167,8 +167,8 @@ The product is Care+; the code, packages and API contract are still named `silve
 apps/api          FastAPI + SQLAlchemy 2 + Alembic (Python 3.13, uv). Owns all domain state.
 apps/web          Vue 3 + Vite SPA styled with Bootstrap 5. Home / senior / calendar / family.
                   Calendar and family data (care group, appointments, availability, helpers,
-                  activity feed, check-ins, appointment notes) are stored by the API. Only Tasks
-                  are browser-only (localStorage); see docs/tasks.md. Family nav is a bottom tab
+                  activity feed, check-ins, appointment notes, tasks) are stored by the API; see
+                  docs/tasks.md. Family nav is a bottom tab
                   bar on phones and a header pill on desktop (CSS only). Motion: motion-v 2.6.0 +
                   @vueuse/core 14.4.0 (exact pins) in components/motion/*.
 apps/e2e          Playwright browser + API tests.

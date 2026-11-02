@@ -56,6 +56,8 @@ test('the senior sees only their day: activity, a suggestion and today’s plans
   );
   await page.getByRole('tab', { name: 'Calendar', exact: true }).focus();
   await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: /^Badges/ })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Family', exact: true })).toBeFocused();
   await expect(page.getByTestId('add-family-member')).toHaveCount(1);
   await page.getByTestId('add-family-member').click();
