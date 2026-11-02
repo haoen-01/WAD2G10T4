@@ -1,15 +1,15 @@
 """Stored simulation snapshots written before a contract field existed.
 
-`advance()` persists the whole `AdvanceResponse` in `SimulationEventRow.response_json` and three
-read paths re-validate it: the idempotent `event_id` replay, `latest_advance` and
-`simulation_history`. A snapshot written before `PersonState.decided_by_gate` existed (an offline
-SQLite file that outlived a code update) has no gate, and re-validating it raised a pydantic
-`ValidationError`. That is a `ValueError`, so the app-wide handler reported it as a 422 carrying the
-raw pydantic text, and the web told a demo operator to start an API that was already running.
+`advance()` persists the whole `AdvanceResponse` in `SimulationEventRow.response_json` and the
+idempotent `event_id` replay re-validates it (`latest_advance` and `simulation_history`, the other
+two read paths, went with their routes in step 7). A snapshot written before
+`PersonState.decided_by_gate` existed (an offline SQLite file that outlived a code update) has no
+gate, and re-validating it raised a pydantic `ValidationError`. That is a `ValueError`, so the
+app-wide handler reported it as a 422 carrying the raw pydantic text, and the web told a demo
+operator to start an API that was already running.
 
 These tests pin the replacement behaviour:
 
-- the history timeline reads only the fields it reports, all of which the legacy snapshot has;
 - a read that must return the full snapshot refuses honestly (no invented gate) with a classified
   `stored_state_incompatible` error the web can offer a demo reset for;
 - no raw validation text ever reaches a client, for this or any other server-side schema failure.
@@ -17,8 +17,8 @@ These tests pin the replacement behaviour:
 A separate failure mode: `response_json` text that is not valid JSON at all. SQLAlchemy's JSON
 type decodes it while fetching the row, so `json.JSONDecodeError` used to escape as a bare
 `ValueError` and reach the same app-wide 422 handler with the raw decode error text. It is
-classified the same way as an outdated shape, with no narrow view (there is no dict to read one
-from), and never leaks the corrupted text or the decoder's message to a client.
+classified the same way as an outdated shape, and never leaks the corrupted text or the decoder's
+message to a client.
 """
 
 from __future__ import annotations
@@ -133,22 +133,6 @@ def _assert_no_framework_text(body: object) -> None:
 # ── Repository ───────────────────────────────────────────────────────────────────────────────
 
 
-def test_history_reads_a_snapshot_that_predates_decided_by_gate(
-    legacy_repository: SqlAlchemyRepository,
-) -> None:
-    history = legacy_repository.simulation_history()
-
-    assert [entry.event_name for entry in history] == ["activity_declines"]
-    assert history[0].loop_trace
-
-
-def test_latest_advance_refuses_rather_than_inventing_a_gate(
-    legacy_repository: SqlAlchemyRepository,
-) -> None:
-    with pytest.raises(StoredStateIncompatible):
-        legacy_repository.latest_advance()
-
-
 def test_idempotent_replay_of_a_legacy_snapshot_is_classified(
     legacy_repository: SqlAlchemyRepository,
 ) -> None:
@@ -165,34 +149,18 @@ def test_stored_state_incompatible_is_not_a_value_error() -> None:
 def test_a_current_snapshot_still_round_trips(repository: SqlAlchemyRepository) -> None:
     created = repository.advance("activity_declines", event_id="current-1")
 
-    latest = repository.latest_advance()
     replayed = repository.advance("activity_declines", event_id="current-1")
 
-    assert latest == created
     assert replayed == created
-    assert latest.state.decided_by_gate in set(PolicyGate)
+    assert replayed.state.decided_by_gate in set(PolicyGate)
 
 
 # ── Undecodable stored JSON ─────────────────────────────────────────────────────────────────────
 #
 # `response_json` text that is not valid JSON at all (not merely an outdated shape). SQLAlchemy's
 # JSON type decodes it while fetching the row, before any pydantic model runs, so the failure
-# is a `json.JSONDecodeError` at the query call site, not inside `load_stored_advance` /
-# `load_stored_history_entry`. It must be classified exactly like a schema mismatch.
-
-
-def test_latest_advance_refuses_on_undecodable_json(
-    undecodable_repository: SqlAlchemyRepository,
-) -> None:
-    with pytest.raises(StoredStateIncompatible):
-        undecodable_repository.latest_advance()
-
-
-def test_history_refuses_on_undecodable_json(undecodable_repository: SqlAlchemyRepository) -> None:
-    # Unlike a missing field, there is no dict to read a narrow view from at all -- the whole
-    # column failed to decode -- so history cannot serve even the day/decision/loop_trace view.
-    with pytest.raises(StoredStateIncompatible):
-        undecodable_repository.simulation_history()
+# is a `json.JSONDecodeError` at the query call site, not inside `load_stored_advance`. It must
+# be classified exactly like a schema mismatch.
 
 
 def test_idempotent_replay_of_undecodable_json_is_classified(
@@ -205,17 +173,6 @@ def test_idempotent_replay_of_undecodable_json_is_classified(
 # ── API ──────────────────────────────────────────────────────────────────────────────────────
 
 
-def test_latest_route_returns_a_classified_error(legacy_client: TestClient) -> None:
-    response = legacy_client.get("/v1/simulation/latest")
-
-    assert response.status_code == 500
-    body = response.json()
-    assert body["code"] == "stored_state_incompatible"
-    assert isinstance(body["message"], str) and body["message"]
-    assert body["detail"] == body["message"]
-    _assert_no_framework_text(body)
-
-
 def test_advance_replay_route_returns_a_classified_error(legacy_client: TestClient) -> None:
     response = legacy_client.post(
         "/v1/simulation/advance", json={"event": "activity_declines", "event_id": EVENT_ID}
@@ -226,31 +183,14 @@ def test_advance_replay_route_returns_a_classified_error(legacy_client: TestClie
     _assert_no_framework_text(response.json())
 
 
-def test_history_route_still_serves_the_legacy_timeline(legacy_client: TestClient) -> None:
-    response = legacy_client.get("/v1/simulation/history")
-
-    assert response.status_code == 200
-    assert [entry["event_name"] for entry in response.json()] == ["activity_declines"]
-
-
 def test_resetting_the_demo_recovers(legacy_client: TestClient) -> None:
     assert legacy_client.post("/v1/demo/reset").status_code == 200
 
-    response = legacy_client.get("/v1/simulation/latest")
+    response = legacy_client.post(
+        "/v1/simulation/advance", json={"event": "activity_declines", "event_id": EVENT_ID}
+    )
 
-    assert response.status_code == 200
-    assert response.json() is None
-
-
-def test_latest_route_classifies_undecodable_json(undecodable_client: TestClient) -> None:
-    response = undecodable_client.get("/v1/simulation/latest")
-
-    assert response.status_code == 500
-    body = response.json()
-    assert body["code"] == "stored_state_incompatible"
-    assert isinstance(body["message"], str) and body["message"]
-    assert body["detail"] == body["message"]
-    _assert_no_framework_text(body)
+    assert response.status_code == 200, response.text
 
 
 def test_advance_replay_route_classifies_undecodable_json(undecodable_client: TestClient) -> None:
@@ -264,23 +204,15 @@ def test_advance_replay_route_classifies_undecodable_json(undecodable_client: Te
     _assert_no_framework_text(response.json())
 
 
-def test_history_route_classifies_undecodable_json(undecodable_client: TestClient) -> None:
-    # No narrow view can be read from text that never decoded to a dict, so history is classified
-    # too -- unlike the outdated-shape case, where history reads day/decision/loop_trace directly.
-    response = undecodable_client.get("/v1/simulation/history")
-
-    assert response.status_code == 500
-    assert response.json()["code"] == "stored_state_incompatible"
-    _assert_no_framework_text(response.json())
-
-
 def test_resetting_the_demo_recovers_from_undecodable_json(undecodable_client: TestClient) -> None:
     assert undecodable_client.post("/v1/demo/reset").status_code == 200
 
-    response = undecodable_client.get("/v1/simulation/latest")
+    response = undecodable_client.post(
+        "/v1/simulation/advance",
+        json={"event": "activity_declines", "event_id": UNDECODABLE_EVENT_ID},
+    )
 
-    assert response.status_code == 200
-    assert response.json() is None
+    assert response.status_code == 200, response.text
 
 
 class _Strict(BaseModel):
@@ -345,24 +277,6 @@ def test_a_validation_error_inside_a_route_s_own_value_error_catch_is_still_inte
     assert "errors.pydantic.dev" not in response.text
 
 
-def test_the_replay_route_keeps_its_plain_422_for_a_mixed_candidate(
-    legacy_client: TestClient,
-) -> None:
-    """The one route that deliberately turns a model rejection into a 422: the candidate is built
-    from the caller's own query parameters. Its message is fixed text, never the pydantic dump."""
-    response = legacy_client.get(
-        "/v1/coordinator/people/mdm-lim/review-threshold/replay",
-        params={"severity_pct": 35, "persistence_days": 4},
-    )
-
-    assert response.status_code == 422, response.text
-    assert response.json() == {
-        "detail": "Below 40% a review setting must stay at three days (no mixed settings)."
-    }
-    _assert_no_framework_text(response.json())
-    assert "errors.pydantic.dev" not in response.text
-
-
 def test_every_route_declares_the_classified_500_body(legacy_client: TestClient) -> None:
     spec = legacy_client.get("/openapi.json").json()
     schemas = spec["components"]["schemas"]
@@ -370,13 +284,10 @@ def test_every_route_declares_the_classified_500_body(legacy_client: TestClient)
     assert set(schemas["ServerErrorBody"]["required"]) == {"code", "message", "detail"}
     for route in (
         ("post", "/v1/simulation/advance"),
-        ("get", "/v1/simulation/latest"),
-        ("get", "/v1/simulation/history"),
-        ("get", "/v1/cases/{case_id}"),
-        ("post", "/v1/cases/{case_id}/review"),
-        ("get", "/v1/coordinator/queue"),
-        ("get", "/v1/coordinator/priorities"),
-        ("get", "/v1/coordinator/people/{person_id}/review-threshold"),
+        ("post", "/v1/demo/reset"),
+        ("get", "/v1/people/{person_id}/state"),
+        ("get", "/v1/interventions"),
+        ("get", "/v1/groups/{group_id}/calendar"),
     ):
         assert route[1] in spec["paths"], route
     for path, operations in spec["paths"].items():

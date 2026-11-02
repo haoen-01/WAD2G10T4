@@ -24,6 +24,7 @@ from silverloop.models import (
     FactCategory,
     FactConfidence,
     FactSourceType,
+    PlannedFollowThrough,
     PreferenceDimension,
 )
 from silverloop.sql_repository import SqlAlchemyRepository
@@ -33,6 +34,14 @@ from silverloop.world_model import (
     OutreachResponseFact,
     WorldModelInputs,
     build_world_model,
+)
+from tests.row_fixtures import (
+    answer_context_question,
+    catalogue,
+    plan_activity,
+    record_planned_follow_through,
+    state_preference,
+    world_model,
 )
 
 NOW = datetime(2026, 9, 12, 10, 0, tzinfo=UTC)
@@ -77,6 +86,28 @@ def _offer(client: TestClient) -> dict:
         if intervention is not None:
             return intervention
     raise AssertionError("no intervention was created in twelve declining days")
+
+
+def _model(repository: SqlAlchemyRepository) -> dict:
+    """The demo person's world model as `GET /v1/people/{id}/world-model` served it (the route
+    went in step 7; the assembly behind it stays, for `metrics().world_model_quality`)."""
+    return world_model(repository, person_id=DEMO_PERSON_ID).model_dump(mode="json")
+
+
+def _decline_a_programme_as_too_far(client: TestClient) -> None:
+    """An outreach decline that teaches the distance learner: the kept writer of an inferred
+    `decline_reason` belief (the search-result "not for me" that also wrote one went in step 7)."""
+    for _ in range(12):
+        payload = client.post("/v1/simulation/advance", json={"event": "activity_declines"}).json()
+        intervention = payload.get("created_intervention")
+        if intervention is not None and intervention["decision"] == "programme_suggestion":
+            response = client.post(
+                f"/v1/interventions/{intervention['intervention_id']}/outcome",
+                json={"outcome": "declined", "reason": "too_far"},
+            )
+            assert response.status_code == 200, response.text
+            return
+    raise AssertionError("no programme suggestion was offered in twelve declining days")
 
 
 def _preference(source: str, strength: float, **overrides: object) -> DimensionPreference:
@@ -309,18 +340,19 @@ def test_one_attendance_states_nothing_about_the_sessions_not_attended(
     went to Chair Mobility & Balance", `EXPLICIT`, `HIGH`, confirmed, once for the Wednesday the
     person attended and once each for a Friday and a Sunday they did not.
     """
-    week = repository.plan_activity("activity-chair-mobility-1", date(2026, 8, 19), "senior")
-    plan_id = next(
-        entry.plan_id
-        for entry in week.entries
-        if entry.activity.activity_id == "activity-chair-mobility-1"
+    plan_id = plan_activity(
+        repository, "activity-chair-mobility-1", date(2026, 8, 19), person_id=DEMO_PERSON_ID
     )
     repository.advance("recovery", event_id="recovery-1")
     repository.advance("recovery", event_id="recovery-2")
-    repository.record_planned_follow_through(plan_id, "went", None, "senior")
+    record_planned_follow_through(
+        repository, plan_id, PlannedFollowThrough.WENT, person_id=DEMO_PERSON_ID
+    )
 
     facts = [
-        fact for fact in repository.world_model().facts if fact.source == "plan_follow_through"
+        fact
+        for fact in world_model(repository, person_id=DEMO_PERSON_ID).facts
+        if fact.source == "plan_follow_through"
     ]
 
     assert [fact.key for fact in facts] == [f"activity:{CHAIR_SERIES}"]
@@ -333,10 +365,14 @@ def test_a_planned_session_nobody_reported_on_states_nothing_at_all(
 ) -> None:
     """A plan is not an outing: until the person says they went, there is no attendance to state
     -- and a listing they answered "interested" about is not one either."""
-    repository.plan_activity("activity-chair-mobility-1", date(2026, 8, 19), "senior")
+    plan_activity(
+        repository, "activity-chair-mobility-1", date(2026, 8, 19), person_id=DEMO_PERSON_ID
+    )
 
     facts = [
-        fact for fact in repository.world_model().facts if fact.source == "plan_follow_through"
+        fact
+        for fact in world_model(repository, person_id=DEMO_PERSON_ID).facts
+        if fact.source == "plan_follow_through"
     ]
 
     assert facts == []
@@ -470,12 +506,12 @@ def test_an_open_offer_states_nothing_even_when_another_kind_was_declined() -> N
 
 
 def test_an_open_offer_is_never_answered_by_the_repository_either(
-    client: TestClient,
+    client: TestClient, repository: SqlAlchemyRepository
 ) -> None:
-    """The same three cases, end to end through the route the senior's privacy page reads."""
+    """The same three cases, end to end through the outcome route and the repository."""
 
     def _statements() -> list[str]:
-        model = client.get(f"/v1/people/{DEMO_PERSON_ID}/world-model").json()
+        model = _model(repository)
         return [f["statement"] for f in model["facts"] if f["source"] == "intervention_outcomes"]
 
     intervention = _offer(client)
@@ -514,7 +550,7 @@ def test_a_reset_does_not_carry_the_previous_runs_outreach_into_a_fresh_demo(
     )
 
     def _statements() -> list[str]:
-        model = client.get(f"/v1/people/{DEMO_PERSON_ID}/world-model").json()
+        model = _model(repository)
         return [f["statement"] for f in model["facts"] if f["source"] == "intervention_outcomes"]
 
     assert _statements() == [f'You said no to "{intervention["title"]}".']
@@ -701,17 +737,20 @@ def test_quality_counts_are_counts_of_the_facts_shown() -> None:
 # ── Through the contract ──────────────────────────────────────────────────────────────────────
 
 
-def test_world_model_route_is_the_seniors_and_metrics_carry_only_counts(
-    client: TestClient,
+def test_the_world_model_is_the_seniors_and_metrics_carry_only_counts(
+    client: TestClient, repository: SqlAlchemyRepository
 ) -> None:
     client.post("/v1/simulation/advance", json={"event": "activity_declines"})
-    stated = client.put(
-        f"/v1/people/{DEMO_PERSON_ID}/activity-preferences/social/social",
-        json={"stance": "prefer", "stated_text": "I like company"},
+    state_preference(
+        repository,
+        PreferenceDimension.SOCIAL,
+        "social",
+        prefer=True,
+        person_id=DEMO_PERSON_ID,
+        stated_text="I like company",
     )
-    assert stated.status_code == 200, stated.text
 
-    model = client.get(f"/v1/people/{DEMO_PERSON_ID}/world-model").json()
+    model = _model(repository)
     keys = {fact["key"] for fact in model["facts"]}
     assert "preference:social:social:senior_statement" in keys
     assert "typical_day_steps" in keys
@@ -731,7 +770,7 @@ def test_world_model_route_is_the_seniors_and_metrics_carry_only_counts(
     assert suggestions["source_type"] == "fixture"
     assert suggestions["confirmed"] is False
 
-    metrics = client.get("/v1/metrics").json()
+    metrics = repository.metrics().model_dump(mode="json")
     quality = metrics["world_model_quality"]
     assert quality["facts"] == len(model["facts"])
     assert quality["explicit"] >= 1  # the stated preference
@@ -742,40 +781,34 @@ def test_world_model_route_is_the_seniors_and_metrics_carry_only_counts(
 
 
 def test_world_model_after_reset_keeps_the_stated_belief_and_drops_the_inferred_one(
-    client: TestClient,
+    client: TestClient, repository: SqlAlchemyRepository
 ) -> None:
     """ADR 0004: reset run-scopes inferred preferences instead of deleting them; the world model
-    must read that exactly like ranking and `GET .../activity-preferences` do."""
-    results = client.post("/v1/activities/search", json={"intent": {}}).json()["results"]
-    far = next(r for r in results if (r["candidate"]["distance_m"] or 0) >= 2000)
-    client.post(
-        f"/v1/activities/{far['candidate']['activity_id']}/response",
-        json={"response": "not_for_me", "reason": "too_far"},
+    must read that exactly like ranking does."""
+    _decline_a_programme_as_too_far(client)
+    state_preference(
+        repository,
+        PreferenceDimension.SOCIAL,
+        "social",
+        prefer=True,
+        person_id=DEMO_PERSON_ID,
+        stated_text="I like company",
     )
-    stated = client.put(
-        f"/v1/people/{DEMO_PERSON_ID}/activity-preferences/social/social",
-        json={"stance": "prefer", "stated_text": "I like company"},
-    )
-    assert stated.status_code == 200, stated.text
 
-    before_keys = {
-        fact["key"]
-        for fact in client.get(f"/v1/people/{DEMO_PERSON_ID}/world-model").json()["facts"]
-    }
+    before_keys = {fact["key"] for fact in _model(repository)["facts"]}
     assert "preference:distance:lower:decline_reason" in before_keys
     assert "preference:social:social:senior_statement" in before_keys
 
     assert client.post("/v1/demo/reset").status_code == 200
 
-    after_keys = {
-        fact["key"]
-        for fact in client.get(f"/v1/people/{DEMO_PERSON_ID}/world-model").json()["facts"]
-    }
+    after_keys = {fact["key"] for fact in _model(repository)["facts"]}
     assert "preference:distance:lower:decline_reason" not in after_keys
     assert "preference:social:social:senior_statement" in after_keys
 
 
-def test_expired_excluded_does_not_grow_across_resets(client: TestClient) -> None:
+def test_expired_excluded_does_not_grow_across_resets(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     """ADR 0004: run-scoping a `decline_reason` row after a reset is not the same fact as it
     lapsing on the calendar, and must not be counted the same way. `quality.expired_excluded`
     stayed meaning calendar-expired only; a stale-run row is simply absent from the model, not
@@ -783,18 +816,12 @@ def test_expired_excluded_does_not_grow_across_resets(client: TestClient) -> Non
     is reset."""
 
     def _expired_excluded() -> int:
-        model = client.get(f"/v1/people/{DEMO_PERSON_ID}/world-model").json()
-        return model["quality"]["expired_excluded"]
+        return _model(repository)["quality"]["expired_excluded"]
 
     baseline = _expired_excluded()
 
     for _ in range(3):
-        results = client.post("/v1/activities/search", json={"intent": {}}).json()["results"]
-        far = next(r for r in results if (r["candidate"]["distance_m"] or 0) >= 2000)
-        client.post(
-            f"/v1/activities/{far['candidate']['activity_id']}/response",
-            json={"response": "not_for_me", "reason": "too_far"},
-        )
+        _decline_a_programme_as_too_far(client)
         # The inferred belief just written is active, not expired -- it must not move the count.
         assert _expired_excluded() == baseline
 
@@ -881,7 +908,7 @@ def test_a_context_answer_is_a_fact_about_one_day_and_lapses_after_it() -> None:
 
 
 def test_the_quiet_day_question_is_reachable_and_its_answer_is_bounded_to_the_day(
-    client: TestClient,
+    client: TestClient, repository: SqlAlchemyRepository
 ) -> None:
     """Regression for the dead surface: every demo persona has a biography, and the biography
     used to satisfy the question's "already explained" guard, so no persona was ever asked."""
@@ -893,14 +920,9 @@ def test_the_quiet_day_question_is_reachable_and_its_answer_is_bounded_to_the_da
             pending = state["pending_question"]
             break
     assert pending is not None, "a gentle nudge day never raised the question"
-    answered = client.post(
-        f"/v1/people/{DEMO_PERSON_ID}/context-answer",
-        json={"question_id": pending["question_id"], "value": pending["options"][0]["value"]},
-    )
-    assert answered.status_code == 200, answered.text
-    assert answered.json()["audit_event"]["detail"]["day"] == state["current_day"]
+    answer_context_question(repository, pending["options"][0]["value"], person_id=DEMO_PERSON_ID)
 
-    model = client.get(f"/v1/people/{DEMO_PERSON_ID}/world-model").json()
+    model = _model(repository)
     context = [f for f in model["facts"] if f["category"] == "context"]
     assert len(context) == 1 and context[0]["expires_at"] is not None
     # Asked once per run, never queued.
@@ -1065,8 +1087,8 @@ def test_attended_programmes_use_the_rankers_series_identity_across_case_and_spa
                 )
             )
 
-    catalogue = {c.activity_id: c for c in repository.list_activities()}
-    one, two = catalogue["activity-chair-mobility-1"], catalogue["activity-chair-mobility-2"]
+    listings = {c.activity_id: c for c in catalogue(repository)}
+    one, two = listings["activity-chair-mobility-1"], listings["activity-chair-mobility-2"]
     assert (one.title, one.provider) != (two.title, two.provider)
     assert series_key(one) == series_key(two)
 
@@ -1075,7 +1097,11 @@ def test_attended_programmes_use_the_rankers_series_identity_across_case_and_spa
         history = SqlAlchemyRepository._attended_series(session, DEMO_PERSON_ID, run.run_id)
     assert [(h.series_key, h.went) for h in history] == [("|".join(series_identity(one)), 2)]
 
-    facts = [f for f in repository.world_model().facts if f.key.startswith("activity:")]
+    facts = [
+        f
+        for f in world_model(repository, person_id=DEMO_PERSON_ID).facts
+        if f.key.startswith("activity:")
+    ]
     assert [f.key for f in facts] == [f"activity:{'|'.join(series_identity(two))}"]
 
 

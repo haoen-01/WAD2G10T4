@@ -298,17 +298,16 @@ selection task sitting behind a deterministic validator. Raise it if evaluation 
 
 ## 9. Files
 
-| File                      | Purpose                                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent/constants.py`      | Model id, version stamp, iteration ceiling, payload caps                                                                                    |
-| `agent/models.py`         | `AgentRun`, `AgentProposal`, `AgentToolCall`, `GuardrailVerdict`, usage — the audit shapes                                                  |
-| `agent/guardrails.py`     | The deterministic security boundary. No model call anywhere in it                                                                           |
-| `agent/tools.py`          | Tool schemas and the read-only executor. No SQLAlchemy — the repository passes in a `ToolContext`                                           |
-| `agent/planner.py`        | Both bounded plan/act/adapt loops (`plan_outreach`, `plan_activity_ranking`) and every degradation path                                     |
-| `agent/intent_planner.py` | The third loop: `plan_intent`, one tool call, no adapt step -- see §11                                                                      |
-| `agent/prompt_safety.py`  | Fencing for untrusted, person-supplied text reaching a user turn -- see §11                                                                 |
-| `sql_repository.py`       | `_tool_context`/`ActivityRankingContext` assemble what a planner may see; `_create_intervention` and `search_activities` are the call sites |
-| `runtime.py`              | Fail-fast configuration checks and the planner status line                                                                                  |
+| File                     | Purpose                                                                                                                                                   |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent/constants.py`     | Model id, version stamp, iteration ceiling, payload caps                                                                                                  |
+| `agent/models.py`        | `AgentRun`, `AgentProposal`, `AgentToolCall`, `GuardrailVerdict`, usage — the audit shapes                                                                |
+| `agent/guardrails.py`    | The deterministic security boundary. No model call anywhere in it                                                                                         |
+| `agent/tools.py`         | Tool schemas and the read-only executor. No SQLAlchemy — the repository passes in a `ToolContext`                                                         |
+| `agent/planner.py`       | Both bounded plan/act/adapt loops (`plan_outreach`, `plan_activity_ranking`) and every degradation path                                                   |
+| `agent/prompt_safety.py` | Fencing for untrusted, person-supplied text reaching a user turn -- see §11                                                                               |
+| `sql_repository.py`      | `_tool_context`/`ActivityRankingContext` assemble what a planner may see; `_create_intervention` is the call site (`search_activities` was, until step 7) |
+| `runtime.py`             | Fail-fast configuration checks and the planner status line                                                                                                |
 
 **Why a manual loop rather than the SDK tool runner.** The runner is a beta surface and it owns
 the loop. Here the loop _is_ the safety story: it must carry a hard cap this code enforces,
@@ -351,6 +350,12 @@ the developer's local `.env` and fails identically without these changes).
 ---
 
 ## 11. The other two loops: intent parsing and activity ranking
+
+> **Step 7.** The routes no screen used were removed, among them `POST /v1/activities/search`.
+> `agent/intent_planner.py` (`plan_intent`) went with it, so 11.1 below describes a loop that no
+> longer exists. `plan_activity_ranking` is still in `agent/planner.py` (decision 6 of issue #21
+> left the activity-ranking loop alone), but no route calls it any more. `plan_outreach` is
+> unchanged and is still what `advance` runs.
 
 Sections 1-10 describe `plan_outreach`, the first of three bounded loops this package runs. This
 section documents the other two, which this file previously omitted entirely: `plan_intent`

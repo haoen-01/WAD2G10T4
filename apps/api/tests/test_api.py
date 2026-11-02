@@ -87,11 +87,12 @@ def test_shared_app_startup_rejects_sqlite_even_when_uvicorn_is_called_directly(
         pass
 
 
-def test_operational_metrics_expose_evidence_health(client: TestClient) -> None:
+def test_operational_metrics_expose_evidence_health(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     client.post("/v1/simulation/advance", json={"event": "low_wear"})
-    metrics = client.get("/v1/metrics")
-    assert metrics.status_code == 200
-    payload = metrics.json()
+    # `GET /v1/metrics` went in step 7; the repository read behind it stays (`supabase_smoke`).
+    payload = repository.metrics().model_dump(mode="json")
     assert payload["decision_evidence"] == 1
     assert payload["no_action_decisions"] == 1
     assert payload["source_classification_counts"] == {"synthetic_fixture": 30}
@@ -99,17 +100,20 @@ def test_operational_metrics_expose_evidence_health(client: TestClient) -> None:
     assert payload["offline_ready"] is True
 
 
-def test_api_event_idempotency_replays_the_same_evidence(client: TestClient) -> None:
+def test_api_event_idempotency_replays_the_same_evidence(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     request = {"event": "activity_declines", "event_id": "browser-event-001"}
     first = client.post("/v1/simulation/advance", json=request)
     replay = client.post("/v1/simulation/advance", json=request)
     assert first.status_code == replay.status_code == 200
     assert first.json() == replay.json()
-    assert client.get("/v1/simulation/latest").json() == first.json()
-    assert client.get("/v1/metrics").json()["decision_evidence"] == 1
+    assert repository.metrics().decision_evidence == 1
 
 
-def test_demo_progresses_to_review_with_evidence(client: TestClient) -> None:
+def test_demo_progresses_to_review_with_evidence(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     decisions = []
     payload = None
     for _ in range(3):
@@ -140,9 +144,9 @@ def test_demo_progresses_to_review_with_evidence(client: TestClient) -> None:
     assert [step["order"] for step in payload["loop_trace"]] == list(range(1, 11))
     assert payload["audit_event"]["detail"]["evidence_id"].startswith("decision_")
     assert payload["audit_event"]["detail"]["policy_version"] == "silverloop-policy-v1"
-    queue = client.get("/v1/coordinator/queue").json()
-    assert len(queue) == 1
-    assert len(queue[0]["evidence"]) >= 2
+    cases = repository.list_cases()
+    assert len(cases) == 1
+    assert len(cases[0].evidence) >= 2
 
 
 def test_low_wear_and_consent_do_not_trigger_outreach(client: TestClient) -> None:
@@ -158,7 +162,7 @@ def test_low_wear_and_consent_do_not_trigger_outreach(client: TestClient) -> Non
     assert revoked["created_intervention"] is None
 
 
-def test_outcome_and_case_review_are_durable_api_operations(client: TestClient) -> None:
+def test_outcome_is_a_durable_api_operation(client: TestClient) -> None:
     first = client.post("/v1/simulation/advance", json={"event": "activity_declines"}).json()
     intervention_id = first["created_intervention"]["intervention_id"]
     outcome = client.post(
@@ -169,18 +173,6 @@ def test_outcome_and_case_review_are_durable_api_operations(client: TestClient) 
     assert outcome.json()["intervention"]["outcome"] == "accepted"
     assert outcome.json()["preference_after"] > outcome.json()["preference_before"]
     assert outcome.json()["outcome_evidence_id"].startswith("outcome_")
-
-    client.post("/v1/simulation/advance", json={"event": "activity_declines"})
-    third = client.post("/v1/simulation/advance", json={"event": "activity_declines"}).json()
-    case_id = third["created_case"]["case_id"]
-    reviewed = client.post(
-        f"/v1/cases/{case_id}/review",
-        json={"status": "resolved", "reviewer_note": "Synthetic review completed."},
-    )
-    assert reviewed.status_code == 200
-    assert reviewed.json()["case"]["status"] == "resolved"
-    assert reviewed.json()["outcome"] == "coordinator_resolved"
-    assert reviewed.json()["review_evidence_id"].startswith("review_")
 
 
 def test_consent_revocation_withdraws_proposal_and_blocks_late_response(
@@ -228,16 +220,15 @@ def test_preference_learning_ranks_only_policy_permitted_candidates(client: Test
     assert blocked["created_intervention"] is None
 
 
-# ── person_id scoping: /v1/simulation/events, /v1/simulation/latest, /v1/metrics ───────────────
+# ── person_id scoping of the operational metrics ─────────────────────────────────────────────
 #
-# The repository methods behind these three routes have always accepted `person_id`; only the
-# routes ignored it, so a five-persona UI would show `mdm-lim`'s timeline/metrics for whoever was
-# selected. See docs/WAYFINDER.md and the F5 persona work.
+# `GET /v1/simulation/events`, `/latest`, `/history` and `/v1/metrics` went in step 7. The
+# repository's `metrics()` stays (`supabase_smoke.py` reads it) and still answers per person.
 
 PERSON_B = "person-b"
 
 
-def test_events_latest_and_metrics_return_the_requested_persons_data(
+def test_metrics_return_the_requested_persons_data(
     client: TestClient, repository: SqlAlchemyRepository
 ) -> None:
     repository.reset(person_id=PERSON_B, allow_new_person=True)
@@ -250,58 +241,25 @@ def test_events_latest_and_metrics_return_the_requested_persons_data(
         "/v1/simulation/advance", json={"event": "low_wear", "event_id": "evt-a-1"}
     )
 
-    events_a = client.get("/v1/simulation/events").json()
-    events_b = client.get("/v1/simulation/events", params={"person_id": PERSON_B}).json()
-    assert all(event["person_id"] == "mdm-lim" for event in events_a)
-    assert all(event["person_id"] == PERSON_B for event in events_b)
-    assert events_a != events_b
-
-    latest_a = client.get("/v1/simulation/latest").json()
-    latest_b = client.get("/v1/simulation/latest", params={"person_id": PERSON_B}).json()
-    assert latest_a["state"]["person_id"] == "mdm-lim"
-    assert latest_b["state"]["person_id"] == PERSON_B
-    assert latest_a["state"]["last_decision"] == "no_action"  # low_wear
-    assert latest_b["state"]["last_decision"] != "no_action"  # activity_declines
-
-    metrics_a = client.get("/v1/metrics").json()
-    metrics_b = client.get("/v1/metrics", params={"person_id": PERSON_B}).json()
-    assert metrics_a["scenario_run_id"] != metrics_b["scenario_run_id"]
-    assert metrics_a["decision_evidence"] == 1
-    assert metrics_b["decision_evidence"] == 1
-
-    history_a = client.get("/v1/simulation/history").json()
-    history_b = client.get("/v1/simulation/history", params={"person_id": PERSON_B}).json()
-    assert [entry["event_name"] for entry in history_a] == ["low_wear"]
-    assert [entry["event_name"] for entry in history_b] == ["activity_declines"]
-    assert history_a != history_b
+    metrics_a = repository.metrics()
+    metrics_b = repository.metrics(person_id=PERSON_B)
+    assert metrics_a.scenario_run_id != metrics_b.scenario_run_id
+    assert metrics_a.decision_evidence == 1
+    assert metrics_b.decision_evidence == 1
 
 
-@pytest.mark.parametrize(
-    "path",
-    ["/v1/simulation/events", "/v1/simulation/latest", "/v1/simulation/history", "/v1/metrics"],
-)
-def test_person_scoped_endpoints_404_on_unknown_person(client: TestClient, path: str) -> None:
-    response = client.get(path, params={"person_id": "no-such-person"})
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Person not found"
+def test_metrics_for_an_unknown_person_raise_key_error(repository: SqlAlchemyRepository) -> None:
+    with pytest.raises(KeyError):
+        repository.metrics(person_id="no-such-person")
 
 
-def test_person_scoped_endpoints_default_to_the_demo_person_when_omitted(
-    client: TestClient,
-) -> None:
-    """Every existing caller (no `person_id` query param) must keep working unchanged."""
-    assert client.get("/v1/simulation/events").status_code == 200
-    assert client.get("/v1/simulation/latest").status_code == 200
-    assert client.get("/v1/simulation/history").status_code == 200
-    assert client.get("/v1/metrics").status_code == 200
-
-
-def test_the_browser_may_put_a_stated_preference(client: TestClient) -> None:
-    """The preference route is a PUT, and the CORS allow-list used to name GET and POST only, so
-    the browser's preflight was refused and "Forget this" could never reach the server from the
-    web app. Caught by the e2e loop, pinned here where it is cheap."""
+def test_the_browser_may_put(client: TestClient) -> None:
+    """The CORS allow-list used to name GET and POST only, so the browser's preflight for a PUT
+    was refused and the PUT never reached the server from the web app. Caught by the e2e loop on
+    the stated-preference route (removed in step 7), pinned here on a PUT the web app still makes
+    (ticking a task)."""
     preflight = client.options(
-        "/v1/people/mdm-lim/activity-preferences/distance/near",
+        "/v1/people/mdm-lim/tasks/task-1/days/2026-09-10",
         headers={
             "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "PUT",

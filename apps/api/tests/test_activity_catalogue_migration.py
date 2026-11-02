@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
+from silverloop.models import ActivityCandidate
 from silverloop.sql_repository import SqlAlchemyRepository
 
 _NULL_OUT_ENRICHMENT = text("""
@@ -28,6 +29,13 @@ _NULL_OUT_ENRICHMENT = text("""
       description = NULL, location_address = NULL, location_postal_code = NULL,
       contact_phone = NULL, contact_note = NULL, booking_note = NULL, duration_minutes = NULL
 """)
+
+
+def _catalogue(repository: SqlAlchemyRepository) -> list[ActivityCandidate]:
+    """The whole catalogue, read the way `advance` reads it (`_activity_candidate_models`). The
+    `list_activities` read this file used went with `GET /v1/activities` in step 7."""
+    with repository.sessions() as session:
+        return repository._activity_candidate_models(session)
 
 
 def _seeded_repository() -> SqlAlchemyRepository:
@@ -42,7 +50,7 @@ def test_a_row_predating_the_enrichment_columns_is_still_readable() -> None:
     with repository.sessions.begin() as session:
         session.execute(_NULL_OUT_ENRICHMENT)
 
-    activities = repository.list_activities()
+    activities = _catalogue(repository)
 
     assert activities, "the catalogue must still be readable when the new columns are NULL"
     for activity in activities:
@@ -60,11 +68,11 @@ def test_startup_backfills_listings_that_were_seeded_before_the_columns_existed(
     repository = _seeded_repository()
     with repository.sessions.begin() as session:
         session.execute(_NULL_OUT_ENRICHMENT)
-    assert all(activity.description is None for activity in repository.list_activities())
+    assert all(activity.description is None for activity in _catalogue(repository))
 
     repository.ensure_active_run()
 
-    refreshed = repository.list_activities()
+    refreshed = _catalogue(repository)
     assert all(activity.description for activity in refreshed)
     chair = next(a for a in refreshed if a.title == "Chair Mobility & Balance")
     assert chair.location.address and chair.location.postal_code
@@ -77,10 +85,10 @@ def test_session_times_are_not_moved_by_a_refresh() -> None:
     """`start_at` is deliberately excluded from the refresh: a later reset for another person must
     not move a session someone has already planned around."""
     repository = _seeded_repository()
-    before = {a.activity_id: a.start_at for a in repository.list_activities()}
+    before = {a.activity_id: a.start_at for a in _catalogue(repository)}
 
     repository.ensure_active_run()
 
-    after = {a.activity_id: a.start_at for a in repository.list_activities()}
+    after = {a.activity_id: a.start_at for a in _catalogue(repository)}
     assert after == before
     repository.close()

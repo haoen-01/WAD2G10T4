@@ -1,14 +1,10 @@
-"""The traced ranking path (`activity_search.rank_with_trace`) and the pure extractions behind it.
+"""The ranking path's pure extractions: the sort key, the per-axis and per-belief detail,
+engagement counting and the travel note.
 
-These tests pin each recorded stage -- the sort key, the per-axis and per-belief detail, the
-series dedupe and the variety swap -- to what the ranker did, and the traced path's final order to
-the wrappers built from the same pieces. Pure, like `test_activity_search.py`: no database, no
-network.
-
-They do NOT prove the refactor preserved behaviour: `rank_with_trace` and
-`rank_candidates_with_breakdown` now share their pieces, so comparing them is partly
-self-referential. Preservation is proven against the pre-refactor code by
-`test_search_ranking_golden.py` (captured before the refactor).
+Pure, like `test_activity_search.py`: no database, no network. The traced path
+(`activity_search.rank_with_trace`), the planner merge and the integrity classifier these tests
+also pinned went with the search route and the ranker inspector in step 7; what is left here is
+the ranking `advance` still uses through replanning.
 """
 
 from __future__ import annotations
@@ -17,32 +13,24 @@ from datetime import date, datetime, timedelta
 
 import pytest
 
-from silverloop.activity_rerank import merge_planner_order
 from silverloop.activity_search import (
     ActivityEngagement,
-    _dedupe_series,
-    _diversify,
     count_engagement,
-    eligible_reasons,
     engagement_by_series,
     filter_candidates,
     postprocess,
     rank_candidates_with_breakdown,
-    rank_with_trace,
     score_and_sort,
     score_and_sort_detailed,
     series_key,
     series_keys_for,
     sort_key_for,
 )
-from silverloop.agent.planner import ActivityPlanRun
 from silverloop.fixtures import synthetic_activity_candidates
-from silverloop.intent import parse_intent
 from silverloop.local_time import at_local
 from silverloop.models import (
     ActivityAvailability,
     ActivityCandidate,
-    ActivityEnvironment,
     ActivityIntensity,
     ActivityIntent,
     ActivityLocation,
@@ -52,6 +40,7 @@ from silverloop.models import (
     DimensionPreference,
     IndoorOutdoor,
     IntegrationStatus,
+    IntentParser,
     PreferenceDimension,
     ReasonBasis,
     SocialPreference,
@@ -146,35 +135,7 @@ def _fixture_world() -> tuple[list[ActivityCandidate], ActivityPreferences, dict
     return catalogue, preferences, engagement
 
 
-# ── The traced path is the untraced path ──────────────────────────────────────────────────────
-
-
-@pytest.mark.parametrize("rain", [False, True])
-@pytest.mark.parametrize("text", _REQUESTS)
-def test_rank_with_trace_final_is_filter_then_rank_candidates_with_breakdown(
-    text: str, rain: bool
-) -> None:
-    """Consistency of the traced path with its wrappers -- not, on its own, a preservation proof
-    (see the module docstring)."""
-    catalogue, preferences, engagement = _fixture_world()
-    intent = parse_intent(text, today=TODAY) if text else ActivityIntent()
-    execution = rank_with_trace(
-        catalogue,
-        intent,
-        preferences,
-        rain_forecast=rain,
-        engagement=engagement,
-        today=TODAY,
-    )
-    kept, removed = filter_candidates(catalogue, intent, today=TODAY)
-    expected = rank_candidates_with_breakdown(
-        kept, intent, preferences, rain_forecast=rain, engagement=engagement, today=TODAY
-    )
-    assert execution.final == expected
-    assert execution.kept == kept and execution.removed == removed
-    # Every stage snapshot is a permutation of what the filter kept.
-    for order in (execution.order_after_sort, execution.order_after_dedupe):
-        assert sorted(order) == sorted(item.activity_id for item in kept)
+# ── The untraced ranking path ─────────────────────────────────────────────────────────────────
 
 
 def test_rank_candidates_with_breakdown_never_filters_and_accepts_no_today() -> None:
@@ -193,7 +154,10 @@ def test_rank_candidates_with_breakdown_never_filters_and_accepts_no_today() -> 
 
 def test_the_recorded_sort_key_is_the_order_the_sort_produced() -> None:
     catalogue, preferences, engagement = _fixture_world()
-    intent = parse_intent("something near me", today=TODAY)
+    # What the keyword parser (removed with the search route in step 7) read "something near me" as.
+    intent = ActivityIntent(
+        raw_text="something near me", max_distance_m=1000, parsed_by=IntentParser.KEYWORD
+    )
     kept, _ = filter_candidates(catalogue, intent, today=TODAY)
     scored = score_and_sort_detailed(
         kept, intent, preferences, engagement=engagement, today=TODAY, rain_forecast=True
@@ -299,180 +263,6 @@ def test_per_belief_detail_is_the_same_walk_as_preference_utility() -> None:
     assert round(sum(belief.contribution for belief in detail.beliefs), 3) == detail.utility
 
 
-# ── Post-processing records ───────────────────────────────────────────────────────────────────
-
-
-def test_series_dedupe_records_each_deferral_and_its_series_holder() -> None:
-    sessions = [
-        candidate(
-            f"yoga-{n}", title="Chair Yoga", start_at=at_local(TODAY + timedelta(days=n), 9, 0)
-        )
-        for n in range(3)
-    ]
-    walk = candidate("walk", title="Park Walk", category="Walking", distance_m=600)
-    craft = candidate("craft", title="Craft Corner", category="Crafts", distance_m=700)
-    execution = rank_with_trace(
-        [*sessions, walk, craft], ActivityIntent(), ActivityPreferences(person_id="p"), today=TODAY
-    )
-    assert execution.order_after_sort == ["yoga-0", "yoga-1", "yoga-2", "walk", "craft"]
-    assert execution.order_after_dedupe == ["yoga-0", "walk", "craft", "yoga-1", "yoga-2"]
-    record = execution.dedupe
-    assert record.ran and record.changed and record.refilled == ()
-    assert [
-        (d.activity_id, d.series_holder_id, d.from_position, d.to_position) for d in record.deferred
-    ] == [
-        ("yoga-1", "yoga-0", 2, 4),
-        ("yoga-2", "yoga-0", 3, 5),
-    ]
-    flagged = [
-        entry.ranked.candidate.activity_id
-        for entry in execution.final
-        if entry.breakdown.series_deferred
-    ]
-    assert flagged == [d.activity_id for d in record.deferred]
-    assert _ids(_dedupe_series([item.entry for item in execution.scored])) == (
-        execution.order_after_dedupe
-    )
-
-
-def test_a_refilled_session_is_not_recorded_as_deferred() -> None:
-    sessions = [
-        candidate(
-            f"yoga-{n}", title="Chair Yoga", start_at=at_local(TODAY + timedelta(days=n), 9, 0)
-        )
-        for n in range(3)
-    ]
-    walk = candidate("walk", title="Park Walk", category="Walking", distance_m=600)
-    execution = rank_with_trace(
-        [*sessions, walk], ActivityIntent(), ActivityPreferences(person_id="p"), today=TODAY
-    )
-    assert execution.dedupe.refilled == ("yoga-1",)
-    assert [d.activity_id for d in execution.dedupe.deferred] == ["yoga-2"]
-    assert execution.order_after_dedupe[:3] == ["yoga-0", "walk", "yoga-1"]
-
-
-def test_the_variety_swap_is_recorded_with_margin_tier_and_reasons() -> None:
-    same = [
-        candidate("a", distance_m=500, category="Group class"),
-        candidate("b", distance_m=600, category="Group class"),
-        candidate("c", distance_m=700, category="Group class"),
-    ]
-    different = candidate("d", distance_m=800, category="Social group")
-    execution = rank_with_trace(
-        [*same, different], ActivityIntent(), ActivityPreferences(person_id="p"), today=TODAY
-    )
-    assert execution.order_after_dedupe == ["a", "b", "c", "d"]
-    assert execution.order_after_variety == ["a", "b", "d", "c"]
-    record = execution.variety
-    assert record.status == "swapped" and record.shared_kind == "format:Group class"
-    swap = record.swap
-    assert swap is not None
-    assert (swap.promoted_id, swap.displaced_id, swap.from_position, swap.to_position) == (
-        "d",
-        "c",
-        4,
-        3,
-    )
-    assert swap.promoted_kind == "format:Social group"
-    assert swap.margin == round(swap.third_total - swap.promoted_total, 3)
-    assert swap.margin <= 0.5
-    assert any(reason.basis is ReasonBasis.VARIETY for reason in swap.reasons_after)
-    # A catalogue filler is never composed beside a real reason, the variety note included: the
-    # promoted card drops its filler -- it is not eligible, so it is not a line behind the card
-    # either -- and nothing eligible was left off.
-    assert [reason.basis for reason in swap.reasons_after] == [ReasonBasis.VARIETY]
-    assert swap.more_reasons_after == ()
-    promoted = next(e for e in execution.final if e.ranked.candidate.activity_id == "d")
-    assert promoted.breakdown.reasons_suppressed == 0
-    assert promoted.ranked.more_reasons == []
-    assert _diversify(_dedupe_series([item.entry for item in execution.scored])) == execution.final
-
-
-def test_a_variety_rebuild_moves_the_line_it_pushes_off_the_face_into_more_reasons() -> None:
-    """D11: the promoted card is rebuilt from every eligible line it had plus VARIETY, so one line
-    leaves the face -- into `more_reasons`, never nowhere -- and `reasons_suppressed` counts it."""
-    request = ActivityIntent(
-        time_window=TimeWindow.MORNING,
-        social_preference=SocialPreference.SOCIAL,
-        environment=ActivityEnvironment.INDOOR,
-    )
-    same = [
-        candidate(
-            key,
-            distance_m=500 + n,
-            category="Group class",
-            social_shape=SocialPreference.SOCIAL,
-            activity_type=ActivityType.TAI_CHI,
-        )
-        for n, key in enumerate(("a", "b", "c"))
-    ]
-    different = candidate(
-        "d",
-        distance_m=560,
-        category="Group class",
-        social_shape=SocialPreference.SOCIAL,
-        activity_type=ActivityType.GAMES,
-    )
-    execution = rank_with_trace(
-        [*same, different], request, ActivityPreferences(person_id="p"), today=TODAY
-    )
-    swap = execution.variety.swap
-    assert swap is not None and swap.promoted_id == "d"
-    assert len(swap.reasons_before) == 3
-    promoted = next(entry for entry in execution.final if entry.ranked.candidate.activity_id == "d")
-    assert any(reason.basis is ReasonBasis.VARIETY for reason in promoted.ranked.reasons)
-    assert len(promoted.ranked.reasons) == 3
-    scored = next(s for s in execution.scored if s.entry.ranked.candidate.activity_id == "d")
-    # Before the swap the card already had lines behind its face; the rebuild keeps them there and
-    # adds the one the VARIETY line displaced.
-    assert list(swap.more_reasons_after) == promoted.ranked.more_reasons
-    added = [r for r in promoted.ranked.more_reasons if r not in scored.entry.ranked.more_reasons]
-    assert all(r in promoted.ranked.more_reasons for r in scored.entry.ranked.more_reasons)
-    assert [r.basis for r in added] == [ReasonBasis.INTENT]
-    assert promoted.breakdown.reasons_suppressed == len(promoted.ranked.more_reasons)
-    contributions = {f.name: f.contribution for f in promoted.breakdown.factors}
-    variety = next(r for r in swap.reasons_after if r.basis is ReasonBasis.VARIETY)
-    eligible = eligible_reasons([*scored.detail.candidate_reasons, variety], contributions)
-    shown = [*promoted.ranked.reasons, *promoted.ranked.more_reasons]
-    assert sorted(shown, key=repr) == sorted(eligible, key=repr)
-    # The face is exactly what composing over the old face alone would have given.
-    from silverloop.activity_search import _compose_reasons
-
-    face_only, _ = _compose_reasons([*swap.reasons_before, variety], contributions)
-    assert face_only == promoted.ranked.reasons
-
-
-def test_no_swap_statuses_are_recorded() -> None:
-    mixed = [
-        candidate("a", category="Group class"),
-        candidate("b", category="Social group"),
-        candidate("c", category="Group class"),
-        candidate("d", category="Self-guided"),
-    ]
-    assert (
-        rank_with_trace(
-            mixed, ActivityIntent(), ActivityPreferences(person_id="p"), today=TODAY
-        ).variety.status
-        == "top_three_mixed"
-    )
-    few = mixed[:3]
-    assert (
-        rank_with_trace(
-            few, ActivityIntent(), ActivityPreferences(person_id="p"), today=TODAY
-        ).variety.status
-        == "not_enough_candidates"
-    )
-    same = [candidate(key, distance_m=500, category="Group class") for key in ("a", "b", "c")]
-    far = candidate("far", distance_m=4800, category="Social group")
-    record = rank_with_trace(
-        [*same, far], ActivityIntent(), ActivityPreferences(person_id="p"), today=TODAY
-    ).variety
-    assert record.status == "no_candidate_within_margin"
-    assert [(item.activity_id, item.outcome) for item in record.considered] == [
-        ("far", "outside_margin")
-    ]
-
-
 # ── Engagement counting and roll-up ───────────────────────────────────────────────────────────
 
 
@@ -522,48 +312,7 @@ def test_series_roll_up_hands_every_session_the_total_and_keeps_its_own_word() -
     assert engagement_by_series({}, {}, set(), series_keys_for([mon])) == {}
 
 
-# ── Planner merge ─────────────────────────────────────────────────────────────────────────────
-
-
-def _plan_run(order: list[str], mode: str = "agent") -> ActivityPlanRun:
-    return ActivityPlanRun(
-        evidence_id="agent-test",
-        agent_version="v",
-        mode=mode,  # type: ignore[arg-type]
-        started_at=NOW,
-        max_iterations=4,
-        selected_order=order,
-    )
-
-
-def test_merge_records_narrowed_options_and_keeps_the_unseen_tail() -> None:
-    catalogue = [candidate(f"k{n:02d}", distance_m=100 + n) for n in range(12)]
-    ranked = [
-        entry.ranked
-        for entry in rank_candidates_with_breakdown(
-            catalogue, ActivityIntent(), ActivityPreferences(person_id="p")
-        )
-    ]
-    order = [item.candidate.activity_id for item in ranked]
-    merged, narrowed = merge_planner_order(ranked, _plan_run([order[1], order[0], *order[2:9]]))
-    assert [item.candidate.activity_id for item in merged] == [
-        order[1],
-        order[0],
-        *order[2:9],
-        *order[10:],
-    ]
-    assert [outcome.activity_id for outcome in narrowed] == [order[9]]
-    # D3: only what the model was shown and kept is the agent's; the unseen tail is the ranker's.
-    by_id = {item.candidate.activity_id: item.selected_by for item in merged}
-    assert all(by_id[key] == "agent" for key in [order[1], order[0], *order[2:9]])
-    assert all(by_id[key] == "ranker" for key in order[10:])
-    fallback, _ = merge_planner_order(ranked, _plan_run(order[:10], mode="fallback_exhausted"))
-    assert all(item.selected_by == "ranker" for item in fallback)
-    unchanged, none = merge_planner_order(ranked, _plan_run([]))
-    assert unchanged is ranked and none == []
-
-
-# ── The integrity classifier, on constructed cases ────────────────────────────────────────────
+# ── Stated beliefs ────────────────────────────────────────────────────────────────────────────
 
 
 def _stated(dimension: PreferenceDimension, value: str, strength: float) -> DimensionPreference:
@@ -578,183 +327,6 @@ def _stated(dimension: PreferenceDimension, value: str, strength: float) -> Dime
         positive_evidence=1.0 if strength > 0 else 0.0,
         negative_evidence=0.0 if strength > 0 else 1.0,
     )
-
-
-def _classified(
-    catalogue: list[ActivityCandidate],
-    intent: ActivityIntent,
-    rows: list[DimensionPreference],
-    *,
-    engagement: dict[str, ActivityEngagement] | None = None,
-    rain: bool = False,
-    target: str,
-):  # noqa: ANN202 - returns a CandidateIntegrity
-    from silverloop.ranker_inspector import classify_integrity
-
-    preferences = ActivityPreferences(person_id="p", dimensions=rows, resolved=resolve(rows, TODAY))
-    execution = rank_with_trace(
-        catalogue, intent, preferences, rain_forecast=rain, engagement=engagement, today=TODAY
-    )
-    scored = next(s for s in execution.scored if s.entry.ranked.candidate.activity_id == target)
-    shown = next(e for e in execution.final if e.ranked.candidate.activity_id == target)
-    return classify_integrity(scored, shown.ranked), scored, shown
-
-
-def _by_factor(integrity) -> dict[str, tuple[str, str | None]]:  # noqa: ANN001
-    return {f.factor: (f.classification, f.silent_reason) for f in integrity.findings}
-
-
-def test_a_contradicted_avoid_is_silent_by_design() -> None:
-    outdoor = candidate("out", indoor_outdoor=IndoorOutdoor.OUTDOOR)
-    integrity, _, _ = _classified(
-        [outdoor],
-        ActivityIntent(),
-        [_stated(PreferenceDimension.ENVIRONMENT, "indoor", -1.0)],
-        target="out",
-    )
-    assert _by_factor(integrity)["preference"] == ("silent_by_design", "contradicted_avoid_belief")
-
-
-def test_history_silenced_by_a_not_enjoyed_visit_is_silent_by_design() -> None:
-    listing = candidate("x")
-    integrity, _, shown = _classified(
-        [listing],
-        ActivityIntent(),
-        [],
-        engagement={"x": ActivityEngagement(interested=3, went=1, not_enjoyed=1)},
-        target="x",
-    )
-    assert _by_factor(integrity)["engagement"] == (
-        "silent_by_design",
-        "history_silenced_not_enjoyed",
-    )
-    assert all(reason.basis is not ReasonBasis.HISTORY for reason in shown.ranked.reasons)
-
-
-def test_an_unjudged_request_fit_earns_no_credit_so_nothing_is_owed() -> None:
-    """D13: a listing that answers none of the request keeps the unjudged tier but earns no intent
-    credit, so there is no positive intent factor for a card to explain."""
-    blank = candidate("blank", social_shape=None)
-    integrity, scored, _ = _classified(
-        [blank], ActivityIntent(social_preference=SocialPreference.SOCIAL), [], target="blank"
-    )
-    assert "intent" not in _by_factor(integrity)
-    assert "intent" not in integrity.positive_factors
-    assert scored.detail.breakdown.tier == 1.0 and scored.sort_key.tier == 1.0
-
-
-def test_a_line_the_card_had_no_room_for_is_shown_on_expand() -> None:
-    listing = candidate(
-        "x",
-        social_shape=SocialPreference.SOCIAL,
-        activity_type=ActivityType.GARDENING,
-        indoor_outdoor=IndoorOutdoor.INDOOR,
-    )
-    integrity, scored, shown = _classified(
-        [listing],
-        ActivityIntent(social_preference=SocialPreference.SOCIAL),
-        [_stated(PreferenceDimension.ACTIVITY_TYPE, "gardening", 1.0)],
-        engagement={"x": ActivityEngagement(went=1, enjoyed=1)},
-        rain=True,
-        target="x",
-    )
-    factors = _by_factor(integrity)
-    contributions = {f.name: f.contribution for f in shown.breakdown.factors}
-    assert (contributions["intent"], contributions["preference"], contributions["context"]) == (
-        7.0,
-        2.0,
-        1.5,
-    )
-    assert contributions["engagement"] == 1.125
-    # Four positive bases, three slots: the smallest contributor's line moves behind the face and
-    # is shown when the card is opened (D12).
-    assert factors["engagement"] == ("on_expand", None)
-    assert factors["intent"][0] == factors["preference"][0] == factors["context"][0] == "grounded"
-    assert shown.breakdown.reasons_suppressed == 1
-    assert [r.basis for r in shown.ranked.more_reasons] == [ReasonBasis.HISTORY]
-    assert any(r.basis is ReasonBasis.HISTORY for r in scored.detail.candidate_reasons)
-    assert [r.basis for r in shown.ranked.reasons] == [
-        ReasonBasis.INTENT,
-        ReasonBasis.CONTEXT,
-        ReasonBasis.PREFERENCE,
-    ]
-
-
-def test_a_positive_factor_with_no_line_anywhere_is_unsupported() -> None:
-    from dataclasses import replace
-
-    from silverloop.ranker_inspector import classify_integrity
-
-    listing = candidate("x", social_shape=SocialPreference.SOCIAL)
-    _, scored, shown = _classified(
-        [listing], ActivityIntent(social_preference=SocialPreference.SOCIAL), [], target="x"
-    )
-    stripped = replace(scored, detail=replace(scored.detail, candidate_reasons=[]))
-    integrity = classify_integrity(
-        stripped, shown.ranked.model_copy(update={"reasons": [], "more_reasons": []})
-    )
-    assert _by_factor(integrity)["intent"] == ("unsupported", None)
-
-
-def test_a_line_that_existed_only_before_composition_is_not_an_explanation() -> None:
-    """The classifier reads the card alone. A scoring-time line that reached neither the face nor
-    `more_reasons` explains nothing to anyone, so the factor behind it is `unsupported`."""
-    from silverloop.ranker_inspector import classify_integrity
-
-    listing = candidate("x", social_shape=SocialPreference.SOCIAL)
-    _, scored, shown = _classified(
-        [listing], ActivityIntent(social_preference=SocialPreference.SOCIAL), [], target="x"
-    )
-    assert any(r.basis is ReasonBasis.INTENT for r in scored.detail.candidate_reasons)
-    integrity = classify_integrity(
-        scored, shown.ranked.model_copy(update={"reasons": [], "more_reasons": []})
-    )
-    assert _by_factor(integrity)["intent"] == ("unsupported", None)
-
-
-def test_a_line_behind_the_face_without_a_positive_factor_is_reported() -> None:
-    """The inverse check scans `more_reasons` as well as the face."""
-    from silverloop.models import ActivityReason
-    from silverloop.ranker_inspector import classify_integrity
-
-    listing = candidate("x")
-    integrity, scored, shown = _classified(
-        [listing],
-        ActivityIntent(),
-        [],
-        engagement={"x": ActivityEngagement(interested=1, not_for_me=2)},
-        target="x",
-    )
-    assert integrity.reasons_without_positive_factor == []
-    history = ActivityReason(text="You said you were interested.", basis=ReasonBasis.HISTORY)
-    integrity = classify_integrity(
-        scored, shown.ranked.model_copy(update={"more_reasons": [history]})
-    )
-    assert [(r.basis, r.factor) for r in integrity.reasons_without_positive_factor] == [
-        (ReasonBasis.HISTORY, "engagement")
-    ]
-
-
-def test_no_history_line_is_shown_beside_net_negative_engagement() -> None:
-    """D15: "You said you were interested in this before." is not a reason something suits someone
-    when the same history scores against it."""
-    listing = candidate("x")
-    integrity, scored, shown = _classified(
-        [listing],
-        ActivityIntent(),
-        [],
-        engagement={"x": ActivityEngagement(interested=1, not_for_me=2)},
-        target="x",
-    )
-    assert any(r.basis is ReasonBasis.HISTORY for r in scored.detail.candidate_reasons)
-    assert {f.name: f.contribution for f in shown.breakdown.factors}["engagement"] < 0
-    assert all(r.basis is not ReasonBasis.HISTORY for r in shown.ranked.reasons)
-    # Nothing else grounds the card, so the catalogue filler stands in -- and nothing is counted.
-    assert [r.basis for r in shown.ranked.reasons] == [ReasonBasis.CATALOGUE]
-    # The filler says what the listing is and nothing it has not checked: no "near you".
-    assert [r.text for r in shown.ranked.reasons] == ["Group class."]
-    assert shown.breakdown.reasons_suppressed == 0
-    assert integrity.reasons_without_positive_factor == []
 
 
 # ── Named constants and the travel note ───────────────────────────────────────────────────────

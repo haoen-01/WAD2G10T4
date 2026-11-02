@@ -17,8 +17,8 @@ Three responsibilities, three functions:
     excluded before anyone looked at it.
   * `reasons_for` explains one candidate against one request: at most three lines, each grounded
     in a field that is actually populated. An `UNKNOWN` or unset field never becomes a claim --
-    the same discipline `intent.py` applies to `unparsed_terms`, applied here to catalogue data
-    instead of free text.
+    the same discipline the (since removed) keyword parser applied to `unparsed_terms`, applied
+    here to catalogue data instead of free text.
   * `rank_candidates` orders what survived the filter, from six named, bounded factors
     (`RANKING_WEIGHTS`). The invariant it keeps with the card: **every positive contribution to
     the order is a shown reason** -- an intent match, a learned like, today's weather, the
@@ -38,7 +38,7 @@ always disclosed as a `CONTEXT`-basis reason rather than folded silently into th
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Final, Literal, Protocol
 
@@ -142,7 +142,7 @@ RANKING_WEIGHTS: Final[dict[str, float]] = {
 }
 
 # What each factor measures, in one plain sentence an evaluator can read beside its weight. Keys
-# are exactly `RANKING_WEIGHTS`'s; the ranker inspector shows these, never a second wording.
+# are exactly `RANKING_WEIGHTS`'s, so no second wording of a factor can drift from this one.
 RANKING_FACTOR_DESCRIPTIONS: Final[dict[str, str]] = {
     "intent": (
         "How much of what the person asked for today this listing is known to match; never "
@@ -207,10 +207,8 @@ DIVERSITY_TOP_N: Final[int] = _DIVERSITY_TOP_N
 
 
 def _time_window_for_hour(hour: int) -> TimeWindow:
-    """Bucket a clock hour the same way `intent.py` buckets a typed time: <12 morning, <17
-    afternoon, else evening. Kept as its own small function rather than imported, because
-    `intent.py`'s version works on parsed text, not a `datetime.hour` -- the boundaries are what
-    is shared, not the code.
+    """Bucket a clock hour into a time window: <12 morning, <17 afternoon, else evening -- the
+    same boundaries a typed time was bucketed by when requests were still parsed from text.
     """
     if hour < 12:
         return TimeWindow.MORNING
@@ -1524,9 +1522,8 @@ class ScoreDetail:
     """Everything `score_candidate` worked out for one listing, before any of it was discarded.
 
     Internal and never serialised as-is: the senior's card is built from `reasons`, the audit
-    and the evaluation harness from `breakdown`, and the evaluator-only ranker inspector
-    (`silverloop.ranker_inspector`) from the rest. Collected by the one scoring walk, so the
-    inspector can never describe a score the ranker did not compute.
+    and the evaluation harness from `breakdown`. Collected by the one scoring walk, so nothing
+    reading it can describe a score the ranker did not compute.
     """
 
     breakdown: ScoreBreakdown
@@ -2163,75 +2160,6 @@ def postprocess(ranked: list[RankedScore], *, diversity: bool = True) -> list[Ra
     re-sorts breakdowns can run the production passes instead of re-implementing them."""
     ranked = _dedupe_series(ranked)
     return _diversify(ranked) if diversity else ranked
-
-
-@dataclass(frozen=True)
-class RankingExecution:
-    """One run of the product ranking pipeline, with every stage's order kept.
-
-    `final` is exactly what `rank_candidates_with_breakdown(kept, ...)` returns for the same
-    inputs -- `rank_with_trace` runs the same functions -- so the search endpoint can take it as
-    its answer and the evaluator can read the stages behind it.
-    """
-
-    intent: ActivityIntent
-    today: date
-    rain_forecast: bool
-    catalogue: list[ActivityCandidate]
-    kept: list[ActivityCandidate]
-    removed: list[FilterOutcome]
-    scored: list[ScoredCandidate]
-    order_after_sort: list[str]
-    dedupe: SeriesDedupeRecord
-    order_after_dedupe: list[str]
-    variety: VarietyRecord
-    final: list[RankedScore] = field(default_factory=list)
-
-    @property
-    def order_after_variety(self) -> list[str]:
-        return [entry.ranked.candidate.activity_id for entry in self.final]
-
-
-def rank_with_trace(
-    catalogue: list[ActivityCandidate],
-    intent: ActivityIntent,
-    preferences: ActivityPreferences,
-    *,
-    rain_forecast: bool = False,
-    engagement: Mapping[str, ActivityEngagement] | None = None,
-    today: date,
-) -> RankingExecution:
-    """Filter, score, sort, dedupe and diversify one catalogue, recording every stage.
-
-    The same pieces `filter_candidates` + `rank_candidates_with_breakdown` run, in the same
-    order; nothing here scores anything itself.
-    """
-    kept, removed = filter_candidates(catalogue, intent, today=today)
-    scored = score_and_sort_detailed(
-        kept,
-        intent,
-        preferences,
-        rain_forecast=rain_forecast,
-        engagement=engagement,
-        today=today,
-    )
-    sorted_entries = [item.entry for item in scored]
-    deduped, dedupe = _dedupe_series_with_record(sorted_entries)
-    final, variety = _diversify_with_record(deduped)
-    return RankingExecution(
-        intent=intent,
-        today=today,
-        rain_forecast=rain_forecast,
-        catalogue=list(catalogue),
-        kept=kept,
-        removed=removed,
-        scored=scored,
-        order_after_sort=[entry.ranked.candidate.activity_id for entry in sorted_entries],
-        dedupe=dedupe,
-        order_after_dedupe=[entry.ranked.candidate.activity_id for entry in deduped],
-        variety=variety,
-        final=final,
-    )
 
 
 def _tier(breakdown: ScoreBreakdown) -> float:

@@ -13,27 +13,22 @@ The `client` fixture runs with `auth_enabled=False`, under which `check_person_s
 path or query string. That is exactly what is needed here: it lets these tests target arbitrary,
 non-existent or not-yet-seeded person ids without having to fabricate a JWT per case.
 
-Routes whose `person_id` instead comes from `current_user.person_id` (never a path or query
-parameter -- `/v1/interventions`, `/v1/interventions/history`, `/v1/activities/search`) always
-resolve to `DEMO_PERSON_ID` under disabled auth, so a *non-existent* person can never reach them
-through this fixture (their person_id is derived from an authenticated identity, not attacker- or
-caller-controlled input). What *is* reachable, and is exactly as realistic a failure -- a freshly
-authenticated person whose data has not been seeded yet -- is covered by deactivating
-`DEMO_PERSON_ID`'s own active run and hitting those three routes directly.
+A route whose `person_id` instead comes from `current_user.person_id` (never a path or query
+parameter -- `/v1/interventions`) always resolves to `DEMO_PERSON_ID` under disabled auth, so a
+*non-existent* person can never reach it through this fixture (its person_id is derived from an
+authenticated identity, not attacker- or caller-controlled input). What *is* reachable, and is
+exactly as realistic a failure -- a freshly authenticated person whose data has not been seeded
+yet -- is covered by deactivating `DEMO_PERSON_ID`'s own active run and hitting it directly.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-from uuid import uuid4
-
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, update
+from sqlalchemy import update
 
-from silverloop.db_models import DecisionEvidenceRow, ReviewCaseRow, ScenarioRunRow
+from silverloop.db_models import ScenarioRunRow
 from silverloop.fixtures import DEMO_PERSON_ID
-from silverloop.models import CaseStatus
 from silverloop.sql_repository import SqlAlchemyRepository
 
 NONEXISTENT_PERSON = "person-does-not-exist"
@@ -61,61 +56,6 @@ def _seed_unseeded_person(repository: SqlAlchemyRepository, person_id: str) -> N
     _deactivate_active_run(repository, person_id)
 
 
-def _open_review_case_directly(repository: SqlAlchemyRepository, person_id: str) -> str:
-    """Insert an open review case straight into the database, bypassing `advance()`.
-
-    `advance()` -> sustained decline -> `coordinator_review` is the real way a case opens, but
-    getting there also exercises `_create_intervention`'s candidate-preference-learner query,
-    which is unrelated to this test and, at the time of writing, is being actively changed by
-    other in-flight work elsewhere in the repository. This mirrors the direct-SQL setup pattern
-    `test_failure_paths.py` already uses for other edge cases: what this test needs is a case row
-    that exists and is open, not a faithful replay of how the decision ladder got there.
-    """
-    now = datetime.now(UTC)
-    with repository.sessions.begin() as session:
-        run = session.scalar(
-            select(ScenarioRunRow).where(
-                ScenarioRunRow.person_id == person_id, ScenarioRunRow.active.is_(True)
-            )
-        )
-        assert run is not None, f"expected an active run for {person_id!r}"
-        decision_id = f"decision_test_{uuid4().hex[:12]}"
-        session.add(
-            DecisionEvidenceRow(
-                evidence_id=decision_id,
-                run_id=run.run_id,
-                person_id=person_id,
-                observed_at=now,
-                recorded_at=now,
-                source="synthetic",
-                fixture_classification="synthetic_fixture",
-                confidence=0.9,
-                policy_version="test",
-                decision="coordinator_review",
-                reasons_json=["testing"],
-                input_event="activity_declines",
-                quality_evidence_id="dq_test",
-            )
-        )
-        case_id = f"case_test_{uuid4().hex[:12]}"
-        session.add(
-            ReviewCaseRow(
-                case_id=case_id,
-                run_id=run.run_id,
-                person_id=person_id,
-                decision_evidence_id=decision_id,
-                title="Test review case",
-                status=CaseStatus.OPEN.value,
-                priority=3,
-                opened_at=now,
-                summary="Synthetic case for testing review-after-consent-revocation.",
-                evidence_json=["testing"],
-                recommendation="Review with the person.",
-            )
-        )
-    return case_id
-
-
 def _call(client: TestClient, method: str, path: str, body: dict | None):
     if method == "GET":
         return client.get(path)
@@ -130,51 +70,7 @@ PERSON_PATH_ROUTES: list[tuple[str, str, dict | None]] = [
     ("GET", "/v1/people/{person_id}/state", None),
     ("GET", "/v1/people/{person_id}/metrics", None),
     ("POST", "/v1/people/{person_id}/consent", {"active": False, "reason": "testing revocation"}),
-    ("GET", "/v1/people/{person_id}/preferences", None),
-    (
-        "POST",
-        "/v1/people/{person_id}/preferences/some-candidate-key",
-        {"suppressed": True, "reason": "testing"},
-    ),
-    ("POST", "/v1/people/{person_id}/day-dispute", {"day": "2026-01-01", "accurate": True}),
-    ("GET", "/v1/people/{person_id}/proposed-memories", None),
-    (
-        "POST",
-        "/v1/people/{person_id}/context-answer",
-        # A real `ContextAnswerValue`: the body has to get past request validation for this test
-        # to reach the person-scope check it is actually about.
-        {"question_id": "some-question", "value": "resting"},
-    ),
-    (
-        "POST",
-        "/v1/people/{person_id}/baseline-confirmation",
-        {"decision": "decline"},
-    ),
-    ("GET", "/v1/people/{person_id}/goals", None),
-    (
-        "POST",
-        "/v1/people/{person_id}/goals",
-        {"kind": "get_out_more", "target_per_week": 3, "active": True},
-    ),
-    ("GET", "/v1/people/{person_id}/week", None),
-    (
-        "POST",
-        "/v1/people/{person_id}/week",
-        {"activity_id": "some-activity", "day": "2026-01-01"},
-    ),
-    ("GET", "/v1/people/{person_id}/replan-notices", None),
-    ("GET", "/v1/coordinator/people/{person_id}/outreach-history", None),
-    ("GET", "/v1/coordinator/people/{person_id}/activity-relative", None),
 ]
-
-# Routes that take `person_id` as an optional query parameter instead of a path segment.
-PERSON_QUERY_ROUTES: list[str] = [
-    "/v1/metrics",
-    "/v1/simulation/events",
-    "/v1/simulation/latest",
-    "/v1/simulation/history",
-]
-
 
 PERSON_PATH_ROUTE_IDS = [f"{method} {path}" for method, path, _ in PERSON_PATH_ROUTES]
 
@@ -192,15 +88,6 @@ def test_nonexistent_person_path_param_returns_404(
         f"{method} {path} -> {response.status_code} (expected 404): {response.text}"
     )
     assert response.headers["content-type"].startswith("application/json")
-    assert "detail" in response.json()
-
-
-@pytest.mark.parametrize("path", PERSON_QUERY_ROUTES)
-def test_nonexistent_person_query_param_returns_404(client: TestClient, path: str) -> None:
-    response = client.get(path, params={"person_id": NONEXISTENT_PERSON})
-    assert response.status_code == 404, (
-        f"GET {path}?person_id=... -> {response.status_code} (expected 404): {response.text}"
-    )
     assert "detail" in response.json()
 
 
@@ -233,18 +120,6 @@ def test_unseeded_person_path_param_returns_409(
     assert "detail" in response.json()
 
 
-@pytest.mark.parametrize("path", PERSON_QUERY_ROUTES)
-def test_unseeded_person_query_param_returns_409(
-    client: TestClient, repository: SqlAlchemyRepository, path: str
-) -> None:
-    _seed_unseeded_person(repository, UNSEEDED_PERSON)
-    response = client.get(path, params={"person_id": UNSEEDED_PERSON})
-    assert response.status_code == 409, (
-        f"GET {path}?person_id=... -> {response.status_code} (expected 409): {response.text}"
-    )
-    assert "detail" in response.json()
-
-
 def test_unseeded_person_via_simulation_advance_returns_409(
     client: TestClient, repository: SqlAlchemyRepository
 ) -> None:
@@ -263,66 +138,11 @@ def test_unseeded_person_via_simulation_advance_returns_409(
 def test_unseeded_current_user_scoped_routes_return_409(
     client: TestClient, repository: SqlAlchemyRepository
 ) -> None:
-    """`/v1/interventions`, `/v1/interventions/history` and `/v1/activities/search` never take a
-    person_id from the caller; under disabled auth they always resolve to `DEMO_PERSON_ID`. The
-    equivalent failure here is `DEMO_PERSON_ID` itself never having been seeded for a run.
+    """`/v1/interventions` never takes a person_id from the caller; under disabled auth it always
+    resolves to `DEMO_PERSON_ID`. The equivalent failure here is `DEMO_PERSON_ID` itself never
+    having been seeded for a run.
     """
     _deactivate_active_run(repository, DEMO_PERSON_ID)
 
     interventions = client.get("/v1/interventions")
     assert interventions.status_code == 409, interventions.text
-
-    history = client.get("/v1/interventions/history")
-    assert history.status_code == 409, history.text
-
-    search = client.post("/v1/activities/search", json={"text": "something to do"})
-    assert search.status_code == 409, search.text
-
-
-# ── The two specific ValueError paths named in the audit ───────────────────────────────────
-
-
-def test_plan_activity_outside_current_week_returns_422_not_500(
-    client: TestClient, repository: SqlAlchemyRepository
-) -> None:
-    # `plan_activity` validates the activity exists before it validates the day, so this needs a
-    # real activity id -- a made-up one would surface "Activity not found" (404) first and never
-    # exercise the day-range `ValueError` this test targets.
-    activities = client.get("/v1/activities").json()
-    assert activities, "expected the seeded catalogue to contain at least one activity"
-    activity_id = activities[0]["activity_id"]
-
-    current_day = repository.person_state().current_day
-    week_starting = current_day - timedelta(days=current_day.weekday())
-    outside_day = week_starting + timedelta(days=60)
-
-    response = client.post(
-        f"/v1/people/{DEMO_PERSON_ID}/week",
-        json={"activity_id": activity_id, "day": outside_day.isoformat()},
-    )
-
-    assert response.status_code == 422, response.text
-    assert "outside the week" in response.json()["detail"]
-
-
-def test_review_case_after_consent_revocation_returns_422_not_500(
-    client: TestClient, repository: SqlAlchemyRepository
-) -> None:
-    case_id = _open_review_case_directly(repository, DEMO_PERSON_ID)
-
-    # Revoking consent auto-closes every open case for this person (see
-    # `_close_open_cases_for_consent`), but the case row itself survives -- reviewing it further
-    # is what `review_case` rejects with `ValueError`.
-    revoke = client.post(
-        f"/v1/people/{DEMO_PERSON_ID}/consent",
-        json={"active": False, "reason": "withdrawing consent"},
-    )
-    assert revoke.status_code == 200, revoke.text
-
-    review = client.post(
-        f"/v1/cases/{case_id}/review",
-        json={"status": "acknowledged", "reviewer_note": "reviewing after revocation"},
-    )
-
-    assert review.status_code == 422, review.text
-    assert "consent is inactive" in review.json()["detail"].lower()

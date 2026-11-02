@@ -45,6 +45,7 @@ from silverloop.main import create_app, resets_demo_family_on_start
 from silverloop.models import AppointmentRequest, CheckInKind, CheckInRequest
 from silverloop.schema_revision import expected_database_revision
 from silverloop.sql_repository import RESPONSE_WINDOW_DAYS, SqlAlchemyRepository
+from tests.row_fixtures import mute_candidate
 
 JWT_SECRET = "story-test-secret-key-at-least-32-bytes"
 SUPABASE_URL = "https://project.supabase.co"
@@ -867,7 +868,7 @@ def _nudge_keys(repo: SqlAlchemyRepository) -> list[str]:
 
 def _mute(repo: SqlAlchemyRepository, keys: list[str]) -> None:
     for key in keys:
-        repo.set_candidate_preference(key, True, "not for me", "senior", person_id=DEMO_PERSON_ID)
+        mute_candidate(repo, key, person_id=DEMO_PERSON_ID)
 
 
 def _muted(repo: SqlAlchemyRepository) -> set[str]:

@@ -9,8 +9,6 @@ done so. These tests pin the boundary.
 
 from __future__ import annotations
 
-import pytest
-
 from silverloop.models import CaseStatus
 from silverloop.sql_repository import SqlAlchemyRepository
 
@@ -51,18 +49,6 @@ def test_case_closure_is_recorded_rather_than_silent() -> None:
         closure = case.action_history[-1]
         assert closure.reviewer == "system"
         assert "consent" in closure.note.lower()
-    finally:
-        repository.close()
-
-
-def test_review_case_is_refused_once_consent_is_inactive() -> None:
-    repository = _repo_with_open_case()
-    try:
-        case_id = repository.list_cases()[0].case_id
-        repository.set_consent(False, "Senior withdrew consent.", "senior")
-
-        with pytest.raises(ValueError, match="[Cc]onsent is inactive"):
-            repository.review_case(case_id, CaseStatus.ACKNOWLEDGED, "coordinator note")
     finally:
         repository.close()
 

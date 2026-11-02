@@ -32,7 +32,6 @@ from silverloop.agent.guardrails import (
     validate_activity_order,
     validate_proposal,
 )
-from silverloop.agent.intent_planner import IntentTelemetry, plan_intent
 from silverloop.agent.models import AgentProposal
 from silverloop.agent.planner import _build_client
 from silverloop.agent.recorded_client import (
@@ -47,11 +46,8 @@ from silverloop.agent.recorded_client import (
 )
 from silverloop.agent.tools import CandidateOption
 from silverloop.config import Settings
-from silverloop.fixtures import DEMO_PERSON_ID
-from silverloop.intent import parse_intent
 from silverloop.models import SocialPreference
 from silverloop.runtime import RuntimeConfigurationError, validate_runtime
-from silverloop.sql_repository import SqlAlchemyRepository
 
 _MODEL = "synthetic-scripted-stand-in-v1"
 _TODAY = date(2026, 9, 7)
@@ -313,49 +309,6 @@ def test_the_iteration_ceiling_still_binds_for_the_recorded_provider() -> None:
         validate_runtime(_offline(llm_max_iterations=99))
 
 
-# ── Intent telemetry ───────────────────────────────────────────────────────────────────────────
-
-
-def test_intent_telemetry_records_a_failed_call_too(tmp_path: Path) -> None:
-    """A failure that leaves no trace in the cost record is the one nobody fixes."""
-
-    class Exploding:
-        @property
-        def messages(self) -> Exploding:
-            return self
-
-        def create(self, **_: Any) -> Any:
-            raise RuntimeError("boom")
-
-    telemetry = IntentTelemetry()
-    _, mode = plan_intent(
-        "something gentle",
-        today=_TODAY,
-        settings=_recorded_settings(tmp_path),
-        fallback=parse_intent("something gentle", today=_TODAY),
-        client_factory=lambda: (Exploding(), None),
-        telemetry=telemetry,
-    )
-    assert mode == "fallback_error"
-    assert telemetry.attempted
-    assert telemetry.usage == {}
-
-
-def test_intent_telemetry_is_absent_when_no_call_was_made() -> None:
-    telemetry = IntentTelemetry()
-    fallback = parse_intent("anything", today=_TODAY)
-    _, mode = plan_intent(
-        "anything",
-        today=_TODAY,
-        settings=Settings(database_url="sqlite+pysqlite:///:memory:", llm_enabled=False),
-        fallback=fallback,
-        telemetry=telemetry,
-    )
-    assert mode == "fallback_disabled"
-    assert telemetry.attempted is False
-    assert telemetry.latency_ms == 0
-
-
 # ── Guardrail rule names ───────────────────────────────────────────────────────────────────────
 
 
@@ -492,102 +445,3 @@ def test_an_unrecognised_violation_is_counted_under_other_not_dropped() -> None:
 def test_counting_violations_tolerates_a_non_list() -> None:
     assert count_violations_by_rule(None) == {}
     assert count_violations_by_rule("a string") == {}
-
-
-# ── M40: the LLM cost counters ─────────────────────────────────────────────────────────────────
-
-
-def _repository(settings: Settings | None = None) -> SqlAlchemyRepository:
-    repository = SqlAlchemyRepository("sqlite+pysqlite:///:memory:", settings=settings)
-    repository.create_schema_for_tests()
-    repository.reset()
-    return repository
-
-
-def test_the_cost_counters_are_zero_and_honest_with_the_planner_off() -> None:
-    """Under `LLM_ENABLED=false` no call is made, so every cost number is zero -- and is
-    reported, rather than absent."""
-    repository = _repository(
-        Settings(
-            database_url="sqlite+pysqlite:///:memory:",
-            silverloop_runtime_profile="offline",
-            llm_enabled=False,
-        )
-    )
-    try:
-        repository.search_activities(
-            text="something gentle", intent=None, person_id=DEMO_PERSON_ID, actor=DEMO_PERSON_ID
-        )
-        metrics = repository.metrics()
-        assert metrics.llm_calls == 0
-        assert metrics.llm_latency_ms_total == 0
-        assert metrics.llm_tokens_total == 0
-        assert metrics.guardrail_rejections_by_rule == {}
-        assert metrics.llm_fallbacks_by_mode == {
-            "intent:fallback_disabled": 1,
-            "fallback_disabled": 1,
-        }
-    finally:
-        repository.close()
-
-
-def test_a_recorded_search_moves_the_cost_counters_off_zero(tmp_path: Path) -> None:
-    """The counters M25 exists for: with a recorded transport the search path reaches a
-    "model" twice (intent, then ranking), and both calls are counted with their latency even
-    though neither request is in the recording and both degrade."""
-    repository = _repository(
-        Settings(
-            database_url="sqlite+pysqlite:///:memory:",
-            silverloop_runtime_profile="offline",
-            adapter_mode="fixture",
-            llm_enabled=True,
-            llm_provider="recorded",
-            llm_recording_path=str(_write_recording(tmp_path)),
-            llm_model=_MODEL,
-        )
-    )
-    try:
-        repository.search_activities(
-            text="something gentle", intent=None, person_id=DEMO_PERSON_ID, actor=DEMO_PERSON_ID
-        )
-        metrics = repository.metrics()
-        assert metrics.llm_calls == 2
-        assert metrics.llm_fallbacks_by_mode == {
-            "intent:fallback_error": 1,
-            "fallback_error": 1,
-        }
-        assert sum(metrics.llm_fallbacks_by_mode.values()) == metrics.llm_calls
-    finally:
-        repository.close()
-
-
-def test_the_search_audit_records_what_the_intent_parse_cost(tmp_path: Path) -> None:
-    """The one LLM entry point that recorded nothing measurable now records latency and usage --
-    on the evaluator's copy of the event only, never the senior's."""
-    repository = _repository(
-        Settings(
-            database_url="sqlite+pysqlite:///:memory:",
-            silverloop_runtime_profile="offline",
-            adapter_mode="fixture",
-            llm_enabled=True,
-            llm_provider="recorded",
-            llm_recording_path=str(_write_recording(tmp_path)),
-            llm_model=_MODEL,
-        )
-    )
-    try:
-        response = repository.search_activities(
-            text="something gentle", intent=None, person_id=DEMO_PERSON_ID, actor=DEMO_PERSON_ID
-        )
-        assert "intent" not in response.audit_event.detail
-
-        events = repository.list_events()
-        search = next(event for event in events if event.event_type == "activity_search")
-        intent = search.detail["intent"]
-        assert intent["attempted"] is True
-        assert intent["mode"] == "fallback_error"
-        assert intent["model"] == "synthetic-scripted-stand-in-v1"
-        assert "latency_ms" in intent
-        assert "total_tokens" in intent
-    finally:
-        repository.close()

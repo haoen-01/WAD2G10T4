@@ -1,5 +1,9 @@
 # Care priorities — who a caregiver should follow up with first
 
+> **Removed in step 7.** `GET /v1/coordinator/priorities`, `triage.py` and their tests were removed
+> with the other routes no screen used (`docs/research/aac-route-removal.md`). This page is kept
+> as the record of what the feature was; nothing below describes running code any more.
+
 Delivered 2026-09-15 on `test/main` in commit `2f252b6`. This page covers what the feature does,
 why it is safe, where its thresholds come from, and how to demo it.
 
