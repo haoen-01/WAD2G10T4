@@ -15,6 +15,7 @@ from sqlalchemy import select
 from silverloop.db_models import PersonRow, ScenarioRunRow
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.sql_repository import SqlAlchemyRepository
+from tests.row_fixtures import audit_events
 
 PERSON_B = "person-b"
 
@@ -94,8 +95,8 @@ def test_decision_evidence_and_audit_trails_are_person_scoped(repo: SqlAlchemyRe
     repo.advance("activity_declines", person_id=DEMO_PERSON_ID)
     repo.advance("recovery", person_id=PERSON_B)
 
-    events_a = repo.list_events(person_id=DEMO_PERSON_ID)
-    events_b = repo.list_events(person_id=PERSON_B)
+    events_a = audit_events(repo, person_id=DEMO_PERSON_ID)
+    events_b = audit_events(repo, person_id=PERSON_B)
 
     assert all(event.person_id == DEMO_PERSON_ID for event in events_a)
     assert all(event.person_id == PERSON_B for event in events_b)

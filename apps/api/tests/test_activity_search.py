@@ -15,7 +15,6 @@ import pytest
 
 from silverloop.activity_search import filter_candidates, rank_candidates, reasons_for
 from silverloop.context_question import QUESTION_ID, memory_from_answer
-from silverloop.intent import parse_intent
 from silverloop.local_time import at_local
 from silverloop.models import (
     ActivityAvailability,
@@ -31,6 +30,7 @@ from silverloop.models import (
     Enjoyment,
     IndoorOutdoor,
     IntegrationStatus,
+    IntentParser,
     LikedAspect,
     PreferenceDimension,
     ReasonBasis,
@@ -1549,13 +1549,50 @@ def test_diversity_never_promotes_a_lower_tier_candidate() -> None:
 
 # ── Exclusions, and the one distance that is not a limit ───────────────────────────────────────
 #
-# Written through `parse_intent` rather than by constructing an `ActivityIntent` by hand: the bug
-# these pin was a disagreement between what a sentence *meant* and what the filter *did*, and a
-# hand-built intent cannot catch that class of thing at all.
+# Each request is the `ActivityIntent` the keyword parser (`intent.parse_intent`, removed with the
+# search route in step 7) produced for that sentence, recorded verbatim, so these still pin what the
+# filter does with each meaning the sentence carried.
+_PARSED: dict[str, ActivityIntent] = {
+    "nothing outdoors": ActivityIntent(
+        raw_text="nothing outdoors",
+        excluded_environments=[IndoorOutdoor.OUTDOOR],
+        parsed_by=IntentParser.KEYWORD,
+    ),
+    "I don't want a group class": ActivityIntent(
+        raw_text="I don't want a group class",
+        excluded_social=[SocialPreference.SOCIAL],
+        parsed_by=IntentParser.KEYWORD,
+    ),
+    "no walking, my knee": ActivityIntent(
+        raw_text="no walking, my knee",
+        excluded_activity_types=[ActivityType.WALKING],
+        parsed_by=IntentParser.KEYWORD,
+        unparsed_terms=["knee"],
+    ),
+    "I want a walk": ActivityIntent(
+        raw_text="I want a walk",
+        activity_types=[ActivityType.WALKING],
+        parsed_by=IntentParser.KEYWORD,
+    ),
+    "near me": ActivityIntent(
+        raw_text="near me", max_distance_m=1000, parsed_by=IntentParser.KEYWORD
+    ),
+    "within 800m": ActivityIntent(
+        raw_text="within 800m",
+        max_distance_m=800,
+        distance_is_explicit=True,
+        parsed_by=IntentParser.KEYWORD,
+    ),
+    "no walking tomorrow": ActivityIntent(
+        raw_text="no walking tomorrow",
+        excluded_activity_types=[ActivityType.WALKING],
+        parsed_by=IntentParser.KEYWORD,
+    ),
+}
 
 
 def _parsed(text: str) -> ActivityIntent:
-    return parse_intent(text, today=TODAY)
+    return _PARSED[text]
 
 
 def test_nothing_outdoors_excludes_outdoor_rather_than_requiring_it() -> None:

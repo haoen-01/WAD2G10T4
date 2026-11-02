@@ -22,6 +22,7 @@ from datetime import timedelta
 
 from silverloop.models import CaseResolution, CaseStatus
 from silverloop.sql_repository import CASE_REVIEW_WINDOW_DAYS, SqlAlchemyRepository
+from tests.row_fixtures import record_case_review
 
 
 def _repo() -> SqlAlchemyRepository:
@@ -67,19 +68,21 @@ def test_a_reviewed_case_carries_who_touched_it_and_when() -> None:
         case = repository.list_cases()[0]
         assert case.last_reviewed_at is None and case.reviewer is None
 
-        response = repository.review_case(
+        record_case_review(
+            repository,
             case.case_id,
             CaseStatus.ACKNOWLEDGED,
             "Picked this up; speaking to her daughter first.",
             reviewer="coordinator-amy",
         )
 
-        assert response.case.reviewer == "coordinator-amy"
-        assert response.case.last_reviewed_at is not None
-        assert response.case.last_reviewed_at == response.case.action_history[-1].recorded_at
+        reviewed = repository.list_cases()[0]
+        assert reviewed.reviewer == "coordinator-amy"
+        assert reviewed.last_reviewed_at is not None
+        assert reviewed.last_reviewed_at == reviewed.action_history[-1].recorded_at
         # Acknowledging is not an ending. It does not resolve, snooze or stop the clock.
-        assert response.case.resolution is None
-        assert response.case.days_in_review == 1
+        assert reviewed.resolution is None
+        assert reviewed.days_in_review == 1
     finally:
         repository.close()
 
@@ -91,14 +94,19 @@ def test_a_coordinator_resolution_is_stored_as_one_rather_than_written_in_prose(
             repository.advance("activity_declines", event_id=f"resolve-{index}")
         case = repository.list_cases()[0]
 
-        response = repository.review_case(
-            case.case_id, CaseStatus.RESOLVED, "Spoke to her; she is away with family.", "amy"
+        record_case_review(
+            repository,
+            case.case_id,
+            CaseStatus.RESOLVED,
+            "Spoke to her; she is away with family.",
+            "amy",
         )
 
-        assert response.case.status == CaseStatus.RESOLVED
-        assert response.case.resolution == CaseResolution.COORDINATOR_DECISION
+        resolved = repository.list_cases()[0]
+        assert resolved.status == CaseStatus.RESOLVED
+        assert resolved.resolution == CaseResolution.COORDINATOR_DECISION
         # Nothing to re-surface once a human has answered the question the case asked.
-        assert response.case.review_by_day is None
+        assert resolved.review_by_day is None
     finally:
         repository.close()
 

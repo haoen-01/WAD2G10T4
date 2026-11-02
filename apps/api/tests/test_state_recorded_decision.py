@@ -1,6 +1,11 @@
 """`/state` after the contact cap: the decision recorded for the day, not a read-time artefact.
 
 Display only. `advance` reads the live ladder, so each test also pins what it decides next.
+
+These tests also used to pin that `/state` offers the quiet-day question exactly when `POST
+/v1/people/{id}/context-answer` would accept an answer. That route went in step 7; the answer is
+now stored as a row (`tests/row_fixtures.py`), and the days on which the question is offered are
+pinned to what they were when the route still checked them.
 """
 
 from __future__ import annotations
@@ -10,6 +15,8 @@ from fastapi.testclient import TestClient
 
 from silverloop.context_question import QUESTION_ID
 from silverloop.fixtures import DEMO_PERSON_ID
+from silverloop.sql_repository import SqlAlchemyRepository
+from tests.row_fixtures import answer_context_question
 
 CAP_RATIONALE = ["Weekly contact cap reached; notification fatigue guard applied."]
 
@@ -47,26 +54,17 @@ def test_the_second_offer_reads_as_recorded_with_its_own_fields(client: TestClie
         assert state[field] == advanced[field], field
     assert state["last_decision"] == "programme_suggestion"
     # `advance` decides before its own offer counts against the cap; `/state` matches the answer.
-    assert (
-        advanced["pending_question"] is not None,
-        state["pending_question"],
-        _try_to_answer(client),
-    ) == (True, None, 404)
+    assert (advanced["pending_question"] is not None, state["pending_question"]) == (True, None)
 
 
-def _try_to_answer(client: TestClient) -> int:
-    return client.post(
-        f"/v1/people/{DEMO_PERSON_ID}/context-answer",
-        json={"question_id": QUESTION_ID, "value": "resting"},
-    ).status_code
-
-
-def test_an_uncapped_day_offers_the_question_and_accepts_the_answer(client: TestClient) -> None:
+def test_an_uncapped_day_offers_the_question_and_an_answer_clears_it(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     assert _advance(client)["state"]["last_decision"] == "gentle_nudge"
     state = _state(client)
     assert state["decided_by_gate"] != "contact_cap"
     assert state["pending_question"]["question_id"] == QUESTION_ID
-    assert _try_to_answer(client) == 200
+    answer_context_question(repository, "resting", person_id=DEMO_PERSON_ID)
     assert _state(client)["pending_question"] is None
 
 
@@ -77,21 +75,20 @@ def test_a_capped_day_offers_no_question_the_answer_path_would_refuse(client: Te
     state = _state(client)
     assert state["last_decision"] == "programme_suggestion"
     assert state["pending_question"] is None
-    assert _try_to_answer(client) == 404
     # The refusal stays a refusal: the cap goes on holding the next low day.
     _advance(client, "recovery")
     assert _advance(client)["state"]["decided_by_gate"] == "contact_cap"
 
 
-@pytest.mark.parametrize("days", [1, 2, 3, 4])
-def test_state_offers_a_question_exactly_when_the_answer_path_accepts_it(
-    client: TestClient, days: int
+@pytest.mark.parametrize(("days", "offered"), [(1, True), (2, False), (3, False), (4, False)])
+def test_state_offers_a_question_exactly_when_the_answer_path_accepted_it(
+    client: TestClient, days: int, offered: bool
 ) -> None:
-    """The scenario 07 sequence, stopped on each day in turn."""
+    """The scenario 07 sequence, stopped on each day in turn. `offered` is the day the removed
+    answer route accepted an answer, and only that day."""
     for event in ["activity_declines", "activity_declines", "recovery", "activity_declines"][:days]:
         _advance(client, event)
-    offered = _state(client)["pending_question"] is not None
-    assert _try_to_answer(client) == (200 if offered else 404)
+    assert (_state(client)["pending_question"] is not None) is offered
 
 
 def test_a_decline_that_day_still_reads_as_recorded(client: TestClient) -> None:

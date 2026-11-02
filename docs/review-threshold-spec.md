@@ -1,5 +1,13 @@
 # Review-threshold calibrator — implementation spec
 
+> **Step 7.** The coordinator routes in section 9 (state, replay, approve, reject, manual,
+> confirm-starting, reconfirm) and `POST /v1/cases/{id}/review`, which started a calibration, were
+> removed with the other routes no screen used (`docs/research/aac-route-removal.md`).
+> `review_threshold_replay.replay_thresholds` stays in code but no route calls it. What `advance`
+> runs stays: the live setting still feeds `policy.decide`, and the daily checks, expiry, shadow
+> check and write-ups still run against any approval on record. Nothing writes an approval any
+> more, so in the running app the starting setting is always live.
+
 Status: accepted for build, 2026-09-15. Map: [Wayfinder: the review-threshold calibrator, built in three stages](https://github.com/peachoolongtee/ismoggers/issues/42).
 
 Sources: `suggestions.md` → "# Suggestion 6" (the feature, its settings and its eight decisions) and

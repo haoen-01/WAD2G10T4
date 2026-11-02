@@ -123,8 +123,9 @@ TYPE_FAMILIES: Final[dict[ActivityType, frozenset[ActivityFamily]]] = {
 
 
 # English, Singlish and Chinese phrases for each type. Every entry is a phrase that appears in the
-# parser probe (the regression table in `tests/test_intent.py`) or in a fixture listing -- this is a
-# working vocabulary, not an attempt at a lexicon, and a word that is not here stays unknown.
+# parser probe (a regression table that went with the keyword parser in step 7) or in a fixture
+# listing -- this is a working vocabulary, not an attempt at a lexicon, and a word that is not
+# here stays unknown.
 #
 # Authored grouped by type for readability; `ALIASES` below re-sorts the whole table longest
 # phrase first, which is what makes "water exercise" beat "exercise" and "seated strength" beat
@@ -268,7 +269,7 @@ def search_needle(haystack: str, needle: str) -> re.Match[str] | None:
     anchoring them the Latin way is exactly the bug that made 散步 vanish from a sentence the
     parser claimed to understand.
 
-    Lives here rather than in `intent.py` because the catalogue normaliser and the parser must
+    Lives here rather than in a parser because the catalogue normaliser and any text reader must
     agree on what "contains a walk" means, and two copies of this rule already drifted once.
     """
     if _CJK.search(needle):
@@ -280,7 +281,8 @@ def activity_type_enum_values() -> list[str]:
     """The `ActivityType` values a request may name, for a tool schema.
 
     Built from the enum so a member added here reaches the LLM parser without anyone editing a
-    hand-typed literal list -- the drift audit C-C7 found in `intent_planner.py`. `OTHER` is
+    hand-typed literal list -- the drift audit C-C7 found in the (since removed) intent planner.
+    `OTHER` is
     excluded: it is a catalogue label, and a model that emitted it would be asserting "some kind
     of thing, but not one we have a word for", which is not a request anyone can act on.
     """
