@@ -32,7 +32,7 @@ import {
 } from '@/lib/assistant-geometry';
 import { AUTH_ENABLED } from '@/lib/config';
 import { DEMO_PERSON_ID } from '@/lib/labels';
-import { TAB_KEY } from '@/components/senior/senior-view.js';
+import { TAB_KEY } from '@/lib/senior-view';
 
 /**
  * Kaki on every screen: a small orb with eyes that can be dragged anywhere and settles against

@@ -34,13 +34,13 @@ from silverloop.models import (
     ActivitySource,
     IntegrationStatus,
     PreferenceDimension,
-    PreferenceStance,
 )
 from silverloop.sql_repository import (
     _FIXTURE_METADATA_SOURCE,
     SqlAlchemyRepository,
     _as_utc,
 )
+from tests.row_fixtures import activity_preferences, plan_activity, state_preference
 
 _ADVANCED_DAYS = 8
 
@@ -141,7 +141,9 @@ def test_a_reset_restores_a_listing_the_simulator_marked_full() -> None:
             and local_date(start_at) > anchor_day
             and availability != ActivityAvailability.FULL.value
         )
-        repository.plan_activity(planned_id, local_date(before[planned_id][0]), actor="senior")
+        plan_activity(
+            repository, planned_id, local_date(before[planned_id][0]), person_id=DEMO_PERSON_ID
+        )
 
         repository.advance("programme_becomes_full", event_id="full-1")
         flipped = _catalogue(repository)[planned_id][1]
@@ -221,12 +223,13 @@ def test_a_reset_that_re_anchors_the_catalogue_still_keeps_a_standing_statement(
     """
     repository = _repo()
     try:
-        repository.state_preference(
+        state_preference(
+            repository,
             PreferenceDimension.ENVIRONMENT,
             "outdoor",
-            PreferenceStance.AVOID,
+            prefer=False,
+            person_id=DEMO_PERSON_ID,
             stated_text="I would rather stay indoors",
-            actor="senior",
         )
         with repository.sessions() as session:
             rows_before = session.scalar(
@@ -242,7 +245,7 @@ def test_a_reset_that_re_anchors_the_catalogue_still_keeps_a_standing_statement(
                 select(func.count()).select_from(ActivityDimensionPreferenceRow)
             )
         assert rows_after == rows_before
-        preferences = repository.activity_preferences(person_id=DEMO_PERSON_ID)
+        preferences = activity_preferences(repository, person_id=DEMO_PERSON_ID)
         assert any(
             entry.value == "outdoor" and entry.source == "senior_statement" and entry.strength < 0
             for entry in preferences.dimensions
@@ -259,7 +262,8 @@ def test_a_second_personas_reset_does_not_strand_the_persona_already_playing() -
     back to it, out of the persona already mid-story's live week, and `plan_activity` then rejected
     the only activities the catalogue had as "outside the week being planned". The rewind is
     floored at the furthest-ahead active run instead, and the whole-week roll keeps each listing on
-    its own weekday.
+    its own weekday. (The plan is stored through `tests/row_fixtures.py`, which keeps the same
+    week check; the week route went in step 7.)
     """
     repository = _repo()
     try:
@@ -288,12 +292,12 @@ def test_a_second_personas_reset_does_not_strand_the_persona_already_playing() -
             "the persona already playing must still have listings inside its own week"
         )
         # And they are genuinely plannable, which is the failure the regression produced.
-        planned = repository.plan_activity(
+        plan_activity(
+            repository,
             in_the_first_personas_week[0],
             local_date(catalogue[in_the_first_personas_week[0]][0]),
-            actor="senior",
+            person_id=DEMO_PERSON_ID,
         )
-        assert planned.entries
 
         # Every listing is the second persona's own fixture anchoring, moved forward by a whole
         # number of weeks and nothing else -- the roll never shifts a session's time of day or its

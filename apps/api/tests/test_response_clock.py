@@ -5,7 +5,8 @@ Before this existed an offer nobody answered stayed `proposed` forever. The loop
 outcome and its half-weight learning rule were unreachable from any product path, and silence
 spent the weekly contact budget while teaching the learner nothing. Everything here runs through
 the FastAPI contract where a browser could reach it, and through the repository where the
-behaviour is a property of `advance()` itself.
+behaviour is a property of `advance()` itself. (The metrics, audit trail and preference reads
+behind routes removed in step 7 are read from the repository directly.)
 
 The companion change -- the weekly contact cap counted in simulated days rather than wall-clock
 seconds -- is asserted at the end, because it is the same clock.
@@ -20,6 +21,7 @@ from fastapi.testclient import TestClient
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.learning import PreferenceLearner
 from silverloop.sql_repository import RESPONSE_WINDOW_DAYS, SqlAlchemyRepository
+from tests.row_fixtures import audit_events
 
 DECLINE = "activity_declines"
 
@@ -37,6 +39,19 @@ def _interventions_oldest_first(client: TestClient) -> list[dict]:
     response = client.get("/v1/interventions")
     assert response.status_code == 200, response.text
     return sorted(response.json(), key=lambda item: (item["created_at"], item["intervention_id"]))
+
+
+def _metrics(repository: SqlAlchemyRepository) -> dict:
+    """The operational metrics (`GET /v1/metrics` until step 7; the repository read stays)."""
+    return repository.metrics().model_dump(mode="json")
+
+
+def _events(repository: SqlAlchemyRepository) -> list[dict]:
+    """The active run's audit trail (`GET /v1/simulation/events` until step 7)."""
+    return [
+        event.model_dump(mode="json")
+        for event in audit_events(repository, person_id=DEMO_PERSON_ID)
+    ]
 
 
 def _current_day(client: TestClient) -> date:
@@ -85,7 +100,9 @@ def test_an_unanswered_offer_is_closed_as_silence_once_the_window_passes(
     assert second["awaiting_reply_until"] is not None
 
 
-def test_a_recorded_answer_is_never_overwritten_by_the_clock(client: TestClient) -> None:
+def test_a_recorded_answer_is_never_overwritten_by_the_clock(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     first = _advance(client)["created_intervention"]
     accepted = client.post(
         f"/v1/interventions/{first['intervention_id']}/outcome", json={"outcome": "accepted"}
@@ -105,12 +122,14 @@ def test_a_recorded_answer_is_never_overwritten_by_the_clock(client: TestClient)
     # Exactly one outcome row: the person's own. Taking a suggestion up also starts the
     # acceptance cooldown (`ACCEPTED_OUTREACH_COOLDOWN_DAYS`), so the following days send nothing
     # new, and the clock never writes a second row against something already answered.
-    metrics = client.get("/v1/metrics").json()
+    metrics = _metrics(repository)
     assert metrics["outcomes"] == 1
     assert metrics["no_reply_recorded"] == 0
 
 
-def test_withdrawn_offers_are_not_silence(client: TestClient) -> None:
+def test_withdrawn_offers_are_not_silence(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     _advance(client)
     _advance(client, "consent_revoked")
     for _ in range(RESPONSE_WINDOW_DAYS):
@@ -121,28 +140,32 @@ def test_withdrawn_offers_are_not_silence(client: TestClient) -> None:
     # An offer withdrawn when consent went was never received; nobody was silent about it.
     assert withdrawn["outcome"] is None
     assert withdrawn["awaiting_reply_until"] is None
-    assert client.get("/v1/metrics").json()["no_reply_recorded"] == 0
+    assert _metrics(repository)["no_reply_recorded"] == 0
 
 
-def test_a_replayed_event_does_not_resolve_anything_twice(client: TestClient) -> None:
+def test_a_replayed_event_does_not_resolve_anything_twice(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     for index in range(3):
         _advance(client, event_id=f"clock-replay-{index}")
-    before = client.get("/v1/metrics").json()["outcomes"]
+    before = _metrics(repository)["outcomes"]
 
     _advance(client, event_id="clock-replay-2")
 
-    assert client.get("/v1/metrics").json()["outcomes"] == before == 1
+    assert _metrics(repository)["outcomes"] == before == 1
 
 
 # ── What the resolution records ───────────────────────────────────────────────────────────────
 
 
-def test_silence_is_audited_by_the_system_with_the_reason_it_fired(client: TestClient) -> None:
+def test_silence_is_audited_by_the_system_with_the_reason_it_fired(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     first = _advance(client)["created_intervention"]
     _advance(client)
     third = _advance(client)
 
-    events = client.get("/v1/simulation/events").json()
+    events = _events(repository)
     resolution = next(
         event
         for event in events
@@ -161,17 +184,17 @@ def test_silence_is_audited_by_the_system_with_the_reason_it_fired(client: TestC
 
 
 def test_silence_moves_the_candidate_posterior_by_exactly_one_no_response(
-    client: TestClient,
+    client: TestClient, repository: SqlAlchemyRepository
 ) -> None:
     first = _advance(client)["created_intervention"]
     candidate_key = first["candidate_key"]
-    before = client.get("/v1/metrics").json()["candidate_preference_scores"][candidate_key]
+    before = _metrics(repository)["candidate_preference_scores"][candidate_key]
     _advance(client)
     _advance(client)
 
     expected = PreferenceLearner()
     expected.record(candidate_key, "no_response")
-    after = client.get("/v1/metrics").json()["candidate_preference_scores"][candidate_key]
+    after = _metrics(repository)["candidate_preference_scores"][candidate_key]
     assert before == PreferenceLearner().expected_value(candidate_key)
     assert after == expected.expected_value(candidate_key)
     # Half a unit against the option, never a full refusal.
@@ -180,9 +203,9 @@ def test_silence_moves_the_candidate_posterior_by_exactly_one_no_response(
     # Advancing again does not apply it a second time: the row is written once and the learner
     # is rebuilt from rows.
     _advance(client)
-    assert client.get("/v1/metrics").json()["candidate_preference_scores"][candidate_key] == after
+    assert _metrics(repository)["candidate_preference_scores"][candidate_key] == after
 
-    events = client.get("/v1/simulation/events").json()
+    events = _events(repository)
     resolution = next(
         event
         for event in events
@@ -193,16 +216,21 @@ def test_silence_moves_the_candidate_posterior_by_exactly_one_no_response(
     assert resolution["detail"]["preference_after"] == after
 
 
-def test_silence_never_counts_as_a_decline(client: TestClient) -> None:
+def test_silence_never_counts_as_a_decline(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
     """Three declines mute a candidate deterministically; three silences must not."""
     for _ in range(3 * (RESPONSE_WINDOW_DAYS + 1)):
         _advance(client, "activity_declines")
         _advance(client, "recovery")
         _advance(client, "recovery")
 
-    preferences = client.get(f"/v1/people/{DEMO_PERSON_ID}/preferences").json()
+    preferences = [
+        item.model_dump(mode="json")
+        for item in repository.list_candidate_preferences(person_id=DEMO_PERSON_ID)
+    ]
     assert all(not item["suppressed"] for item in preferences)
-    assert client.get("/v1/metrics").json()["no_reply_recorded"] >= 3
+    assert _metrics(repository)["no_reply_recorded"] >= 3
 
 
 def test_a_late_reply_is_told_the_offer_closed_as_unanswered(client: TestClient) -> None:
@@ -222,15 +250,17 @@ def test_a_late_reply_is_told_the_offer_closed_as_unanswered(client: TestClient)
 # ── Where the clock is visible ────────────────────────────────────────────────────────────────
 
 
-def test_metrics_count_awaiting_and_no_reply_separately(client: TestClient) -> None:
-    assert client.get("/v1/metrics").json()["awaiting_reply"] == 0
+def test_metrics_count_awaiting_and_no_reply_separately(
+    client: TestClient, repository: SqlAlchemyRepository
+) -> None:
+    assert _metrics(repository)["awaiting_reply"] == 0
     _advance(client)
-    metrics = client.get("/v1/metrics").json()
+    metrics = _metrics(repository)
     assert (metrics["awaiting_reply"], metrics["no_reply_recorded"]) == (1, 0)
 
     _advance(client)
     _advance(client)
-    metrics = client.get("/v1/metrics").json()
+    metrics = _metrics(repository)
     assert (metrics["awaiting_reply"], metrics["no_reply_recorded"]) == (1, 1)
 
 
@@ -244,16 +274,6 @@ def test_the_trace_names_the_day_the_clock_stops_waiting(client: TestClient) -> 
     assert "If nothing is recorded by" in response_stage["detail"]
     assert due.strftime("%a %d %b") in response_stage["detail"]
     assert "silence, not a refusal" in response_stage["detail"]
-
-
-def test_outreach_history_carries_the_clock(client: TestClient) -> None:
-    for _ in range(3):
-        _advance(client)
-
-    history = client.get(f"/v1/coordinator/people/{DEMO_PERSON_ID}/outreach-history").json()
-    by_outcome = {entry["outcome"]: entry for entry in history}
-    assert by_outcome["no_response"]["awaiting_reply_until"] is None
-    assert by_outcome[None]["awaiting_reply_until"] is not None
 
 
 # ── The same clock, on the contact cap ────────────────────────────────────────────────────────

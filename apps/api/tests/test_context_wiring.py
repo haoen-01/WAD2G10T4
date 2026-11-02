@@ -15,9 +15,11 @@ from datetime import UTC, datetime
 
 from silverloop.config import Settings
 from silverloop.context import ContextEvidence, ExternalContext, ExternalContextProvider
+from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.main import create_app
 from silverloop.models import ContextSignal
 from silverloop.sql_repository import SqlAlchemyRepository
+from tests.row_fixtures import audit_events
 
 # ── Config default / offline force-disable ────────────────────────────────────
 
@@ -128,7 +130,7 @@ def test_live_rain_context_supplements_a_scripted_decline_like_the_rain_event() 
 
     assert response.state.signal.context.rainy is True
     assert response.state.last_decision.value == "no_action"
-    events = repo.list_events()
+    events = audit_events(repo, person_id=DEMO_PERSON_ID)
     detail = events[0].detail
     assert detail["external_context_evidence"] == [
         _fake_evidence("nea_weather_live").model_dump(mode="json")
@@ -170,7 +172,7 @@ def test_expired_context_evidence_does_not_contribute_a_true_signal() -> None:
     response = repo.advance("recovery", event_id="stale-rain-1")
 
     assert response.state.signal.context.rainy is False
-    events = repo.list_events()
+    events = audit_events(repo, person_id=DEMO_PERSON_ID)
     detail = events[0].detail
     assert detail["expired_context_evidence"] == [
         {
@@ -196,5 +198,5 @@ def test_no_context_provider_leaves_behaviour_unchanged() -> None:
     response = repo.advance("activity_declines", event_id="no-provider-1")
 
     assert response.state.signal.context.rainy is False
-    events = repo.list_events()
+    events = audit_events(repo, person_id=DEMO_PERSON_ID)
     assert events[0].detail["external_context_evidence"] == []

@@ -14,10 +14,15 @@ second card for the same concern the moment the decline continued.
 
 from __future__ import annotations
 
-from silverloop.models import CaseStatus, Decision
+from silverloop.models import CaseStatus, Decision, ReviewCase
 from silverloop.sql_repository import SqlAlchemyRepository
+from tests.row_fixtures import record_case_review
 
 PERSON_B = "person-b"
+
+
+def _case(repository: SqlAlchemyRepository, case_id: str) -> ReviewCase:
+    return next(case for case in repository.list_cases() if case.case_id == case_id)
 
 
 def _repo() -> SqlAlchemyRepository:
@@ -121,8 +126,8 @@ def test_resolving_a_case_and_declining_again_opens_a_new_one() -> None:
         assert opened[0].status == CaseStatus.OPEN
         first_case_id = opened[0].case_id
 
-        repository.review_case(first_case_id, CaseStatus.RESOLVED, "Reviewed and closed.")
-        assert repository.get_case(first_case_id).status == CaseStatus.RESOLVED
+        record_case_review(repository, first_case_id, CaseStatus.RESOLVED, "Reviewed and closed.")
+        assert _case(repository, first_case_id).status == CaseStatus.RESOLVED
 
         response = repository.advance("activity_declines", event_id="resolve-then-decline")
         assert response.state.last_decision == Decision.COORDINATOR_REVIEW
@@ -158,8 +163,10 @@ def test_acknowledging_a_case_and_declining_again_refreshes_it() -> None:
         case_id = opened[0].case_id
         summary_when_acknowledged = opened[0].summary
 
-        repository.review_case(case_id, CaseStatus.ACKNOWLEDGED, "Seen; calling her tomorrow.")
-        assert repository.get_case(case_id).status == CaseStatus.ACKNOWLEDGED
+        record_case_review(
+            repository, case_id, CaseStatus.ACKNOWLEDGED, "Seen; calling her tomorrow."
+        )
+        assert _case(repository, case_id).status == CaseStatus.ACKNOWLEDGED
 
         response = repository.advance("activity_declines", event_id="ack-then-decline")
         assert response.state.last_decision == Decision.COORDINATOR_REVIEW

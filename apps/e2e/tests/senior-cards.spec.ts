@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { resetDemo } from './support';
+import { addDemoTask, clearDemoTasks, resetDemo } from './support';
 
 test.use({ timezoneId: 'Asia/Singapore' });
 test.beforeEach(async ({ request }) => {
@@ -44,41 +44,40 @@ test('Next up presents individual date, time, location and companion boxes on a 
   );
 });
 
-test('completed tasks keep their chronological position and Next moves to the next undone task', async ({
-  page,
-}) => {
-  await page.clock.install({ time: new Date('2026-10-25T00:00:00Z') });
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      'careplus.tasks.v1.mdm-lim',
-      JSON.stringify({
-        schedules: [
-          { task_id: 'third', title: 'Third task', time: '17:00' },
-          { task_id: 'first', title: 'First task', time: '09:00' },
-          { task_id: 'second', title: 'Second task', time: '12:00' },
-        ].map((task) => ({
-          ...task,
-          start_date: '2026-10-25',
-          repeat: 'daily',
-          repeat_until: null,
-          notes: '',
-          kind: 'task',
-        })),
-        completions: {},
-      }),
+// The API's day and the screen's day are both Singapore's, as for a senior in Singapore.
+test.describe('in Singapore time', () => {
+  test.use({ timezoneId: 'Asia/Singapore' });
+
+  test('completed tasks keep their chronological position and Next moves to the next undone task', async ({
+    page,
+    request,
+  }) => {
+    // Early morning of the API's own day (Singapore), so every task is still to come and the
+    // senior's ticks, which the API takes for today only, are for the same day.
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(
+      new Date(),
     );
+    await page.clock.install({ time: new Date(`${today}T00:30:00+08:00`) });
+    const groupId = await clearDemoTasks(request);
+    for (const [title, time] of [
+      ['Third task', '17:00'],
+      ['First task', '09:00'],
+      ['Second task', '12:00'],
+    ]) {
+      await addDemoTask(request, groupId, { title, time, start_date: today, repeat: 'daily' });
+    }
+    await page.goto('/login/senior');
+    await page.getByTestId('continue-senior').click();
+    const panel = page.getByTestId('task-panel');
+    const titles = panel.locator('.task-title');
+    await expect(titles).toHaveText(['First task', 'Second task', 'Third task']);
+    await expect(panel.locator('.next-task .task-title')).toHaveText('First task');
+    await panel.getByRole('button', { name: 'Mark First task done', exact: true }).click();
+    await expect(titles).toHaveText(['First task', 'Second task', 'Third task']);
+    await expect(panel.locator('.task-row').first()).toHaveClass(/completed/);
+    await expect(panel.locator('.next-task .task-title')).toHaveText('Second task');
+    await panel.getByRole('button', { name: 'Mark First task not done', exact: true }).click();
+    await expect(titles).toHaveText(['First task', 'Second task', 'Third task']);
+    await expect(panel.locator('.next-task .task-title')).toHaveText('First task');
   });
-  await page.goto('/login/senior');
-  await page.getByTestId('continue-senior').click();
-  const panel = page.getByTestId('task-panel');
-  const titles = panel.locator('.task-title');
-  await expect(titles).toHaveText(['First task', 'Second task', 'Third task']);
-  await expect(panel.locator('.next-task .task-title')).toHaveText('First task');
-  await panel.getByRole('button', { name: 'Mark First task done', exact: true }).click();
-  await expect(titles).toHaveText(['First task', 'Second task', 'Third task']);
-  await expect(panel.locator('.task-row').first()).toHaveClass(/completed/);
-  await expect(panel.locator('.next-task .task-title')).toHaveText('Second task');
-  await panel.getByRole('button', { name: 'Mark First task not done', exact: true }).click();
-  await expect(titles).toHaveText(['First task', 'Second task', 'Third task']);
-  await expect(panel.locator('.next-task .task-title')).toHaveText('First task');
 });

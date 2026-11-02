@@ -2,17 +2,17 @@
 
 `test_baseline_confirmation.py` pins the pure decision in `baseline_confirmation.question_for`.
 These tests pin the durable half: that a confirmation actually re-anchors the reference for every
-evaluation from here on, that a decline changes nothing but the cooldown, and that neither can
-ever be driven through anything but the senior's own explicit decision.
+evaluation from here on, and that a decline changes nothing but the cooldown. The senior's answer
+is stored as a row (`tests/row_fixtures.py`): the route and repository method that wrote it went
+in step 7, and what `_evaluate` does with the row is unchanged.
 """
 
 from __future__ import annotations
 
-import pytest
-
 from silverloop.baseline_confirmation import DECLINE_COOLDOWN_DAYS
 from silverloop.models import AdvanceResponse, BaselineConfirmationDecision, Decision
 from silverloop.sql_repository import SqlAlchemyRepository
+from tests.row_fixtures import decide_baseline_confirmation
 
 
 def _repo() -> SqlAlchemyRepository:
@@ -55,12 +55,11 @@ def test_confirming_re_anchors_the_reference_and_clears_the_clamp() -> None:
         rolling_median = response.state.baseline.median_steps
         previous_reference = response.state.baseline.reference_steps
 
-        result = repository.decide_baseline_confirmation(
-            BaselineConfirmationDecision.CONFIRM, "senior", person_id=person_id
+        reference_steps = decide_baseline_confirmation(
+            repository, BaselineConfirmationDecision.CONFIRM, person_id=person_id
         )
-        assert result.decision is BaselineConfirmationDecision.CONFIRM
-        assert result.reference_steps == rolling_median
-        assert result.reference_steps != previous_reference
+        assert reference_steps == rolling_median
+        assert reference_steps != previous_reference
 
         after = repository.person_state(person_id=person_id)
         assert after.baseline.reference_steps == rolling_median
@@ -80,11 +79,10 @@ def test_declining_leaves_the_clamp_bound_and_starts_a_cooldown() -> None:
         clamped_effective = response.state.baseline.effective_median_steps
         reference_before = response.state.baseline.reference_steps
 
-        result = repository.decide_baseline_confirmation(
-            BaselineConfirmationDecision.DECLINE, "senior", person_id=person_id
+        reference_steps = decide_baseline_confirmation(
+            repository, BaselineConfirmationDecision.DECLINE, person_id=person_id
         )
-        assert result.decision is BaselineConfirmationDecision.DECLINE
-        assert result.reference_steps == reference_before
+        assert reference_steps == reference_before
 
         after = repository.person_state(person_id=person_id)
         assert after.baseline.reference_steps == reference_before
@@ -104,8 +102,8 @@ def test_the_cooldown_expires_and_the_question_returns() -> None:
     try:
         response = _decline_until_pending(repository)
         person_id = response.state.person_id
-        repository.decide_baseline_confirmation(
-            BaselineConfirmationDecision.DECLINE, "senior", person_id=person_id
+        decide_baseline_confirmation(
+            repository, BaselineConfirmationDecision.DECLINE, person_id=person_id
         )
 
         last = None
@@ -113,32 +111,6 @@ def test_the_cooldown_expires_and_the_question_returns() -> None:
             last = repository.advance("activity_declines", event_id=f"post-decline-{index}")
         assert last is not None
         assert last.state.pending_baseline_confirmation is not None
-    finally:
-        repository.close()
-
-
-def test_deciding_when_nothing_is_pending_raises() -> None:
-    repository = _repo()
-    try:
-        with pytest.raises(KeyError):
-            repository.decide_baseline_confirmation(BaselineConfirmationDecision.CONFIRM, "senior")
-    finally:
-        repository.close()
-
-
-def test_a_double_confirm_cannot_write_two_rows() -> None:
-    """The second call must find nothing pending, not silently record a second confirmation."""
-    repository = _repo()
-    try:
-        response = _decline_until_pending(repository)
-        person_id = response.state.person_id
-        repository.decide_baseline_confirmation(
-            BaselineConfirmationDecision.CONFIRM, "senior", person_id=person_id
-        )
-        with pytest.raises(KeyError):
-            repository.decide_baseline_confirmation(
-                BaselineConfirmationDecision.CONFIRM, "senior", person_id=person_id
-            )
     finally:
         repository.close()
 
@@ -152,8 +124,8 @@ def test_confirmation_never_changes_what_policy_permits() -> None:
     try:
         response = _decline_until_pending(repository)
         person_id = response.state.person_id
-        repository.decide_baseline_confirmation(
-            BaselineConfirmationDecision.CONFIRM, "senior", person_id=person_id
+        decide_baseline_confirmation(
+            repository, BaselineConfirmationDecision.CONFIRM, person_id=person_id
         )
         repository.set_consent(False, "Senior withdrew consent.", "senior", person_id=person_id)
         after = repository.person_state(person_id=person_id)

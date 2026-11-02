@@ -16,6 +16,8 @@ from alembic import command
 from silverloop import demo_story
 from silverloop.config import Settings
 from silverloop.db_models import (
+    ActivityCandidateRow,
+    ActivityOfferResponseRow,
     AppointmentNoteRow,
     AppointmentRow,
     AvailabilityEntryRow,
@@ -80,7 +82,6 @@ def test_postgres_preserves_the_safe_product_loop_across_restart() -> None:
 
     repository.close()
     restarted = SqlAlchemyRepository(database_url)
-    assert restarted.latest_advance() == first
     assert restarted.metrics().persistence == "postgresql"
     with restarted.sessions() as session:
         # Derived from the repository, never a literal: the pinned string sat at `c9d3e8f2a1b5`
@@ -366,24 +367,31 @@ def test_postgres_append_only_trigger_actually_fires_on_a_real_row() -> None:
     asserted a raise on empty tables and therefore proved nothing.
 
     `activity_offer_responses` is the one of the three that can be populated in a couple of calls,
-    so it carries the live proof; the other two are covered structurally above.
+    so it carries the live proof; the other two are covered structurally above. Its row is inserted
+    directly, as `respond_to_activity` stored it: that writer went with its route in step 7.
     """
     database_url = dedicated_postgres_test_url()
     upgrade_database(database_url)
     repository = SqlAlchemyRepository(database_url)
     try:
         repository.reset()
-        results = repository.search_activities(
-            text=None, intent=None, person_id=DEMO_PERSON_ID, actor=DEMO_PERSON_ID
-        ).results
-        assert results, "the fixture catalogue must return something to respond to"
-        repository.respond_to_activity(
-            results[0].candidate.activity_id,
-            "not_for_me",
-            reason="too_far",
-            actor=DEMO_PERSON_ID,
-            person_id=DEMO_PERSON_ID,
-        )
+        with repository.sessions.begin() as session:
+            run = repository._active_run(session, DEMO_PERSON_ID)
+            activity_id = session.scalar(select(ActivityCandidateRow.activity_id).limit(1))
+            assert activity_id, "the fixture catalogue must hold a listing to respond to"
+            session.add(
+                ActivityOfferResponseRow(
+                    response_id=f"aresp_{uuid4().hex[:16]}",
+                    run_id=run.run_id,
+                    person_id=DEMO_PERSON_ID,
+                    activity_id=activity_id,
+                    response="not_for_me",
+                    reason="too_far",
+                    recorded_on_day=run.current_day,
+                    actor=DEMO_PERSON_ID,
+                    recorded_at=datetime.now(UTC),
+                )
+            )
         with repository.sessions() as session:
             assert session.scalar(text("select count(*) from public.activity_offer_responses")) == 1
 
@@ -797,7 +805,7 @@ def test_the_dimension_preference_run_scope_mirror_replays_twice_over_an_alembic
             assert "ix_activity_dimension_preferences_run_id" in indexes
 
             version = session.scalar(text("select version_num from public.alembic_version"))
-            assert version == "c1e5a8f2d640"
+            assert version == "a7d4c2e9f1b3"
 
             # A decline_reason row is never standing: the mirror's backfill must catch it even
             # though Alembic's own backfill already ran before this row ever existed.

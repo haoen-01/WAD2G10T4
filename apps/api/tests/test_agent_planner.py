@@ -1384,45 +1384,6 @@ def test_an_activity_run_that_never_requested_a_client_names_no_provider(
     assert "transport" in evidence and evidence["transport"] is None
 
 
-@pytest.mark.parametrize(
-    ("overrides", "count", "expected"),
-    [
-        ({"llm_provider": "recorded"}, 2, ("recorded", "recorded")),
-        ({"llm_provider": "anthropic"}, 2, ("anthropic", "live")),
-        ({"llm_enabled": False, "llm_provider": "recorded"}, 2, (None, None)),
-        ({"llm_provider": "recorded"}, 0, (None, None)),
-    ],
-    ids=["recorded", "live", "planner_disabled", "nothing_to_rank"],
-)
-def test_the_repository_safety_net_keeps_the_provider_rule(
-    monkeypatch: pytest.MonkeyPatch,
-    overrides: dict[str, Any],
-    count: int,
-    expected: tuple[str | None, str | None],
-) -> None:
-    """`_plan_activity_ranking_safely` builds its own degraded record when the loop raises; it
-    must state provider and transport by the same rule the loop does."""
-    from silverloop.sql_repository import SqlAlchemyRepository
-
-    def _raising_loop(*_args: Any, **_kwargs: Any) -> Any:
-        raise RuntimeError("a transport nobody anticipated")
-
-    monkeypatch.setattr("silverloop.sql_repository.plan_activity_ranking", _raising_loop)
-    repository = SqlAlchemyRepository(
-        "sqlite+pysqlite:///:memory:", settings=settings_with(**overrides)
-    )
-    try:
-        context = _activity_context(count)
-        result = repository._plan_activity_ranking_safely(
-            context, fallback_order=[option.key for option in context.options]
-        )
-    finally:
-        repository.close()
-    assert result.mode == "fallback_error"
-    assert (result.provider, result.transport) == expected
-    assert (result.as_evidence()["provider"], result.as_evidence()["transport"]) == expected
-
-
 # --------------------------------------------------------------------------------------
 # Activity ranking prompt: claims the deterministic layer actually keeps
 # --------------------------------------------------------------------------------------

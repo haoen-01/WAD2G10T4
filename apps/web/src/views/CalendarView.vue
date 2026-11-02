@@ -21,9 +21,7 @@ import { addDays, monthGrid, monthOf, shiftMonth } from '@/lib/calendar';
 import { coverageOf, stillNeedsHelper, upcomingWithin } from '@/lib/coverage';
 import { KIND_LABELS } from '@/lib/family';
 import type { Appointment, AppointmentKind, AvailabilityStatus, FamilyMember } from '@/lib/family';
-import { taskOwnerOf } from '@/lib/family-group';
 import { formatIsoDay, parseIsoDay } from '@/lib/format-date';
-import { DEMO_PERSON_ID } from '@/lib/labels';
 import { freeMembers, heatFor } from '@/lib/planner';
 import type { TaskInput, TaskOccurrence } from '@/lib/tasks';
 
@@ -87,36 +85,27 @@ const uncoveredByDay = computed(() => {
 
 const dayList = computed(() => byDay.value[selectedDay.value] ?? []);
 
-// ---- Tasks from the Tasks panel (kept in this browser), shown beside the appointments ----
+// ---- Tasks (kept by the family group, `useTasks`), shown beside the appointments ----
 // They need nobody to go along, so "Only those still needing someone" hides them.
 const tasks = useTasks();
-// Keyed by the senior once linked, else by the group, so a new group starts with no tasks.
-const taskPerson = computed(() =>
-  taskOwnerOf({ group_id: groupId.value, person_id: family.personId.value }, DEMO_PERSON_ID),
-);
 const tasksByDay = computed<Record<string, TaskOccurrence[]>>(() =>
   onlyOpen.value
     ? {}
     : tasks.tasksByDay(
-        taskPerson.value,
         monthGrid(month.value)
           .flat()
           .map((cell) => cell.iso),
       ),
 );
-const dayTasks = computed(() =>
-  onlyOpen.value ? [] : tasks.tasksOn(taskPerson.value, selectedDay.value),
-);
+const dayTasks = computed(() => (onlyOpen.value ? [] : tasks.tasksOn(selectedDay.value)));
 function toggleTask(task: TaskOccurrence) {
-  tasks.setCompleted(taskPerson.value, task.task_id, task.date, !task.completed);
+  void tasks.setCompleted(task.task_id, task.date, !task.completed);
 }
-function saveTask(taskId: string, input: TaskInput) {
-  tasks.update(taskPerson.value, taskId, input);
-  showToast('Saved.');
+async function saveTask(taskId: string, input: TaskInput) {
+  if (await tasks.update(taskId, input)) showToast('Saved.');
 }
-function deleteTask(taskId: string) {
-  tasks.remove(taskPerson.value, taskId);
-  showToast('Deleted.');
+async function deleteTask(taskId: string) {
+  if (await tasks.remove(taskId)) showToast('Deleted.');
 }
 // The next few appointments, leaving out the chosen day: those are already listed above.
 const comingUp = computed(() =>

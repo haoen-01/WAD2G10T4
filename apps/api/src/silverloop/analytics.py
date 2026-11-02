@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, time
+from datetime import datetime
 from statistics import median
 
 from silverloop.models import (
-    ActivityPosition,
-    ActivityRelativeDay,
-    ActivityRelativeToUsual,
     BaselineSummary,
     ContextSignal,
     DailyMetric,
@@ -177,78 +174,6 @@ def low_day_threshold(baseline: BaselineSummary) -> float:
     nothing reads as low against a baseline of nothing."""
     effective = baseline.effective_median_steps or baseline.median_steps
     return max(0.0, effective) * LOW_DAY_FRACTION
-
-
-# The bounds of `activity_relative_to_usual`'s window: a coordinator's recent-days view, not a
-# history export.
-ACTIVITY_RELATIVE_DEFAULT_DAYS = 7
-ACTIVITY_RELATIVE_MAX_DAYS = 14
-
-
-def activity_relative_to_usual(
-    metrics: list[DailyMetric],
-    *,
-    person_id: str,
-    consent_active: bool,
-    days: int = ACTIVITY_RELATIVE_DEFAULT_DAYS,
-    confirmed_reference: ConfirmedReference | None = None,
-) -> ActivityRelativeToUsual:
-    """The most recent `days` stored days, each placed against the person's own usual level.
-
-    `metrics` is the run's full record in day order, the last entry being today. The usual level is
-    the one `analyse_signal` decided today with -- the baseline over everything before today, with
-    the same confirmed reference -- and every day in the window is judged against that one line,
-    exactly as the ladder's persistence count judges its window (`_sustained_low_days`). A day the
-    tracker was not worn long enough is unusable and carries no position.
-
-    With `consent_active` false nothing is read back: no days, no usual level, zero counts. A
-    withdrawn consent stops Care+ reading the person's days to anyone, not only to them.
-
-    Raises `ValueError` for an empty record; callers resolve that before asking.
-    """
-    if not metrics:
-        raise ValueError("No stored daily metrics to compare.")
-    current = metrics[-1]
-    if not consent_active:
-        return ActivityRelativeToUsual(
-            person_id=person_id,
-            as_of_day=current.day,
-            consent_active=False,
-            usual_available=False,
-            days=[],
-            lower_days=0,
-            usable_days=0,
-        )
-    window_size = max(1, min(days, ACTIVITY_RELATIVE_MAX_DAYS))
-    baseline = calculate_baseline(metrics[:-1], confirmed_reference=confirmed_reference)
-    threshold = low_day_threshold(baseline)
-    usual_available = threshold > 0
-    result_days: list[ActivityRelativeDay] = []
-    for metric in metrics[-window_size:]:
-        usable = assess_data_quality(
-            metric,
-            person_id=person_id,
-            assessed_at=datetime.combine(metric.day, time(hour=12), tzinfo=UTC),
-        ).safe_to_interpret
-        position: ActivityPosition | None = None
-        if usable and usual_available:
-            position = (
-                ActivityPosition.LOWER
-                if metric.steps < threshold
-                else ActivityPosition.USUAL_OR_HIGHER
-            )
-        result_days.append(
-            ActivityRelativeDay(day=metric.day, reading_usable=usable, position=position)
-        )
-    return ActivityRelativeToUsual(
-        person_id=person_id,
-        as_of_day=current.day,
-        consent_active=True,
-        usual_available=usual_available,
-        days=result_days,
-        lower_days=sum(1 for day in result_days if day.position is ActivityPosition.LOWER),
-        usable_days=sum(1 for day in result_days if day.reading_usable),
-    )
 
 
 def _sustained_low_days(history: list[DailyMetric], current: DailyMetric, threshold: float) -> int:

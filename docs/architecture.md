@@ -28,9 +28,8 @@ evidence.
   `@supabase/supabase-js`, and every domain read and write is an Axios call in
   `services/careApi.ts`, typed with the generated client's types. Home's weather card and the
   calendar's public holidays call data.gov.sg and Nager.Date directly (`services/publicApis.ts`).
-  Calendar and Family screens use the family API. The exception is tasks (Home, Senior, and shown
-  on the Calendar): the API has no such concept yet, so they are kept in the browser's
-  `localStorage` (`composables/useTasks.ts`, rules in `lib/tasks.ts`; see `docs/tasks.md`).
+  Calendar and Family screens use the family API, and so do tasks (Home, Senior, and shown on the
+  Calendar: `composables/useTasks.ts`, rules in `lib/tasks.ts`; see `docs/tasks.md`).
 - The family screens are an app-style shell: a bottom tab bar on phones and a header pill on
   desktop (`components/ui/MainNav.vue`, CSS only). Home shows the family activity feed and
   check-ins (`composables/useFamilyActivity.ts`: one polling store per app, 30 s and on focus,
@@ -107,15 +106,16 @@ scored as such; it is not attributable to the offer and is never reported as if 
 `apps/api/src/silverloop/` is about 45,000 lines, a third of it `sql_repository.py`. This is what
 each file owns; `docs/api.md` covers the HTTP surface these files back.
 
-**What the screens use.** The web app calls about 28 of the API's 85 routes: person state and
-metrics, interventions and their outcomes, `/v1/me`, care groups, the family calendar, the family
-activity feed and check-ins, per-day appointment notes and the watch status (all listed in
-`apps/web/src/services/careApi.ts`). The e2e suite also calls
-`/v1/demo/reset` and `/v1/simulation/advance`. The rest serve features with no current screen:
-coordinator review (queue, cases, review setting, care priorities), the evaluator ranker inspector,
-activity search, week plans, goals, preferences, the world model and replanning. Several of those
-still run inside `advance` every simulated day (the review setting feeds `policy.decide`; review
-cases and replan offers are written there), so they are kept and tested.
+**What the screens use.** The web app calls the routes listed in
+`apps/web/src/services/careApi.ts` (person state and metrics, interventions and their outcomes,
+`/v1/me`, care groups, the family calendar, the family activity feed and check-ins, per-day
+appointment notes, tasks, the watch status and the assistant) plus `/v1/auth/me`. The e2e suite
+also calls `/v1/demo/reset`, `/v1/simulation/advance` and `/v1/people/{id}/consent`. Step 7
+removed the 51 routes that served features with no screen: coordinator review (queue, cases,
+review setting, care priorities), the evaluator ranker inspector, activity search, week plans,
+goals, preferences, the world model, replanning and the operations reads (`docs/api.md`,
+"Removed in step 7"). The modules `advance` still runs stay (the review setting feeds
+`policy.decide`; review cases and replan offers are written there), so they are kept and tested.
 
 Top-level modules:
 
@@ -165,12 +165,10 @@ Top-level modules:
   keyword parser, catalogue normalisation and the tests that stop the two drifting apart. The LLM
   tool enum is generated from it at import; `normalise` checks a hand-authored catalogue label
   against a listing's own words and never writes one.
-- `intent.py` -- the deterministic, no-model text -> `ActivityIntent` parser; the
-  offline/always-available path for the user-initiated activity search. A negated phrase produces
-  an `excluded_*` entry and never a positive value on any axis, nor its complement.
-- `activity_search.py` -- the user-initiated loop's deterministic core:
-  `filter_candidates`, `reasons_for`, `rank_candidates`. Pure functions, no DB or network access;
-  their output is the allow-list the activity-ranking guardrail enforces.
+- `activity_search.py` -- the activity loop's deterministic core:
+  `filter_candidates`, `reasons_for`, `rank_candidates`. Pure functions, no DB or network access.
+  Since step 7 its caller is `advance` (replan offers, through `replanning.py`); the search route
+  it was written for is gone.
 
   The rule that decides what belongs in the filter rather than the ranker: **a hard rule exists
   only where a mismatch is a barrier the person cannot cross -- a distance they gave as a number,
@@ -185,8 +183,6 @@ Top-level modules:
   itself. See [Replanning](#replanning).
 - `follow_up.py` -- `observe_effect`: describes, but never claims to cause, what a
   person's activity did in the days after one piece of outreach.
-- `outreach_content.py` -- the fixed, reviewed "tell me more" copy behind an
-  intervention. Never model-generated; this is the one screen that asks someone to move their body.
 - `fixtures.py` -- synthetic persona histories, the activity catalogue fixture, and
   demo-reset content. The single source of the deterministic Mdm-Lim-and-friends dataset.
 - `runtime.py` -- `validate_runtime`: refuses to start on a misconfigured profile. See
@@ -220,9 +216,8 @@ Subpackages:
   `export.xml` -- proof that real-world ingestion works, not a live HealthKit integration.
 - `agent/` -- the bounded LLM planning loop, gated by `Settings.llm_enabled` (default `false`).
   `planner.py` holds `plan_outreach` (which permitted outreach candidate to offer, and how to word
-  it) and `plan_activity_ranking` (reordering a user-initiated search's already-filtered options);
-  `intent_planner.py` holds `plan_intent`, the model-backed alternative to `intent.py`'s
-  deterministic parser; `guardrails.py` is the actual security boundary -- plain, deterministic
+  it) and `plan_activity_ranking` (reordering a user-initiated search's already-filtered options;
+  no route calls it since step 7 removed the search); `guardrails.py` is the actual security boundary -- plain, deterministic
   Python that rejects any proposal using clinical/emergency language or naming a candidate outside
   the permitted set, with no model call of its own; `tools.py` is the read-only tool surface the
   model can call; `constants.py` fixes model ids, the iteration ceiling and message-length limits;
@@ -341,9 +336,9 @@ decorative timeline.
 
 This shape is a contract, not an implementation detail. No screen shows the trace any more, so
 it is asserted against the API response directly. The trace is returned on `AdvanceResponse.loop_trace`
-and persisted verbatim as JSON on the `simulation_events.response_json` column, so
-`GET /v1/simulation/latest` and `GET /v1/simulation/history` can replay a past trace after a
-restart without recomputing it.
+and persisted verbatim as JSON on the `simulation_events.response_json` column, so an idempotent
+`POST /v1/simulation/advance` replay returns a past trace after a restart without recomputing it.
+(`GET /v1/simulation/latest` and `/history`, which also read it back, went in step 7.)
 
 ## Data model
 
@@ -445,13 +440,12 @@ validated once, at startup, by `runtime.validate_runtime` -- not re-checked per 
   of what the setting says -- so the offline demo and Playwright never depend on data.gov.sg or
   `date.nager.at` being reachable.
 - **`LLM_ENABLED`** defaults `false`. Unlike some historical documentation of this codebase
-  suggests, this flag is not inert: `agent.planner.plan_outreach`, `plan_activity_ranking` and
-  `agent.intent_planner.plan_intent` all branch on it directly, and when it is `true` with a
-  reachable provider and a valid key, the model genuinely selects and words outreach, ranks a
-  user-initiated activity search, and parses free-text search requests -- subject to the
-  deterministic guardrail in every case. What is true is that the full demo, every test and the
-  `offline` profile all run with it `false`, so the code path that ships and is exercised end to
-  end is the deterministic one; a reader who has only seen the demo or the tests will only ever
+  suggests, this flag is not inert: `agent.planner.plan_outreach` and `plan_activity_ranking` both
+  branch on it directly, and when it is `true` with a reachable provider and a valid key, the model
+  genuinely selects and words outreach -- subject to the deterministic guardrail in every case.
+  (The search it also ranked, and the free-text parser `agent.intent_planner`, went in step 7.)
+  What is true is that the full demo, every test and the `offline` profile all run with it
+  `false`, so the code path that ships and is exercised end to end is the deterministic one; a reader who has only seen the demo or the tests will only ever
   see `fallback_disabled`. `runtime.validate_runtime` refuses to start with `LLM_ENABLED=true` and
   no reachable credential (an Anthropic key, or Bedrock's ambient AWS credential chain plus a
   region), specifically so an operator cannot discover mid-demo that the planner silently fell back.
@@ -459,11 +453,14 @@ validated once, at startup, by `runtime.validate_runtime` -- not re-checked per 
 
 ## The activity-planning subsystem
 
-**No current screen uses this subsystem.** It is reachable through the API (and `/docs`) only.
+**No route reaches this subsystem any more.** Step 7 removed the routes no screen used, including
+every route below (`docs/api.md`, "Removed in step 7"). What `advance` still runs of it --
+`activity_search.py`, `preferences.py`, `replanning.py` and `context_question.py` -- stays, and so
+does this description of it.
 
-Commit `33ce89f` ("add activity planning backend") added the user-initiated loop described in
-`docs/api.md`: `activity_search.py`, `intent.py`, `preferences.py`, `replanning.py` and
-`context_question.py`, plus the routes, models and repository methods that serve
+Commit `33ce89f` ("add activity planning backend") added the user-initiated loop:
+`activity_search.py`, `intent.py`, `preferences.py`, `replanning.py` and
+`context_question.py`, plus the routes, models and repository methods that served
 `/v1/activities/search`, `/v1/people/{id}/week`, `/v1/people/{id}/goals` and
 `/v1/people/{id}/replan-notices`. It answers a different question from the policy ladder, and says
 so in its own code: `policy.decide` answers "should we contact this person?", triggered by a
@@ -546,18 +543,14 @@ disagreement. A belief a statement has consumed ("That's right") is superseded, 
 from the resolved set and cannot be cited -- which is what stops agreeing with an inference
 manufacturing a contradiction with it. The fixture biography is
 labelled `fixture` and never gates anything -- in particular it never silences the one context
-question, which an earlier guard had made unreachable for every demo persona. `GET
-.../world-model` is scoped by _identity_ (`check_person_scope`), not by role: with auth enforced,
-only the senior it belongs to can call it, so a coordinator only ever sees `WorldModelQuality`
-counts (`/v1/metrics`). With `auth_enabled=false` -- every build and demo running today -- that
-same identity check passes for whichever caller `require_senior` returns, so any caller can read
-the full envelope, stated text included. No safety or consent rule
-reads role, so this is not a policy gap; it is a reason to treat "coordinators never see the
-facts" as a property of an authenticated deployment, not of this build as shipped.
+question, which an earlier guard had made unreachable for every demo persona. Since step 7 no
+route returns the facts: `GET .../world-model` went, and only `repository.metrics()` (read by
+`supabase_smoke.py`) still assembles the model, for its `WorldModelQuality` counts.
 
 ## Replanning
 
-**No current screen shows replan offers.** They are still written inside `advance()`.
+**No current screen shows replan offers, and since step 7 no route writes a plan or answers an
+offer.** `advance()` still writes offers for any plan on record; in the running app there is none.
 
 The one place the product changes a plan a person already made, and the one place it must never do
 so quietly. The loop is: the world changes -> an offer is recorded -> the person is asked -> they
@@ -580,7 +573,8 @@ It now only sets the rain context, and the offer carries reason `weather`.
 `programme_becomes_full` still marks availability, because that one genuinely is the catalogue
 changing.
 
-**Nothing is replaced silently.** `GET /v1/people/{id}/replan-notices` reads the open offers (the
+**Nothing is replaced silently.** (The three routes in this paragraph went in step 7.)
+`GET /v1/people/{id}/replan-notices` read the open offers (the
 reason is the recorded one; only the alternative is recomputed, so a listing that has since filled
 up is never still handed to someone). `POST .../week/{plan_id}/replace` plans the replacement
 through the same `_plan_activity_in_session` any other plan uses -- same session-day, week and
@@ -593,8 +587,9 @@ nothing similar was ever found.
 **A replaced session is never asked about again.** `_week_plan_model` keeps the row (it is how the
 week says what happened) but never marks it `awaiting_report`, a follow-through against it is
 refused, and `plans_due` skips it -- closing the "did you get a chance to go?" about a session that
-was cancelled under the person. `/v1/metrics` carries `replans_offered`, `replans_accepted` and
-`replans_declined`; the two answers do not sum to the first, because an offer can still be open.
+was cancelled under the person. `repository.metrics()` carries `replans_offered`,
+`replans_accepted` and `replans_declined`; the two answers do not sum to the first, because an
+offer can still be open.
 
 No model ranks a replacement: the alternative comes from the same deterministic
 `filter_candidates`/`rank_candidates` pair the search uses, and the audit row says so

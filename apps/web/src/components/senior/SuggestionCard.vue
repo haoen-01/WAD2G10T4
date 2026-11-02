@@ -1,16 +1,21 @@
-<script setup>
+<script setup lang="ts">
+import type { Intervention, OutcomeKind } from '@silverloop/api-client';
 import { onBeforeUnmount, ref } from 'vue';
 
 import Icon from '@/components/ui/Icon.vue';
+import type { IconName } from '@/components/ui/Icon.vue';
 import { SENIOR_REPLIES } from '@/lib/labels';
 
-const props = defineProps({
-  suggestion: { type: Object, required: true },
-  busy: { type: Boolean, default: false },
+const props = withDefaults(defineProps<{ suggestion: Intervention; busy?: boolean }>(), {
+  busy: false,
 });
-const emit = defineEmits({ reply: (outcome, thanks) => Boolean(outcome && thanks) });
+const emit = defineEmits<{ reply: [outcome: OutcomeKind, thanks: string] }>();
 const replies = SENIOR_REPLIES;
-const icons = { accepted: 'check-circle', deferred: 'clock', declined: 'x' };
+const icons: Partial<Record<OutcomeKind, IconName>> = {
+  accepted: 'check-circle',
+  deferred: 'clock',
+  declined: 'x',
+};
 const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window;
 const reading = ref(false);
 
@@ -35,7 +40,7 @@ function readAloud() {
   reading.value = true;
   window.speechSynthesis.speak(utterance);
 }
-function reply(outcome, thanks) {
+function reply(outcome: OutcomeKind, thanks: string) {
   stopReading();
   emit('reply', outcome, thanks);
 }

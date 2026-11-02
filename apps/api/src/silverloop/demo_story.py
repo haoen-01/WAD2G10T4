@@ -334,7 +334,7 @@ def _write_groups(
             also_creators=[subs["weiming"], subs["aisha"], *DEMO_FAMILY],
             leave_other_unlinked_groups=False,
         )
-        # Sample tasks go here once `family_tasks.seed_demo_tasks` (issue #13) is on this branch.
+        # `reset_demo_in` also seeds Mdm Lim's sample tasks (`family_tasks.seed_demo_tasks`).
         tan_group_id, pin_expires = _seed_mr_tan(session, family, calendar, subs, today)
         # Last, and so later than Mr Tan's creation: this is the group Sarah lands on.
         session.scalars(

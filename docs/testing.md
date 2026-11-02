@@ -13,17 +13,15 @@ A separate `postgres-integration` CI job starts a disposable PostgreSQL 17 servi
 `pnpm test:postgres`. Local execution requires `SILVERLOOP_POSTGRES_TEST_URL`; the database name must
 contain `test`, which prevents the test from targeting the normal Supabase `postgres` database.
 
-`apps/api/tests/test_query_counts.py` pins how many SQL statements each coordinator and person read
-issues. Against the shared database each statement is a round trip to the pooler, so query count
-drives latency. Every read must stay within its ceiling in `_CEILINGS`, measured on six people with 23
-days of history, and must use one pooled connection. The counts also must not grow with the data. A
-caseload-wide read (people, priorities, fleet metrics, queue) must issue as many queries for two people
-as for six. A person read (case, metrics, state, world model and others) must issue as many for 7 days
-of history as for 23. A new per-person or per-intervention query therefore fails a test. Raising a
-ceiling needs review. The file also checks that `GET /v1/coordinator/metrics` equals the sum of each
-rostered person's `GET /v1/metrics`, and that `GET /v1/coordinator/priorities?person_id=` returns that
-person's row from the full board. Everything runs on in-memory SQLite, so the tests count round trips
-but do not time them.
+`apps/api/tests/test_query_counts.py` pins how many SQL statements each person read issues (the
+senior's `/state`, and the metrics and world model `repository.metrics()` assembles). Against the
+shared database each statement is a round trip to the pooler, so query count drives latency. Every
+read must stay within its ceiling in `_CEILINGS`, measured on six people with 23 days of history,
+and must use one pooled connection. The counts also must not grow with the data: a person read must
+issue as many queries for 7 days of history as for 23. A new per-intervention query therefore fails
+a test. Raising a ceiling needs review. Everything runs on in-memory SQLite, so the tests count
+round trips but do not time them. (The coordinator caseload reads it also measured went with their
+routes in step 7.)
 
 Engine and pool options for a server database (`_engine_options`) are covered in
 `apps/api/tests/test_engine_options.py`. That test builds the engine without connecting to a
@@ -136,97 +134,40 @@ after, all low wear, a rise, a fall, no change — and asserts the caveat is pre
 There is no code path that produces a number without the sentence saying a single record cannot
 show cause.
 
-**`test_outreach_content.py` — the button leads somewhere.** Both movement candidates return real
-steps; an unknown `candidate_key` returns kind `none` and invents nothing; a `programme:` key with
-no programme attached does not fabricate a venue. The fixed content is also asserted against the
-senior shell's own vocabulary guard (`stable|watch|review|\d+%`) and against prescriptive counts and
-durations, so a violation fails in a unit test rather than in a browser two layers away.
-
-**`test_follow_through_api.py` / `test_follow_through_ownership.py`.** `deferred` is accepted and
-audited while coordinator-only outcomes are still refused; follow-through is 422 before acceptance,
-422 after any non-acceptance, and 422 on a repeat; the follow-up route is always 200 with "too early
-to say" as a normal answer. Three declines suppress a candidate deterministically, and — the edge
+**`test_follow_through_api.py`.** `deferred` is accepted and audited while coordinator-only
+outcomes are still refused. Three declines suppress a candidate deterministically, and — the edge
 case that decides whether suppression is a feature or an outage — when **every** candidate for a
 decision is muted the result is an audited `NO_ACTION` with a reason naming the person's own choice,
 never a crash and never a silent skip. Suppression is asserted to narrow the permitted set without
-ever raising a decision rung. The ownership file mirrors `test_intervention_outcome_ownership.py`
-across all five new routes: out of scope is 404 rather than 403 so none of them is an existence
-oracle, the refusal leaves the victim's interventions, audit trail and preference scores untouched,
-and only the senior may write a candidate preference — a coordinator attempting to mute a suggestion
-on someone else's behalf gets 403.
+ever raising a decision rung. (The follow-through, follow-up, enjoyment, mute and day-dispute
+routes, and `test_follow_through_ownership.py` with them, went in step 7; a mute or a dispute
+`advance` still reads is written as a row through `tests/row_fixtures.py`.)
 
 **Browser.** `apps/e2e/tests/loop.spec.ts` drives the real Vue app against the real API (SQLite,
 fixtures, sign-in off). The follow-through screens tested by the former browser specs are not part
 of the current web app; the API behaviour above is still covered by the API tests.
 
-## Search-path goldens
-
-`apps/api/tests/test_search_ranking_golden.py` pins what `POST /v1/activities/search` actually
-records, end to end, in two committed files under `apps/api/tests/golden/`:
-
-- **`search_detail_ranking.jsonl`** — the stored audit event's `detail.ranking` rows (and result
-  order) for 145 searches across the five personas and a fixed set of request texts. It covers the
-  repository's read phase as well as the ranker (engagement counting, series roll-up, rain,
-  preferences), so a change anywhere on the search path shows up here.
-- **`search_scenarios_golden.jsonl`** — paths the first file cannot reach: a variety swap on the
-  search path, a went-and-enjoyed plan report, same-day repeat taps, an "interested" on a sibling
-  session after a decline, and a search whose bounded planner (a scripted transport, never the
-  network) is rejected once, then narrows and reorders.
-
-**When to regenerate.** Only for a deliberate change to ranking or to what the audit records — never
-to make a failing test pass. A golden failure on a change that was not meant to move rankings is the
-test doing its job.
-
-**How.** From `apps/api`:
-`SILVERLOOP_REGENERATE_SEARCH_GOLDEN=1 uv run pytest tests/test_search_ranking_golden.py`, then run
-it again without the variable to confirm it passes, then run `pnpm test:scenarios`, which should not
-move.
-
-**Review the diff before accepting it**, grouped by the cause you expect: every changed row should
-be explainable by the change, and a row nothing explains is a regression. Record the reviewed
-summary in the test module's docstring. History: both files were captured before the
-ranker-inspector refactor (commit `0fdc84f`) and proved it behaviour-identical; they were
-regenerated on 2026-09-15 for the recorded-discrepancy fixes — every row gained `tier`,
-`matched_axes` and `coverage` (D2); 90 of 145 cases swap sessions within a programme because equal
-scores now break soonest first, and none reorders programmes (D18); preference and engagement values
-moved where an unclarified "not for me" is held back and activity types resolve per value (D7, D17);
-reason lines follow positive contributions (D12, D15); the scripted planner case labels its unseen
-tail `ranker` (D3). They were regenerated again on 2026-09-15 (round 2), when the capture gained
-`more_reasons` beside the visible `reasons`. Round 2 was reviewed field by field: the item-1
-checkpoint (card reasons moved to `more_reasons` before any wording change) left both golden files
-byte-identical, so no visible line moved; the regeneration itself changed only reason text — the
-catalogue filler line became the bare catalogue label (item 8f), stated, goal and learned lines were
-reworded by source and every "--" dash became a comma phrase (item 3) — and added the `more_reasons`
-capture (62 lines across both files). No order, score, tier, filter or count changed.
-
 ## Backend features with no screen
 
-The API keeps features no current screen uses: the coordinator's review setting, review cases and
-what each review teaches. Some of them still run inside every simulated day, so their tests stay:
+Step 7 removed the routes no screen used. What `advance` still runs of those features -- the review
+setting's daily checks, system-closed review cases -- keeps its tests. State that only a removed
+route used to write (an approval, a coordinator review, a week plan, a context answer) is written
+as a row by `tests/row_fixtures.py` or a file's own fixture:
 
 - `test_review_threshold.py` — every guardrail rule pinned pass and fail, the live-setting fold,
   expiry, reconfirm, the fixed-rule proposer, notice wording against the senior vocabulary.
-- `test_review_threshold_api.py`, `test_review_threshold_checking.py` — approval flow, cooldown, cap,
-  manual set, reverts, expiry, far-more-severe, checking-period close, write-ups, reads write nothing,
-  run-row lock ordering.
-- `test_threshold_planner.py` — the agent on fake transports: revision, cap, every fallback, note
-  injection never loosens, fencing, no ids or wall-clock times in prompts, byte-identical prompts for
-  identical flows, no senior statements in any tool payload.
-- `test_review_threshold_postgres.py` (gated on `SILVERLOOP_POSTGRES_TEST_URL`) — concurrent reviews,
-  approvals, consent changes and advances on a loosened setting deadlock-free.
-- `test_review_threshold_demo.py` — the Mdm Wong guided sequence, since the e2e database resets only
-  Mdm Lim.
-- `test_review_lessons_contract.py` — `classify_review` over the full input grid, reached-too-late over
-  known context, the context-gap tally, and the import boundary (`policy.py`, `review_threshold.py` and
-  `agent/` never import `review_lessons`).
-- `test_review_context_gap_contract.py`, `test_review_context_gap_migration.py` — the 422 rule,
-  storage, presence-only audit, the tally and receipt, and Alembic `7c3e9a1f4b28` up and down.
-- `test_review_setting_receipt.py` — receipt subjects, exclusions and what each review led to.
-- `test_case_delta.py`, `test_case_since_last_review_api.py` — the since-last-review anchor and items,
-  that nothing the senior said and no note appears, and `None` once resolved.
-- `test_stored_state_compat.py` — a legacy snapshot without `decided_by_gate` still serves history,
-  returns a classified `stored_state_incompatible` on replay and `latest`, and recovers on reset. It
-  also checks that server validation errors are `internal_error` 500s while request validation stays a 422.
+- `test_review_threshold_api.py`, `test_review_threshold_checking.py` — what `advance` does with an
+  approval on record: expiry, the shadow check, far-more-severe reverts, the checking-period close,
+  write-ups, the senior notice, consent rejecting an open proposal, run-row lock ordering.
+- `test_threshold_planner.py` — the agent on fake transports: revision, cap, every fallback, fencing,
+  the tool surface and the prompts.
+- `test_review_threshold_postgres.py` (gated on `SILVERLOOP_POSTGRES_TEST_URL`) — the run lock
+  serialises writers without blocking a child insert.
+- `test_review_context_gap_contract.py`, `test_review_context_gap_migration.py` — the evaluation's
+  authored-metric seam, and Alembic `7c3e9a1f4b28` up and down.
+- `test_stored_state_compat.py` — a legacy snapshot without `decided_by_gate` returns a classified
+  `stored_state_incompatible` on replay and recovers on reset. It also checks that server validation
+  errors are `internal_error` 500s while request validation stays a 422.
 
 ## What the tests establish
 
@@ -252,8 +193,6 @@ what each review teaches. Some of them still run inside every simulated day, so 
 - Every follow-up observation carries its non-causal caveat, including the unavailable ones.
 - "Yes, tell me more" leads to fixed, reviewed content on the senior surface, and that content
   carries no coordinator vocabulary or raw figures.
-- No senior can read or write another person's follow-through, outreach detail, follow-up,
-  preferences or day disputes, and only the senior may mute their own suggestions.
 - A real Chromium session connects a simulated decline (played through the API, not a Simulator
   screen) to the senior's reply, and a persistent decline reaching `coordinator_review` is checked
   against the API response alone -- there is no Care Team screen in the current web app to review it
@@ -274,22 +213,15 @@ what each review teaches. Some of them still run inside every simulated day, so 
 - A stated preference supersedes inferred rows on its dimension rather than averaging with them;
   an enjoyment report supersedes attendance in the outreach learner; a coordinator closing a case
   moves nothing; three `bad_day` declines never mute a candidate.
-- While consent is withdrawn a search is answered and a tap recorded, but nothing is inferred;
-  what the person states is still honoured.
 - The quiet-day question is reachable for every persona (the fixture biography never silences
   it), and its answer is a fact about one day in the world model.
-- Every new route 404s for another person's plan, preference or world model; the preference
-  `value` path segment, `language`, `raw_text` and `rank_shown` are bounded at the contract; a
-  client cannot spoof `parsed_by`; a racing double tap is a 409; the follow-through audit records
-  `note_present`, never the note; the request log carries the route template, never the path.
-- The intent planner reaches the model with only `LLM_ENABLED=true` set; the planner's
-  allow-list is exactly the shown set; person text and catalogue titles reach a prompt fenced and
-  labelled as data, and a poisoned title, a "SYSTEM:" directive or a forged closing fence cannot
-  add, drop or reorder outside the allow-list.
+- A racing double tap is a 409; the consent audit records the reason's length, never the reason;
+  the request log carries the route template, never the path.
+- The activity planner's allow-list is exactly the shown set; person text and catalogue titles
+  reach a prompt fenced and labelled as data, and a poisoned title, a "SYSTEM:" directive or a
+  forged closing fence cannot add, drop or reorder outside the allow-list.
 - Every ORM table has a deny policy in a Supabase mirror file, and the newest mirror advances
   `alembic_version` to the repository head.
-- The API behind the senior surface (search, "I'm interested", "Not for me" and the preferences it
-  teaches) is covered by the API tests; the current web app does not have those screens.
 
 ## What the tests do not establish
 

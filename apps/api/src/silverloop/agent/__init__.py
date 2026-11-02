@@ -13,7 +13,6 @@ from silverloop.agent.guardrails import (
     validate_activity_order,
     validate_proposal,
 )
-from silverloop.agent.intent_planner import plan_intent
 from silverloop.agent.models import (
     AgentProposal,
     AgentRun,
@@ -70,7 +69,6 @@ __all__ = [
     "execute_read_tool",
     "log_provider_failure",
     "plan_activity_ranking",
-    "plan_intent",
     "plan_outreach",
     "tool_definitions",
     "validate_activity_order",

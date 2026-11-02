@@ -21,6 +21,7 @@ from silverloop.config import Settings
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.main import create_app
 from silverloop.sql_repository import SqlAlchemyRepository
+from tests.row_fixtures import audit_events
 
 JWT_SECRET = "outcome-ownership-test-secret"
 SUPABASE_URL = "https://project.supabase.co"
@@ -109,7 +110,7 @@ def test_senior_cannot_record_outcome_on_another_persons_intervention(
     intervention_id = advance.created_intervention.intervention_id
     candidate_key = advance.created_intervention.evidence["candidate_key"]
 
-    events_before = repo.list_events(person_id=DEMO_PERSON_ID)
+    events_before = audit_events(repo, person_id=DEMO_PERSON_ID)
     preference_before = repo.metrics(person_id=DEMO_PERSON_ID).candidate_preference_scores.get(
         candidate_key
     )
@@ -133,7 +134,7 @@ def test_senior_cannot_record_outcome_on_another_persons_intervention(
     assert matching[0].outcome is None
 
     # A's audit trail is unchanged -- no `intervention_outcome_recorded` event was appended.
-    events_after = repo.list_events(person_id=DEMO_PERSON_ID)
+    events_after = audit_events(repo, person_id=DEMO_PERSON_ID)
     assert len(events_after) == len(events_before)
     assert {event.event_id for event in events_after} == {event.event_id for event in events_before}
 

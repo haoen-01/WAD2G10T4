@@ -147,7 +147,7 @@ It never widens a learned ceiling, and a number still filters rather than costs.
 **Amendment 2026-09-15, round 2 — a standing "near" is soft in the same way.** A stated or goal
 "near" with no number (see §6, round 2) is not a hard rule either: it narrows the tolerance to
 `preferences.NEARBY_RADIUS_M`, the same 1000 m radius a "near me" phrase implies (`intent.py`
-imports the constant), and is costed only in `travel_utility` (basis `stated_near` when it binds).
+imported the constant until the search route and its parser were removed in step 7), and is costed only in `travel_utility` (basis `stated_near` when it binds).
 It never removes a listing and never widens a learned ceiling; a far-leaning statement ("far"
 liked, "near" avoided) changes nothing and cannot cancel a stated or goal "near".
 

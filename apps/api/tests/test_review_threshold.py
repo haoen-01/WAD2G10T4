@@ -1120,14 +1120,6 @@ def test_the_notice_a_proposal_would_produce_if_approved() -> None:
     )
 
 
-@pytest.mark.parametrize("reason", ["consent_withdrawn", "superseded"])
-def test_system_rejection_reasons_are_refused_on_a_request(reason: str) -> None:
-    from silverloop.models import ReviewThresholdRejectRequest
-
-    with pytest.raises(ValidationError):
-        ReviewThresholdRejectRequest(reason=reason)  # type: ignore[arg-type]
-
-
 def test_every_value_an_ended_approval_held_counts_as_reverted_away_from() -> None:
     a1 = _fact(
         "A1", ReviewThresholdDecisionKind.APPROVED, previous=T40_3, after=T45_3, decided_on=DAY

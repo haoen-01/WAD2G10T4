@@ -4,6 +4,12 @@ Status: accepted 2026-09-16. Map: [Wayfinder: calibration trust — what coordin
 Decisions: [Decide what calibration trust delivers and in what order](https://github.com/peachoolongtee/ismoggers/issues/54).
 Builds on ADR 0008 and `docs/review-threshold-spec.md`; none of their guarantees change.
 
+> **Step 7.** Sections A and B were removed with the routes no screen used
+> (`docs/research/aac-route-removal.md`): `review_lessons.py`, the `lesson` on a review response,
+> the review-setting receipt and context-gap tally, and `POST /v1/cases/{id}/review` itself. The
+> `context_gap_category` column stays on `case_reviews` (no table or column was dropped). The
+> evaluation seam (D, `authored_metric`) stays.
+
 ## Objective
 
 A coordinator's action is not ground truth. Make visible and measurable what each review can teach

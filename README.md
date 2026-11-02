@@ -48,8 +48,8 @@ follows the loop from there. **Calendar** (Mdm Lim's activities and appointments
 helping; on phones a week strip, the day's agenda and a bottom sheet with each day's family notes,
 kept apart from the appointment's own details; on desktop the month grid) and **Family** (the care
 group, an invite PIN, and when each member can help) help a family share the care. Calendar and family
-coordination use the API. Tasks on Home and Senior (one-off, daily or weekly) are kept in the
-browser only, since the API has no tasks yet, and show on the calendar too; see `docs/tasks.md`.
+coordination use the API, and so do tasks on Home and Senior (one-off, daily or weekly, kept by the
+family group), which show on the calendar too; see `docs/tasks.md`.
 Only the offline demo persona, Mdm Lim, exists until you run `pnpm seed`.
 
 ## Shared runtime (Supabase)

@@ -1606,12 +1606,12 @@ def _travel(rows: list[DimensionPreference], goals: list[object] | None = None) 
     return travel_tolerance_m(resolved), travel_tolerance_basis(resolved)
 
 
-def test_the_nearby_radius_is_the_one_a_near_me_request_asks_for() -> None:
-    from silverloop.intent import parse_intent
+def test_the_nearby_radius_is_one_kilometre() -> None:
+    # The keyword parser that turned "near me" into this radius went with the search route
+    # (step 7); the radius itself is still what a stated "near" means to the resolver.
     from silverloop.preferences import NEARBY_RADIUS_M
 
     assert NEARBY_RADIUS_M == 1000
-    assert parse_intent("something near me", today=NOW.date()).max_distance_m == NEARBY_RADIUS_M
 
 
 def test_a_stated_near_under_a_learned_ceiling_changes_nothing() -> None:

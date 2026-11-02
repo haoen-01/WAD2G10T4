@@ -39,8 +39,7 @@ def _untrusted(text: str | None) -> str | None:
     A tool result is prompt content like any other. The strings in it -- a listing's title and
     category, a programme's name, venue, next session and accessibility terms, the reason lines
     that carry a language the person typed themselves -- are written by a provider or by the
-    person, never by the Care+ team, so they are fenced exactly like the free-text request
-    in `intent_planner.py`.
+    person, never by the Care+ team, so they are fenced like any other untrusted text.
 
     Only free text. Identifiers (`candidate_key`, `activity_key`) stay bare because the model has
     to echo them back verbatim for the allow-list to match, and Care+ mints them itself;

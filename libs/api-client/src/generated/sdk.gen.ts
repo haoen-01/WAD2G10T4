@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ActivityDetailV1ActivitiesActivityIdGetData, ActivityDetailV1ActivitiesActivityIdGetErrors, ActivityDetailV1ActivitiesActivityIdGetResponses, AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostData, AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostErrors, AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostResponses, AddAvailabilityV1GroupsGroupIdAvailabilityPostData, AddAvailabilityV1GroupsGroupIdAvailabilityPostErrors, AddAvailabilityV1GroupsGroupIdAvailabilityPostResponses, AdvanceV1SimulationAdvancePostData, AdvanceV1SimulationAdvancePostErrors, AdvanceV1SimulationAdvancePostResponses, AnswerContextQuestionV1PeoplePersonIdContextAnswerPostData, AnswerContextQuestionV1PeoplePersonIdContextAnswerPostErrors, AnswerContextQuestionV1PeoplePersonIdContextAnswerPostResponses, AnswerOccurrenceV1GroupsGroupIdAnswersPostData, AnswerOccurrenceV1GroupsGroupIdAnswersPostErrors, AnswerOccurrenceV1GroupsGroupIdAnswersPostResponses, ApproveMemberV1GroupsGroupIdMembersMemberIdApprovePostData, ApproveMemberV1GroupsGroupIdMembersMemberIdApprovePostErrors, ApproveMemberV1GroupsGroupIdMembersMemberIdApprovePostResponses, ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostData, ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostErrors, ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostResponses, AssistantChatV1AssistantChatPostData, AssistantChatV1AssistantChatPostErrors, AssistantChatV1AssistantChatPostResponses, ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostData, ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostErrors, ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostResponses, CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetData, CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetErrors, CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetResponses, CoordinatorMetricsV1CoordinatorMetricsGetData, CoordinatorMetricsV1CoordinatorMetricsGetErrors, CoordinatorMetricsV1CoordinatorMetricsGetResponses, CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetData, CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetErrors, CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetResponses, CoordinatorPeopleV1CoordinatorPeopleGetData, CoordinatorPeopleV1CoordinatorPeopleGetErrors, CoordinatorPeopleV1CoordinatorPeopleGetResponses, CoordinatorPrioritiesV1CoordinatorPrioritiesGetData, CoordinatorPrioritiesV1CoordinatorPrioritiesGetErrors, CoordinatorPrioritiesV1CoordinatorPrioritiesGetResponses, CoordinatorQueueV1CoordinatorQueueGetData, CoordinatorQueueV1CoordinatorQueueGetErrors, CoordinatorQueueV1CoordinatorQueueGetResponses, CreateAppointmentV1GroupsGroupIdAppointmentsPostData, CreateAppointmentV1GroupsGroupIdAppointmentsPostErrors, CreateAppointmentV1GroupsGroupIdAppointmentsPostResponses, CreateCheckInV1GroupsGroupIdCheckInsPostData, CreateCheckInV1GroupsGroupIdCheckInsPostErrors, CreateCheckInV1GroupsGroupIdCheckInsPostResponses, CreateGroupV1GroupsPostData, CreateGroupV1GroupsPostErrors, CreateGroupV1GroupsPostResponses, DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostData, DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostErrors, DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostResponses, DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostData, DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostErrors, DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostResponses, DeclineMemberV1GroupsGroupIdMembersMemberIdDeclinePostData, DeclineMemberV1GroupsGroupIdMembersMemberIdDeclinePostErrors, DeclineMemberV1GroupsGroupIdMembersMemberIdDeclinePostResponses, DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostData, DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostErrors, DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostResponses, DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostData, DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostErrors, DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses, DeleteAppointmentV1GroupsGroupIdAppointmentsAppointmentIdDeletePostData, DeleteAppointmentV1GroupsGroupIdAppointmentsAppointmentIdDeletePostErrors, DeleteAppointmentV1GroupsGroupIdAppointmentsAppointmentIdDeletePostResponses, DisputeDayV1PeoplePersonIdDayDisputePostData, DisputeDayV1PeoplePersonIdDayDisputePostErrors, DisputeDayV1PeoplePersonIdDayDisputePostResponses, EventsV1SimulationEventsGetData, EventsV1SimulationEventsGetErrors, EventsV1SimulationEventsGetResponses, GetCaseV1CasesCaseIdGetData, GetCaseV1CasesCaseIdGetErrors, GetCaseV1CasesCaseIdGetResponses, GetGroupV1GroupsGroupIdGetData, GetGroupV1GroupsGroupIdGetErrors, GetGroupV1GroupsGroupIdGetResponses, GroupActivityV1GroupsGroupIdActivityGetData, GroupActivityV1GroupsGroupIdActivityGetErrors, GroupActivityV1GroupsGroupIdActivityGetResponses, GroupCalendarV1GroupsGroupIdCalendarGetData, GroupCalendarV1GroupsGroupIdCalendarGetErrors, GroupCalendarV1GroupsGroupIdCalendarGetResponses, HealthHealthGetData, HealthHealthGetErrors, HealthHealthGetResponses, InspectRankerV1EvaluatorRankerInspectPostData, InspectRankerV1EvaluatorRankerInspectPostErrors, InspectRankerV1EvaluatorRankerInspectPostResponses, InterventionDetailV1InterventionsInterventionIdDetailGetData, InterventionDetailV1InterventionsInterventionIdDetailGetErrors, InterventionDetailV1InterventionsInterventionIdDetailGetResponses, InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostData, InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostErrors, InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostResponses, InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostData, InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostErrors, InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostResponses, InterventionFollowUpV1InterventionsInterventionIdFollowUpGetData, InterventionFollowUpV1InterventionsInterventionIdFollowUpGetErrors, InterventionFollowUpV1InterventionsInterventionIdFollowUpGetResponses, InterventionHistoryV1InterventionsHistoryGetData, InterventionHistoryV1InterventionsHistoryGetErrors, InterventionHistoryV1InterventionsHistoryGetResponses, InterventionOutcomeV1InterventionsInterventionIdOutcomePostData, InterventionOutcomeV1InterventionsInterventionIdOutcomePostErrors, InterventionOutcomeV1InterventionsInterventionIdOutcomePostResponses, InterventionsV1InterventionsGetData, InterventionsV1InterventionsGetErrors, InterventionsV1InterventionsGetResponses, JoinGroupV1GroupsJoinPostData, JoinGroupV1GroupsJoinPostErrors, JoinGroupV1GroupsJoinPostResponses, JoinPinV1GroupsGroupIdJoinPinPostData, JoinPinV1GroupsGroupIdJoinPinPostErrors, JoinPinV1GroupsGroupIdJoinPinPostResponses, LatestAdvanceV1SimulationLatestGetData, LatestAdvanceV1SimulationLatestGetErrors, LatestAdvanceV1SimulationLatestGetResponses, LinkPinV1MeLinkPinPostData, LinkPinV1MeLinkPinPostErrors, LinkPinV1MeLinkPinPostResponses, LinkSeniorV1GroupsGroupIdLinkSeniorPostData, LinkSeniorV1GroupsGroupIdLinkSeniorPostErrors, LinkSeniorV1GroupsGroupIdLinkSeniorPostResponses, ListActivitiesV1ActivitiesGetData, ListActivitiesV1ActivitiesGetErrors, ListActivitiesV1ActivitiesGetResponses, ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetData, ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetErrors, ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetResponses, MetricsV1MetricsGetData, MetricsV1MetricsGetErrors, MetricsV1MetricsGetResponses, MeV1AuthMeGetData, MeV1AuthMeGetErrors, MeV1AuthMeGetResponses, MeV1MeGetData, MeV1MeGetErrors, MeV1MeGetResponses, OnboardV1MeOnboardPostData, OnboardV1MeOnboardPostErrors, OnboardV1MeOnboardPostResponses, OpenGroupV1GroupsGroupIdOpenPostData, OpenGroupV1GroupsGroupIdOpenPostErrors, OpenGroupV1GroupsGroupIdOpenPostResponses, PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetData, PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetErrors, PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetResponses, PersonCalendarV1PeoplePersonIdCalendarGetData, PersonCalendarV1PeoplePersonIdCalendarGetErrors, PersonCalendarV1PeoplePersonIdCalendarGetResponses, PersonGoalsV1PeoplePersonIdGoalsGetData, PersonGoalsV1PeoplePersonIdGoalsGetErrors, PersonGoalsV1PeoplePersonIdGoalsGetResponses, PersonMetricsV1PeoplePersonIdMetricsGetData, PersonMetricsV1PeoplePersonIdMetricsGetErrors, PersonMetricsV1PeoplePersonIdMetricsGetResponses, PersonPreferencesV1PeoplePersonIdPreferencesGetData, PersonPreferencesV1PeoplePersonIdPreferencesGetErrors, PersonPreferencesV1PeoplePersonIdPreferencesGetResponses, PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetData, PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetErrors, PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetResponses, PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetData, PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetErrors, PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetResponses, PersonStateV1PeoplePersonIdStateGetData, PersonStateV1PeoplePersonIdStateGetErrors, PersonStateV1PeoplePersonIdStateGetResponses, PersonWearableV1PeoplePersonIdWearableGetData, PersonWearableV1PeoplePersonIdWearableGetErrors, PersonWearableV1PeoplePersonIdWearableGetResponses, PersonWeekV1PeoplePersonIdWeekGetData, PersonWeekV1PeoplePersonIdWeekGetErrors, PersonWeekV1PeoplePersonIdWeekGetResponses, PersonWorldModelV1PeoplePersonIdWorldModelGetData, PersonWorldModelV1PeoplePersonIdWorldModelGetErrors, PersonWorldModelV1PeoplePersonIdWorldModelGetResponses, PlanActivityV1PeoplePersonIdWeekPostData, PlanActivityV1PeoplePersonIdWeekPostErrors, PlanActivityV1PeoplePersonIdWeekPostResponses, PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostData, PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostErrors, PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostResponses, PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostData, PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostErrors, PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostResponses, ProgrammesV1ProgrammesGetData, ProgrammesV1ProgrammesGetErrors, ProgrammesV1ProgrammesGetResponses, RankerPresetsV1EvaluatorRankerPresetsGetData, RankerPresetsV1EvaluatorRankerPresetsGetErrors, RankerPresetsV1EvaluatorRankerPresetsGetResponses, ReadinessReadyGetData, ReadinessReadyGetErrors, ReadinessReadyGetResponses, ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostData, ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostErrors, ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostResponses, RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostData, RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostErrors, RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostResponses, RemoveAvailabilityV1GroupsGroupIdAvailabilityEntryIdDeletePostData, RemoveAvailabilityV1GroupsGroupIdAvailabilityEntryIdDeletePostErrors, RemoveAvailabilityV1GroupsGroupIdAvailabilityEntryIdDeletePostResponses, RenameSeniorV1GroupsGroupIdSeniorNamePutData, RenameSeniorV1GroupsGroupIdSeniorNamePutErrors, RenameSeniorV1GroupsGroupIdSeniorNamePutResponses, ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostData, ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostErrors, ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostResponses, ResetDemoV1DemoResetPostData, ResetDemoV1DemoResetPostErrors, ResetDemoV1DemoResetPostResponses, RespondToActivityV1ActivitiesActivityIdResponsePostData, RespondToActivityV1ActivitiesActivityIdResponsePostErrors, RespondToActivityV1ActivitiesActivityIdResponsePostResponses, ReviewCaseV1CasesCaseIdReviewPostData, ReviewCaseV1CasesCaseIdReviewPostErrors, ReviewCaseV1CasesCaseIdReviewPostResponses, ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetData, ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetErrors, ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetResponses, ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetData, ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetErrors, ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetResponses, SearchActivitiesV1ActivitiesSearchPostData, SearchActivitiesV1ActivitiesSearchPostErrors, SearchActivitiesV1ActivitiesSearchPostResponses, SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetData, SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetErrors, SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetResponses, SetPersonGoalV1PeoplePersonIdGoalsPostData, SetPersonGoalV1PeoplePersonIdGoalsPostErrors, SetPersonGoalV1PeoplePersonIdGoalsPostResponses, SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostData, SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostErrors, SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostResponses, SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostData, SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostErrors, SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostResponses, SimulationHistoryV1SimulationHistoryGetData, SimulationHistoryV1SimulationHistoryGetErrors, SimulationHistoryV1SimulationHistoryGetResponses, StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutData, StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutErrors, StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutResponses, StepBackV1GroupsGroupIdHelpersStepBackPostData, StepBackV1GroupsGroupIdHelpersStepBackPostErrors, StepBackV1GroupsGroupIdHelpersStepBackPostResponses, UpdateAppointmentV1GroupsGroupIdAppointmentsAppointmentIdPutData, UpdateAppointmentV1GroupsGroupIdAppointmentsAppointmentIdPutErrors, UpdateAppointmentV1GroupsGroupIdAppointmentsAppointmentIdPutResponses, UpdateConsentV1PeoplePersonIdConsentPostData, UpdateConsentV1PeoplePersonIdConsentPostErrors, UpdateConsentV1PeoplePersonIdConsentPostResponses, VolunteerV1GroupsGroupIdHelpersPostData, VolunteerV1GroupsGroupIdHelpersPostErrors, VolunteerV1GroupsGroupIdHelpersPostResponses } from './types.gen';
+import type { AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostData, AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostErrors, AddAppointmentNoteV1GroupsGroupIdAppointmentsAppointmentIdNotesPostResponses, AddAvailabilityV1GroupsGroupIdAvailabilityPostData, AddAvailabilityV1GroupsGroupIdAvailabilityPostErrors, AddAvailabilityV1GroupsGroupIdAvailabilityPostResponses, AdvanceV1SimulationAdvancePostData, AdvanceV1SimulationAdvancePostErrors, AdvanceV1SimulationAdvancePostResponses, AnswerOccurrenceV1GroupsGroupIdAnswersPostData, AnswerOccurrenceV1GroupsGroupIdAnswersPostErrors, AnswerOccurrenceV1GroupsGroupIdAnswersPostResponses, ApproveMemberV1GroupsGroupIdMembersMemberIdApprovePostData, ApproveMemberV1GroupsGroupIdMembersMemberIdApprovePostErrors, ApproveMemberV1GroupsGroupIdMembersMemberIdApprovePostResponses, AssistantChatV1AssistantChatPostData, AssistantChatV1AssistantChatPostErrors, AssistantChatV1AssistantChatPostResponses, CreateAppointmentV1GroupsGroupIdAppointmentsPostData, CreateAppointmentV1GroupsGroupIdAppointmentsPostErrors, CreateAppointmentV1GroupsGroupIdAppointmentsPostResponses, CreateCheckInV1GroupsGroupIdCheckInsPostData, CreateCheckInV1GroupsGroupIdCheckInsPostErrors, CreateCheckInV1GroupsGroupIdCheckInsPostResponses, CreateGroupV1GroupsPostData, CreateGroupV1GroupsPostErrors, CreateGroupV1GroupsPostResponses, CreateTaskV1GroupsGroupIdTasksPostData, CreateTaskV1GroupsGroupIdTasksPostErrors, CreateTaskV1GroupsGroupIdTasksPostResponses, DeclineMemberV1GroupsGroupIdMembersMemberIdDeclinePostData, DeclineMemberV1GroupsGroupIdMembersMemberIdDeclinePostErrors, DeclineMemberV1GroupsGroupIdMembersMemberIdDeclinePostResponses, DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostData, DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostErrors, DeleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePostResponses, DeleteAppointmentV1GroupsGroupIdAppointmentsAppointmentIdDeletePostData, DeleteAppointmentV1GroupsGroupIdAppointmentsAppointmentIdDeletePostErrors, DeleteAppointmentV1GroupsGroupIdAppointmentsAppointmentIdDeletePostResponses, DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostData, DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostErrors, DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponses, GetGroupV1GroupsGroupIdGetData, GetGroupV1GroupsGroupIdGetErrors, GetGroupV1GroupsGroupIdGetResponses, GroupActivityV1GroupsGroupIdActivityGetData, GroupActivityV1GroupsGroupIdActivityGetErrors, GroupActivityV1GroupsGroupIdActivityGetResponses, GroupCalendarV1GroupsGroupIdCalendarGetData, GroupCalendarV1GroupsGroupIdCalendarGetErrors, GroupCalendarV1GroupsGroupIdCalendarGetResponses, GroupTasksV1GroupsGroupIdTasksGetData, GroupTasksV1GroupsGroupIdTasksGetErrors, GroupTasksV1GroupsGroupIdTasksGetResponses, HealthHealthGetData, HealthHealthGetErrors, HealthHealthGetResponses, InterventionOutcomeV1InterventionsInterventionIdOutcomePostData, InterventionOutcomeV1InterventionsInterventionIdOutcomePostErrors, InterventionOutcomeV1InterventionsInterventionIdOutcomePostResponses, InterventionsV1InterventionsGetData, InterventionsV1InterventionsGetErrors, InterventionsV1InterventionsGetResponses, JoinGroupV1GroupsJoinPostData, JoinGroupV1GroupsJoinPostErrors, JoinGroupV1GroupsJoinPostResponses, JoinPinV1GroupsGroupIdJoinPinPostData, JoinPinV1GroupsGroupIdJoinPinPostErrors, JoinPinV1GroupsGroupIdJoinPinPostResponses, LinkPinV1MeLinkPinPostData, LinkPinV1MeLinkPinPostErrors, LinkPinV1MeLinkPinPostResponses, LinkSeniorV1GroupsGroupIdLinkSeniorPostData, LinkSeniorV1GroupsGroupIdLinkSeniorPostErrors, LinkSeniorV1GroupsGroupIdLinkSeniorPostResponses, ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetData, ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetErrors, ListAppointmentNotesV1GroupsGroupIdAppointmentsAppointmentIdNotesGetResponses, MeV1AuthMeGetData, MeV1AuthMeGetErrors, MeV1AuthMeGetResponses, MeV1MeGetData, MeV1MeGetErrors, MeV1MeGetResponses, OnboardV1MeOnboardPostData, OnboardV1MeOnboardPostErrors, OnboardV1MeOnboardPostResponses, OpenGroupV1GroupsGroupIdOpenPostData, OpenGroupV1GroupsGroupIdOpenPostErrors, OpenGroupV1GroupsGroupIdOpenPostResponses, PersonCalendarV1PeoplePersonIdCalendarGetData, PersonCalendarV1PeoplePersonIdCalendarGetErrors, PersonCalendarV1PeoplePersonIdCalendarGetResponses, PersonMetricsV1PeoplePersonIdMetricsGetData, PersonMetricsV1PeoplePersonIdMetricsGetErrors, PersonMetricsV1PeoplePersonIdMetricsGetResponses, PersonStateV1PeoplePersonIdStateGetData, PersonStateV1PeoplePersonIdStateGetErrors, PersonStateV1PeoplePersonIdStateGetResponses, PersonTasksV1PeoplePersonIdTasksGetData, PersonTasksV1PeoplePersonIdTasksGetErrors, PersonTasksV1PeoplePersonIdTasksGetResponses, PersonWearableV1PeoplePersonIdWearableGetData, PersonWearableV1PeoplePersonIdWearableGetErrors, PersonWearableV1PeoplePersonIdWearableGetResponses, ReadinessReadyGetData, ReadinessReadyGetErrors, ReadinessReadyGetResponses, RemoveAvailabilityV1GroupsGroupIdAvailabilityEntryIdDeletePostData, RemoveAvailabilityV1GroupsGroupIdAvailabilityEntryIdDeletePostErrors, RemoveAvailabilityV1GroupsGroupIdAvailabilityEntryIdDeletePostResponses, RenameSeniorV1GroupsGroupIdSeniorNamePutData, RenameSeniorV1GroupsGroupIdSeniorNamePutErrors, RenameSeniorV1GroupsGroupIdSeniorNamePutResponses, ResetDemoV1DemoResetPostData, ResetDemoV1DemoResetPostErrors, ResetDemoV1DemoResetPostResponses, SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutData, SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutErrors, SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponses, SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutData, SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutErrors, SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponses, StepBackV1GroupsGroupIdHelpersStepBackPostData, StepBackV1GroupsGroupIdHelpersStepBackPostErrors, StepBackV1GroupsGroupIdHelpersStepBackPostResponses, UpdateAppointmentV1GroupsGroupIdAppointmentsAppointmentIdPutData, UpdateAppointmentV1GroupsGroupIdAppointmentsAppointmentIdPutErrors, UpdateAppointmentV1GroupsGroupIdAppointmentsAppointmentIdPutResponses, UpdateConsentV1PeoplePersonIdConsentPostData, UpdateConsentV1PeoplePersonIdConsentPostErrors, UpdateConsentV1PeoplePersonIdConsentPostResponses, UpdateTaskV1GroupsGroupIdTasksTaskIdPutData, UpdateTaskV1GroupsGroupIdTasksTaskIdPutErrors, UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponses, VolunteerV1GroupsGroupIdHelpersPostData, VolunteerV1GroupsGroupIdHelpersPostErrors, VolunteerV1GroupsGroupIdHelpersPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -34,15 +34,6 @@ export const readinessReadyGet = <ThrowOnError extends boolean = false>(options?
 export const meV1AuthMeGet = <ThrowOnError extends boolean = false>(options?: Options<MeV1AuthMeGetData, ThrowOnError>): RequestResult<MeV1AuthMeGetResponses, MeV1AuthMeGetErrors, ThrowOnError> => (options?.client ?? client).get<MeV1AuthMeGetResponses, MeV1AuthMeGetErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/auth/me',
-    ...options
-});
-
-/**
- * Metrics
- */
-export const metricsV1MetricsGet = <ThrowOnError extends boolean = false>(options?: Options<MetricsV1MetricsGetData, ThrowOnError>): RequestResult<MetricsV1MetricsGetResponses, MetricsV1MetricsGetErrors, ThrowOnError> => (options?.client ?? client).get<MetricsV1MetricsGetResponses, MetricsV1MetricsGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/metrics',
     ...options
 });
 
@@ -110,698 +101,11 @@ export const interventionOutcomeV1InterventionsInterventionIdOutcomePost = <Thro
 });
 
 /**
- * Intervention Detail
- *
- * What "tell me more" shows. Fixed reviewed content, keyed off the candidate.
- */
-export const interventionDetailV1InterventionsInterventionIdDetailGet = <ThrowOnError extends boolean = false>(options: Options<InterventionDetailV1InterventionsInterventionIdDetailGetData, ThrowOnError>): RequestResult<InterventionDetailV1InterventionsInterventionIdDetailGetResponses, InterventionDetailV1InterventionsInterventionIdDetailGetErrors, ThrowOnError> => (options.client ?? client).get<InterventionDetailV1InterventionsInterventionIdDetailGetResponses, InterventionDetailV1InterventionsInterventionIdDetailGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/interventions/{intervention_id}/detail',
-    ...options
-});
-
-/**
- * Intervention Follow Through
- */
-export const interventionFollowThroughV1InterventionsInterventionIdFollowThroughPost = <ThrowOnError extends boolean = false>(options: Options<InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostData, ThrowOnError>): RequestResult<InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostResponses, InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostErrors, ThrowOnError> => (options.client ?? client).post<InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostResponses, InterventionFollowThroughV1InterventionsInterventionIdFollowThroughPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/interventions/{intervention_id}/follow-through',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Intervention Follow Up
- *
- * What activity did in the days after. Always 200 -- `available` says whether there is
- * anything to report yet, so "too early to say" is a normal answer rather than an error.
- */
-export const interventionFollowUpV1InterventionsInterventionIdFollowUpGet = <ThrowOnError extends boolean = false>(options: Options<InterventionFollowUpV1InterventionsInterventionIdFollowUpGetData, ThrowOnError>): RequestResult<InterventionFollowUpV1InterventionsInterventionIdFollowUpGetResponses, InterventionFollowUpV1InterventionsInterventionIdFollowUpGetErrors, ThrowOnError> => (options.client ?? client).get<InterventionFollowUpV1InterventionsInterventionIdFollowUpGetResponses, InterventionFollowUpV1InterventionsInterventionIdFollowUpGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/interventions/{intervention_id}/follow-up',
-    ...options
-});
-
-/**
- * Intervention History
- */
-export const interventionHistoryV1InterventionsHistoryGet = <ThrowOnError extends boolean = false>(options?: Options<InterventionHistoryV1InterventionsHistoryGetData, ThrowOnError>): RequestResult<InterventionHistoryV1InterventionsHistoryGetResponses, InterventionHistoryV1InterventionsHistoryGetErrors, ThrowOnError> => (options?.client ?? client).get<InterventionHistoryV1InterventionsHistoryGetResponses, InterventionHistoryV1InterventionsHistoryGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/interventions/history',
-    ...options
-});
-
-/**
- * Person Preferences
- */
-export const personPreferencesV1PeoplePersonIdPreferencesGet = <ThrowOnError extends boolean = false>(options: Options<PersonPreferencesV1PeoplePersonIdPreferencesGetData, ThrowOnError>): RequestResult<PersonPreferencesV1PeoplePersonIdPreferencesGetResponses, PersonPreferencesV1PeoplePersonIdPreferencesGetErrors, ThrowOnError> => (options.client ?? client).get<PersonPreferencesV1PeoplePersonIdPreferencesGetResponses, PersonPreferencesV1PeoplePersonIdPreferencesGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/preferences',
-    ...options
-});
-
-/**
- * Set Person Preference
- *
- * Only the senior may write this. A coordinator cannot mute a suggestion on someone
- * else's behalf, which is the whole point of the control existing.
- */
-export const setPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPost = <ThrowOnError extends boolean = false>(options: Options<SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostData, ThrowOnError>): RequestResult<SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostResponses, SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostErrors, ThrowOnError> => (options.client ?? client).post<SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostResponses, SetPersonPreferenceV1PeoplePersonIdPreferencesCandidateKeyPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/preferences/{candidate_key}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Dispute Day
- */
-export const disputeDayV1PeoplePersonIdDayDisputePost = <ThrowOnError extends boolean = false>(options: Options<DisputeDayV1PeoplePersonIdDayDisputePostData, ThrowOnError>): RequestResult<DisputeDayV1PeoplePersonIdDayDisputePostResponses, DisputeDayV1PeoplePersonIdDayDisputePostErrors, ThrowOnError> => (options.client ?? client).post<DisputeDayV1PeoplePersonIdDayDisputePostResponses, DisputeDayV1PeoplePersonIdDayDisputePostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/day-dispute',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Search Activities
- *
- * A senior asking for something to do, rather than the wearable prompting us.
- *
- * Deliberately not routed through the policy ladder. The ladder answers "should we contact
- * this person?", which is the wrong question here -- they contacted us. What the ladder's
- * guarantees still cover is the candidate set: the deterministic filter runs before the
- * planner sees anything, and the planner can only choose from what survived it.
- */
-export const searchActivitiesV1ActivitiesSearchPost = <ThrowOnError extends boolean = false>(options: Options<SearchActivitiesV1ActivitiesSearchPostData, ThrowOnError>): RequestResult<SearchActivitiesV1ActivitiesSearchPostResponses, SearchActivitiesV1ActivitiesSearchPostErrors, ThrowOnError> => (options.client ?? client).post<SearchActivitiesV1ActivitiesSearchPostResponses, SearchActivitiesV1ActivitiesSearchPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/activities/search',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Respond To Activity
- *
- * The senior answers a search result: "I'm interested" or "Not for me".
- *
- * The person is always the caller's own (from the token, like `search_activities`);
- * listings are shared, so there is no other person's record to reach here. `interested`
- * puts the listing on their week when its day is inside the week being planned and says
- * so plainly when it is not; `not_for_me` with a reason that names a kind of activity
- * teaches the dimensional learner, exactly as an outreach decline does. An optional
- * `clarification` says how far that reason reaches; without one the answer stays
- * item-level, which is the honest reading of one tap.
- */
-export const respondToActivityV1ActivitiesActivityIdResponsePost = <ThrowOnError extends boolean = false>(options: Options<RespondToActivityV1ActivitiesActivityIdResponsePostData, ThrowOnError>): RequestResult<RespondToActivityV1ActivitiesActivityIdResponsePostResponses, RespondToActivityV1ActivitiesActivityIdResponsePostErrors, ThrowOnError> => (options.client ?? client).post<RespondToActivityV1ActivitiesActivityIdResponsePostResponses, RespondToActivityV1ActivitiesActivityIdResponsePostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/activities/{activity_id}/response',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * List Activities
- */
-export const listActivitiesV1ActivitiesGet = <ThrowOnError extends boolean = false>(options?: Options<ListActivitiesV1ActivitiesGetData, ThrowOnError>): RequestResult<ListActivitiesV1ActivitiesGetResponses, ListActivitiesV1ActivitiesGetErrors, ThrowOnError> => (options?.client ?? client).get<ListActivitiesV1ActivitiesGetResponses, ListActivitiesV1ActivitiesGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/activities',
-    ...options
-});
-
-/**
- * Activity Detail
- */
-export const activityDetailV1ActivitiesActivityIdGet = <ThrowOnError extends boolean = false>(options: Options<ActivityDetailV1ActivitiesActivityIdGetData, ThrowOnError>): RequestResult<ActivityDetailV1ActivitiesActivityIdGetResponses, ActivityDetailV1ActivitiesActivityIdGetErrors, ThrowOnError> => (options.client ?? client).get<ActivityDetailV1ActivitiesActivityIdGetResponses, ActivityDetailV1ActivitiesActivityIdGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/activities/{activity_id}',
-    ...options
-});
-
-/**
- * Person World Model
- *
- * Everything Care+ knows about this person, each fact labelled with where it came
- * from. The senior's own surface: the facts include the kinds of activity they like, which
- * by the standing care-team-visibility decision never reach a coordinator in content --
- * `GET /v1/metrics` carries only the counts (`world_model_quality`).
- */
-export const personWorldModelV1PeoplePersonIdWorldModelGet = <ThrowOnError extends boolean = false>(options: Options<PersonWorldModelV1PeoplePersonIdWorldModelGetData, ThrowOnError>): RequestResult<PersonWorldModelV1PeoplePersonIdWorldModelGetResponses, PersonWorldModelV1PeoplePersonIdWorldModelGetErrors, ThrowOnError> => (options.client ?? client).get<PersonWorldModelV1PeoplePersonIdWorldModelGetResponses, PersonWorldModelV1PeoplePersonIdWorldModelGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/world-model',
-    ...options
-});
-
-/**
- * Person Activity Preferences
- *
- * What Care+ believes about the *kinds* of activity this person prefers.
- *
- * Shown to the senior as "Your preferences" and editable there. Never surfaced to a
- * coordinator: what a person asks for is theirs, and only the aggregate that they
- * self-initiate at all reaches the care team.
- */
-export const personActivityPreferencesV1PeoplePersonIdActivityPreferencesGet = <ThrowOnError extends boolean = false>(options: Options<PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetData, ThrowOnError>): RequestResult<PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetResponses, PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetErrors, ThrowOnError> => (options.client ?? client).get<PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetResponses, PersonActivityPreferencesV1PeoplePersonIdActivityPreferencesGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/activity-preferences',
-    ...options
-});
-
-/**
- * Intervention Enjoyment
- *
- * Whether it was any good -- the beat after "did you get a chance?".
- *
- * Separate from follow-through because attending and enjoying are different facts, and a
- * system that cannot tell them apart will keep offering something a person dutifully turns
- * up to and quietly dislikes.
- */
-export const interventionEnjoymentV1InterventionsInterventionIdEnjoymentPost = <ThrowOnError extends boolean = false>(options: Options<InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostData, ThrowOnError>): RequestResult<InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostResponses, InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostErrors, ThrowOnError> => (options.client ?? client).post<InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostResponses, InterventionEnjoymentV1InterventionsInterventionIdEnjoymentPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/interventions/{intervention_id}/enjoyment',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Person Proposed Memories
- */
-export const personProposedMemoriesV1PeoplePersonIdProposedMemoriesGet = <ThrowOnError extends boolean = false>(options: Options<PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetData, ThrowOnError>): RequestResult<PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetResponses, PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetErrors, ThrowOnError> => (options.client ?? client).get<PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetResponses, PersonProposedMemoriesV1PeoplePersonIdProposedMemoriesGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/proposed-memories',
-    ...options
-});
-
-/**
- * Decide Proposed Memory
- *
- * Only the senior may answer. Nothing inferred from their words is stored until they do.
- */
-export const decideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPost = <ThrowOnError extends boolean = false>(options: Options<DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostData, ThrowOnError>): RequestResult<DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostResponses, DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostErrors, ThrowOnError> => (options.client ?? client).post<DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostResponses, DecideProposedMemoryV1PeoplePersonIdProposedMemoriesProposalIdPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/proposed-memories/{proposal_id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Answer Context Question
- */
-export const answerContextQuestionV1PeoplePersonIdContextAnswerPost = <ThrowOnError extends boolean = false>(options: Options<AnswerContextQuestionV1PeoplePersonIdContextAnswerPostData, ThrowOnError>): RequestResult<AnswerContextQuestionV1PeoplePersonIdContextAnswerPostResponses, AnswerContextQuestionV1PeoplePersonIdContextAnswerPostErrors, ThrowOnError> => (options.client ?? client).post<AnswerContextQuestionV1PeoplePersonIdContextAnswerPostResponses, AnswerContextQuestionV1PeoplePersonIdContextAnswerPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/context-answer',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Decide Baseline Confirmation
- *
- * Only the senior may answer "is this your new normal?". Nothing re-anchors unless they
- * confirm it themselves; see `SqlAlchemyRepository.decide_baseline_confirmation`.
- */
-export const decideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPost = <ThrowOnError extends boolean = false>(options: Options<DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostData, ThrowOnError>): RequestResult<DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostResponses, DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostErrors, ThrowOnError> => (options.client ?? client).post<DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostResponses, DecideBaselineConfirmationV1PeoplePersonIdBaselineConfirmationPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/baseline-confirmation',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Person Goals
- */
-export const personGoalsV1PeoplePersonIdGoalsGet = <ThrowOnError extends boolean = false>(options: Options<PersonGoalsV1PeoplePersonIdGoalsGetData, ThrowOnError>): RequestResult<PersonGoalsV1PeoplePersonIdGoalsGetResponses, PersonGoalsV1PeoplePersonIdGoalsGetErrors, ThrowOnError> => (options.client ?? client).get<PersonGoalsV1PeoplePersonIdGoalsGetResponses, PersonGoalsV1PeoplePersonIdGoalsGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/goals',
-    ...options
-});
-
-/**
- * Set Person Goal
- */
-export const setPersonGoalV1PeoplePersonIdGoalsPost = <ThrowOnError extends boolean = false>(options: Options<SetPersonGoalV1PeoplePersonIdGoalsPostData, ThrowOnError>): RequestResult<SetPersonGoalV1PeoplePersonIdGoalsPostResponses, SetPersonGoalV1PeoplePersonIdGoalsPostErrors, ThrowOnError> => (options.client ?? client).post<SetPersonGoalV1PeoplePersonIdGoalsPostResponses, SetPersonGoalV1PeoplePersonIdGoalsPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/goals',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Person Week
- */
-export const personWeekV1PeoplePersonIdWeekGet = <ThrowOnError extends boolean = false>(options: Options<PersonWeekV1PeoplePersonIdWeekGetData, ThrowOnError>): RequestResult<PersonWeekV1PeoplePersonIdWeekGetResponses, PersonWeekV1PeoplePersonIdWeekGetErrors, ThrowOnError> => (options.client ?? client).get<PersonWeekV1PeoplePersonIdWeekGetResponses, PersonWeekV1PeoplePersonIdWeekGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/week',
-    ...options
-});
-
-/**
- * Plan Activity
- */
-export const planActivityV1PeoplePersonIdWeekPost = <ThrowOnError extends boolean = false>(options: Options<PlanActivityV1PeoplePersonIdWeekPostData, ThrowOnError>): RequestResult<PlanActivityV1PeoplePersonIdWeekPostResponses, PlanActivityV1PeoplePersonIdWeekPostErrors, ThrowOnError> => (options.client ?? client).post<PlanActivityV1PeoplePersonIdWeekPostResponses, PlanActivityV1PeoplePersonIdWeekPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/week',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Planned Follow Through
- *
- * What happened to a planned activity. 404 for a plan that is not this person's, so the
- * route is not an existence oracle; 422 before the day has come or on a repeat.
- */
-export const plannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPost = <ThrowOnError extends boolean = false>(options: Options<PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostData, ThrowOnError>): RequestResult<PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostResponses, PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostErrors, ThrowOnError> => (options.client ?? client).post<PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostResponses, PlannedFollowThroughV1PeoplePersonIdWeekPlanIdFollowThroughPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/week/{plan_id}/follow-through',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Planned Enjoyment
- */
-export const plannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPost = <ThrowOnError extends boolean = false>(options: Options<PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostData, ThrowOnError>): RequestResult<PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostResponses, PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostErrors, ThrowOnError> => (options.client ?? client).post<PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostResponses, PlannedEnjoymentV1PeoplePersonIdWeekPlanIdEnjoymentPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/week/{plan_id}/enjoyment',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * State Activity Preference
- *
- * The person's own control over what Care+ remembers about the kinds of activity
- * they like: prefer, avoid (optionally until a day), or forget. Only the senior may write
- * it, exactly like `set_candidate_preference`.
- */
-export const stateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePut = <ThrowOnError extends boolean = false>(options: Options<StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutData, ThrowOnError>): RequestResult<StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutResponses, StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutErrors, ThrowOnError> => (options.client ?? client).put<StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutResponses, StateActivityPreferenceV1PeoplePersonIdActivityPreferencesDimensionValuePutErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/activity-preferences/{dimension}/{value}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Person Replan Notices
- *
- * Planned activities that can no longer happen, each with a suggested alternative.
- *
- * A proposal only. Nothing is ever swapped without the person choosing it -- substituting
- * silently would be Care+ deciding how someone spends their day.
- */
-export const personReplanNoticesV1PeoplePersonIdReplanNoticesGet = <ThrowOnError extends boolean = false>(options: Options<PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetData, ThrowOnError>): RequestResult<PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetResponses, PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetErrors, ThrowOnError> => (options.client ?? client).get<PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetResponses, PersonReplanNoticesV1PeoplePersonIdReplanNoticesGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/replan-notices',
-    ...options
-});
-
-/**
- * Replace Planned Activity
- *
- * The person's answer to a replan offer: this one instead, on the same day.
- *
- * Only the senior may answer, and only for their own plan: 404 for a plan or listing that is
- * not theirs (or that a dead run made), so the route is not an existence oracle. 422 when
- * there is nothing to replace, when the listing cannot be planned on that day, or when the
- * answer has already been given -- never a silent success that changes nothing.
- */
-export const replacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePost = <ThrowOnError extends boolean = false>(options: Options<ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostData, ThrowOnError>): RequestResult<ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostResponses, ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostErrors, ThrowOnError> => (options.client ?? client).post<ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostResponses, ReplacePlannedActivityV1PeoplePersonIdWeekPlanIdReplacePostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/week/{plan_id}/replace',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Decline Replan Offer
- *
- * "No thanks" -- recorded once, on the server, so the same offer is not put again.
- *
- * The plan itself is untouched: declining a replacement is not declining the outing.
- */
-export const declineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePost = <ThrowOnError extends boolean = false>(options: Options<DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostData, ThrowOnError>): RequestResult<DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostResponses, DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostErrors, ThrowOnError> => (options.client ?? client).post<DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostResponses, DeclineReplanOfferV1PeoplePersonIdReplanOffersOfferIdDeclinePostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/people/{person_id}/replan-offers/{offer_id}/decline',
-    ...options
-});
-
-/**
- * Programmes
- */
-export const programmesV1ProgrammesGet = <ThrowOnError extends boolean = false>(options?: Options<ProgrammesV1ProgrammesGetData, ThrowOnError>): RequestResult<ProgrammesV1ProgrammesGetResponses, ProgrammesV1ProgrammesGetErrors, ThrowOnError> => (options?.client ?? client).get<ProgrammesV1ProgrammesGetResponses, ProgrammesV1ProgrammesGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/programmes',
-    ...options
-});
-
-/**
  * Advance
  */
 export const advanceV1SimulationAdvancePost = <ThrowOnError extends boolean = false>(options: Options<AdvanceV1SimulationAdvancePostData, ThrowOnError>): RequestResult<AdvanceV1SimulationAdvancePostResponses, AdvanceV1SimulationAdvancePostErrors, ThrowOnError> => (options.client ?? client).post<AdvanceV1SimulationAdvancePostResponses, AdvanceV1SimulationAdvancePostErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/simulation/advance',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Events
- */
-export const eventsV1SimulationEventsGet = <ThrowOnError extends boolean = false>(options?: Options<EventsV1SimulationEventsGetData, ThrowOnError>): RequestResult<EventsV1SimulationEventsGetResponses, EventsV1SimulationEventsGetErrors, ThrowOnError> => (options?.client ?? client).get<EventsV1SimulationEventsGetResponses, EventsV1SimulationEventsGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/simulation/events',
-    ...options
-});
-
-/**
- * Latest Advance
- */
-export const latestAdvanceV1SimulationLatestGet = <ThrowOnError extends boolean = false>(options?: Options<LatestAdvanceV1SimulationLatestGetData, ThrowOnError>): RequestResult<LatestAdvanceV1SimulationLatestGetResponses, LatestAdvanceV1SimulationLatestGetErrors, ThrowOnError> => (options?.client ?? client).get<LatestAdvanceV1SimulationLatestGetResponses, LatestAdvanceV1SimulationLatestGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/simulation/latest',
-    ...options
-});
-
-/**
- * Simulation History
- */
-export const simulationHistoryV1SimulationHistoryGet = <ThrowOnError extends boolean = false>(options?: Options<SimulationHistoryV1SimulationHistoryGetData, ThrowOnError>): RequestResult<SimulationHistoryV1SimulationHistoryGetResponses, SimulationHistoryV1SimulationHistoryGetErrors, ThrowOnError> => (options?.client ?? client).get<SimulationHistoryV1SimulationHistoryGetResponses, SimulationHistoryV1SimulationHistoryGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/simulation/history',
-    ...options
-});
-
-/**
- * Inspect Ranker
- *
- * How the activity ranker got from one request to the cards it would show, and what a
- * previewed history, counterfactual or response would change.
- *
- * Evaluator-only and read-only: the trace is built from one execution of the production
- * ranker and nothing is persisted -- no audit event, preference, engagement, plan or
- * catalogue write. A senior or coordinator token is refused.
- */
-export const inspectRankerV1EvaluatorRankerInspectPost = <ThrowOnError extends boolean = false>(options: Options<InspectRankerV1EvaluatorRankerInspectPostData, ThrowOnError>): RequestResult<InspectRankerV1EvaluatorRankerInspectPostResponses, InspectRankerV1EvaluatorRankerInspectPostErrors, ThrowOnError> => (options.client ?? client).post<InspectRankerV1EvaluatorRankerInspectPostResponses, InspectRankerV1EvaluatorRankerInspectPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/evaluator/ranker/inspect',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Ranker Presets
- *
- * The scripted history presets and preview controls the ranker inspector allows.
- */
-export const rankerPresetsV1EvaluatorRankerPresetsGet = <ThrowOnError extends boolean = false>(options?: Options<RankerPresetsV1EvaluatorRankerPresetsGetData, ThrowOnError>): RequestResult<RankerPresetsV1EvaluatorRankerPresetsGetResponses, RankerPresetsV1EvaluatorRankerPresetsGetErrors, ThrowOnError> => (options?.client ?? client).get<RankerPresetsV1EvaluatorRankerPresetsGetResponses, RankerPresetsV1EvaluatorRankerPresetsGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/evaluator/ranker/presets',
-    ...options
-});
-
-/**
- * Senior Home Preview
- *
- * One persona's senior home content, for the Demo Tools senior-screen preview.
- *
- * Demo operator only, and read-only: it composes the same person-state and intervention reads
- * the senior's own screen uses and writes nothing. It is not the senior's own screen and is
- * never an identity path into one -- `/senior` stays pinned to the demo person.
- */
-export const seniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGet = <ThrowOnError extends boolean = false>(options: Options<SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetData, ThrowOnError>): RequestResult<SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetResponses, SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetErrors, ThrowOnError> => (options.client ?? client).get<SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetResponses, SeniorHomePreviewV1EvaluatorPeoplePersonIdSeniorHomeGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/evaluator/people/{person_id}/senior-home',
-    ...options
-});
-
-/**
- * Coordinator Outreach History
- *
- * What was offered, what the person said, and what their activity did afterwards.
- *
- * Separate from the senior's own `/v1/interventions/history` rather than one route with a
- * widened scope check: the senior route is scoped by identity, this one by role, and
- * collapsing them would mean a single `person_id` mistake exposes one senior's record to
- * another. Same repository call, same shape, different door.
- */
-export const coordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGet = <ThrowOnError extends boolean = false>(options: Options<CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetData, ThrowOnError>): RequestResult<CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetResponses, CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetErrors, ThrowOnError> => (options.client ?? client).get<CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetResponses, CoordinatorOutreachHistoryV1CoordinatorPeoplePersonIdOutreachHistoryGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people/{person_id}/outreach-history',
-    ...options
-});
-
-/**
- * Coordinator Activity Relative
- *
- * Recent days as positions against the person's own usual level, for a case page.
- *
- * Coordinator-scoped and derived on read: each day is usable or not (the wear-time gate) and,
- * when usable, lower than usual or not (the ladder's low-day rule against the effective
- * baseline today's decision used). No step counts, percentages or scores, so the browser
- * never holds a policy cut-off. Once the person withdraws consent no day is returned
- * (`consent_active` false). The senior's own `/v1/people/{id}/metrics` and `/state` stay
- * senior-only; this is a separate door, not a widened one.
- */
-export const coordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGet = <ThrowOnError extends boolean = false>(options: Options<CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetData, ThrowOnError>): RequestResult<CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetResponses, CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetErrors, ThrowOnError> => (options.client ?? client).get<CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetResponses, CoordinatorActivityRelativeV1CoordinatorPeoplePersonIdActivityRelativeGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people/{person_id}/activity-relative',
-    ...options
-});
-
-/**
- * Coordinator People
- *
- * The care-team roster: everyone with an active run, most attention first.
- *
- * Separate from `/v1/coordinator/queue` on purpose. The queue answers "what needs a
- * decision"; this answers "who is on my caseload and is anything happening to them", which
- * the queue could never answer because a person with nothing wrong has no case to appear as.
- *
- * Bands and standings only -- no step count, no percentage, no score. See
- * `CoordinatorPersonRow`.
- */
-export const coordinatorPeopleV1CoordinatorPeopleGet = <ThrowOnError extends boolean = false>(options?: Options<CoordinatorPeopleV1CoordinatorPeopleGetData, ThrowOnError>): RequestResult<CoordinatorPeopleV1CoordinatorPeopleGetResponses, CoordinatorPeopleV1CoordinatorPeopleGetErrors, ThrowOnError> => (options?.client ?? client).get<CoordinatorPeopleV1CoordinatorPeopleGetResponses, CoordinatorPeopleV1CoordinatorPeopleGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people',
-    ...options
-});
-
-/**
- * Coordinator Priorities
- *
- * Who to follow up with first: follow-up windows, reading order, and what to take note of.
- *
- * Read-only and deterministic (`triage.py`). The contact windows are capped by the decision
- * the policy ladder already made, so no gate the ladder applies can be bypassed from here.
- * Like the roster, it carries no step count, percentage or score about anyone.
- *
- * `person_id` returns the same board narrowed to that one person: `people` holds their row
- * exactly as it appears on the full board -- `position` is still their place in the whole
- * caseload's reading order -- and `follow_up_first` holds it only if the full board's
- * `top_k` includes it. A person with no readings yet has no row (`people` is empty); an
- * unknown person is a 404.
- */
-export const coordinatorPrioritiesV1CoordinatorPrioritiesGet = <ThrowOnError extends boolean = false>(options?: Options<CoordinatorPrioritiesV1CoordinatorPrioritiesGetData, ThrowOnError>): RequestResult<CoordinatorPrioritiesV1CoordinatorPrioritiesGetResponses, CoordinatorPrioritiesV1CoordinatorPrioritiesGetErrors, ThrowOnError> => (options?.client ?? client).get<CoordinatorPrioritiesV1CoordinatorPrioritiesGetResponses, CoordinatorPrioritiesV1CoordinatorPrioritiesGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/priorities',
-    ...options
-});
-
-/**
- * Coordinator Metrics
- *
- * The caseload's operational totals in one read.
- *
- * The sum of `GET /v1/metrics?person_id=...` over everyone `GET /v1/coordinator/people`
- * lists, so Care Team no longer asks for each person's metrics in turn. Counts only.
- */
-export const coordinatorMetricsV1CoordinatorMetricsGet = <ThrowOnError extends boolean = false>(options?: Options<CoordinatorMetricsV1CoordinatorMetricsGetData, ThrowOnError>): RequestResult<CoordinatorMetricsV1CoordinatorMetricsGetResponses, CoordinatorMetricsV1CoordinatorMetricsGetErrors, ThrowOnError> => (options?.client ?? client).get<CoordinatorMetricsV1CoordinatorMetricsGetResponses, CoordinatorMetricsV1CoordinatorMetricsGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/metrics',
-    ...options
-});
-
-/**
- * Coordinator Queue
- *
- * The care-team queue: open and acknowledged cases by default, newest first within each
- * status, never interleaved with a resolved one. Pass `?status=resolved` (or any
- * comma-separated combination of `open`, `acknowledged`, `resolved`) to see closed cases.
- */
-export const coordinatorQueueV1CoordinatorQueueGet = <ThrowOnError extends boolean = false>(options?: Options<CoordinatorQueueV1CoordinatorQueueGetData, ThrowOnError>): RequestResult<CoordinatorQueueV1CoordinatorQueueGetResponses, CoordinatorQueueV1CoordinatorQueueGetErrors, ThrowOnError> => (options?.client ?? client).get<CoordinatorQueueV1CoordinatorQueueGetResponses, CoordinatorQueueV1CoordinatorQueueGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/queue',
-    ...options
-});
-
-/**
- * Get Case
- */
-export const getCaseV1CasesCaseIdGet = <ThrowOnError extends boolean = false>(options: Options<GetCaseV1CasesCaseIdGetData, ThrowOnError>): RequestResult<GetCaseV1CasesCaseIdGetResponses, GetCaseV1CasesCaseIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetCaseV1CasesCaseIdGetResponses, GetCaseV1CasesCaseIdGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/cases/{case_id}',
-    ...options
-});
-
-/**
- * Review Case
- */
-export const reviewCaseV1CasesCaseIdReviewPost = <ThrowOnError extends boolean = false>(options: Options<ReviewCaseV1CasesCaseIdReviewPostData, ThrowOnError>): RequestResult<ReviewCaseV1CasesCaseIdReviewPostResponses, ReviewCaseV1CasesCaseIdReviewPostErrors, ThrowOnError> => (options.client ?? client).post<ReviewCaseV1CasesCaseIdReviewPostResponses, ReviewCaseV1CasesCaseIdReviewPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/cases/{case_id}/review',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Review Threshold State
- *
- * This person's live review setting, its bounds, any open proposal and its history.
- *
- * Read-only: reading it any number of times writes nothing.
- */
-export const reviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGet = <ThrowOnError extends boolean = false>(options: Options<ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetData, ThrowOnError>): RequestResult<ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetResponses, ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetErrors, ThrowOnError> => (options.client ?? client).get<ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetResponses, ReviewThresholdStateV1CoordinatorPeoplePersonIdReviewThresholdGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people/{person_id}/review-threshold',
-    ...options
-});
-
-/**
- * Review Threshold Replay
- *
- * What the live setting and a candidate setting would each have done over the last eight
- * weeks of stored synthetic history. Calculated by code; read-only.
- *
- * The candidate must be on the allowed grid: below 40% only three days (422 otherwise).
- */
-export const reviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGet = <ThrowOnError extends boolean = false>(options: Options<ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetData, ThrowOnError>): RequestResult<ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetResponses, ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetErrors, ThrowOnError> => (options.client ?? client).get<ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetResponses, ReviewThresholdReplayV1CoordinatorPeoplePersonIdReviewThresholdReplayGetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people/{person_id}/review-threshold/replay',
-    ...options
-});
-
-/**
- * Approve Threshold Proposal
- */
-export const approveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePost = <ThrowOnError extends boolean = false>(options: Options<ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostData, ThrowOnError>): RequestResult<ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostResponses, ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostErrors, ThrowOnError> => (options.client ?? client).post<ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostResponses, ApproveThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdApprovePostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people/{person_id}/review-threshold/proposals/{proposal_id}/approve',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Reject Threshold Proposal
- */
-export const rejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPost = <ThrowOnError extends boolean = false>(options: Options<RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostData, ThrowOnError>): RequestResult<RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostResponses, RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostErrors, ThrowOnError> => (options.client ?? client).post<RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostResponses, RejectThresholdProposalV1CoordinatorPeoplePersonIdReviewThresholdProposalsProposalIdRejectPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people/{person_id}/review-threshold/proposals/{proposal_id}/reject',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Set Threshold Manually
- *
- * Only once the latest round has run out -- three proposals rejected, or a no-change after
- * a coordinator asked for the other change -- with nothing open or pending; before that, 409.
- * A looser value also needs a round that began with "not a concern for this person" and a
- * rejected too-tight proposal, and never a value reverted away from; otherwise 422.
- */
-export const setThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPost = <ThrowOnError extends boolean = false>(options: Options<SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostData, ThrowOnError>): RequestResult<SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostResponses, SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostErrors, ThrowOnError> => (options.client ?? client).post<SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostResponses, SetThresholdManuallyV1CoordinatorPeoplePersonIdReviewThresholdManualPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people/{person_id}/review-threshold/manual',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Confirm Starting Threshold
- *
- * Record that a coordinator looked at the starting setting and kept it. Gates nothing.
- */
-export const confirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPost = <ThrowOnError extends boolean = false>(options: Options<ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostData, ThrowOnError>): RequestResult<ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostResponses, ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostErrors, ThrowOnError> => (options.client ?? client).post<ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostResponses, ConfirmStartingThresholdV1CoordinatorPeoplePersonIdReviewThresholdConfirmStartingPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people/{person_id}/review-threshold/confirm-starting',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Reconfirm Threshold
- *
- * Keep a live looser setting for another expiry period.
- */
-export const reconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPost = <ThrowOnError extends boolean = false>(options: Options<ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostData, ThrowOnError>): RequestResult<ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostResponses, ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostErrors, ThrowOnError> => (options.client ?? client).post<ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostResponses, ReconfirmThresholdV1CoordinatorPeoplePersonIdReviewThresholdDecisionsDecisionIdReconfirmPostErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/coordinator/people/{person_id}/review-threshold/decisions/{decision_id}/reconfirm',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1174,6 +478,101 @@ export const deleteAppointmentNoteV1GroupsGroupIdNotesNoteIdDeletePost = <ThrowO
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/groups/{group_id}/notes/{note_id}/delete',
     ...options
+});
+
+/**
+ * Group Tasks
+ *
+ * The family group's tasks and the days ticked off from `from_date` to `to_date` (default:
+ * two months back, six ahead), also before its senior is linked. Active members only.
+ */
+export const groupTasksV1GroupsGroupIdTasksGet = <ThrowOnError extends boolean = false>(options: Options<GroupTasksV1GroupsGroupIdTasksGetData, ThrowOnError>): RequestResult<GroupTasksV1GroupsGroupIdTasksGetResponses, GroupTasksV1GroupsGroupIdTasksGetErrors, ThrowOnError> => (options.client ?? client).get<GroupTasksV1GroupsGroupIdTasksGetResponses, GroupTasksV1GroupsGroupIdTasksGetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/groups/{group_id}/tasks',
+    ...options
+});
+
+/**
+ * Create Task
+ *
+ * Add a task, once or repeating. Any active member can; the senior cannot.
+ */
+export const createTaskV1GroupsGroupIdTasksPost = <ThrowOnError extends boolean = false>(options: Options<CreateTaskV1GroupsGroupIdTasksPostData, ThrowOnError>): RequestResult<CreateTaskV1GroupsGroupIdTasksPostResponses, CreateTaskV1GroupsGroupIdTasksPostErrors, ThrowOnError> => (options.client ?? client).post<CreateTaskV1GroupsGroupIdTasksPostResponses, CreateTaskV1GroupsGroupIdTasksPostErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/groups/{group_id}/tasks',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Person Tasks
+ *
+ * The senior's tasks, as the group's above. The senior reads their own; a family member
+ * the senior whose group they are an active member of.
+ */
+export const personTasksV1PeoplePersonIdTasksGet = <ThrowOnError extends boolean = false>(options: Options<PersonTasksV1PeoplePersonIdTasksGetData, ThrowOnError>): RequestResult<PersonTasksV1PeoplePersonIdTasksGetResponses, PersonTasksV1PeoplePersonIdTasksGetErrors, ThrowOnError> => (options.client ?? client).get<PersonTasksV1PeoplePersonIdTasksGetResponses, PersonTasksV1PeoplePersonIdTasksGetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/people/{person_id}/tasks',
+    ...options
+});
+
+/**
+ * Update Task
+ *
+ * Change a task (every day of it, if it repeats). Days already ticked off stay ticked.
+ */
+export const updateTaskV1GroupsGroupIdTasksTaskIdPut = <ThrowOnError extends boolean = false>(options: Options<UpdateTaskV1GroupsGroupIdTasksTaskIdPutData, ThrowOnError>): RequestResult<UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponses, UpdateTaskV1GroupsGroupIdTasksTaskIdPutErrors, ThrowOnError> => (options.client ?? client).put<UpdateTaskV1GroupsGroupIdTasksTaskIdPutResponses, UpdateTaskV1GroupsGroupIdTasksTaskIdPutErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/groups/{group_id}/tasks/{task_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Task
+ *
+ * Remove a task (every day of it) and its ticks.
+ */
+export const deleteTaskV1GroupsGroupIdTasksTaskIdDeletePost = <ThrowOnError extends boolean = false>(options: Options<DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostData, ThrowOnError>): RequestResult<DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponses, DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostErrors, ThrowOnError> => (options.client ?? client).post<DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostResponses, DeleteTaskV1GroupsGroupIdTasksTaskIdDeletePostErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/groups/{group_id}/tasks/{task_id}/delete',
+    ...options
+});
+
+/**
+ * Set Group Task Day
+ *
+ * Tick one day of a task done, or not done. Today or a past day; never a future one.
+ */
+export const setGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPut = <ThrowOnError extends boolean = false>(options: Options<SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutData, ThrowOnError>): RequestResult<SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponses, SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutErrors, ThrowOnError> => (options.client ?? client).put<SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutResponses, SetGroupTaskDayV1GroupsGroupIdTasksTaskIdDaysDayPutErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/groups/{group_id}/tasks/{task_id}/days/{day}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set Person Task Day
+ *
+ * The senior ticks one of today's tasks done, or not done. Today only.
+ */
+export const setPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPut = <ThrowOnError extends boolean = false>(options: Options<SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutData, ThrowOnError>): RequestResult<SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponses, SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutErrors, ThrowOnError> => (options.client ?? client).put<SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutResponses, SetPersonTaskDayV1PeoplePersonIdTasksTaskIdDaysDayPutErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/people/{person_id}/tasks/{task_id}/days/{day}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**

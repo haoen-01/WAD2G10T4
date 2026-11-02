@@ -9,7 +9,9 @@ Audit F finding 8 (reproduced as R7) and audit J finding F-J-A, pinned at the re
   * `weather_turns` never touches `availability`: the senior is told the forecast turned, never
     that their outing is "fully booked", because it is not.
 
-`tests/test_replanning.py` covers the pure module. This one is about what is persisted.
+`tests/test_replanning.py` covers the pure module. This one is about what is persisted. The
+plans themselves are stored as rows (`tests/row_fixtures.py`): the week routes that wrote them, and
+the notice read view over the offers, went in step 7. What `advance` writes is unchanged.
 """
 
 from __future__ import annotations
@@ -20,9 +22,11 @@ import pytest
 from sqlalchemy import select
 
 from silverloop.db_models import ActivityCandidateRow, ReplanOfferRow, WeekPlanEntryRow
+from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.local_time import local_date
 from silverloop.models import ActivityAvailability, ReplanReason, ReplanResolution
 from silverloop.sql_repository import SqlAlchemyRepository
+from tests.row_fixtures import active_run_id, audit_events, plan_activity
 
 # The seeded fixture catalogue, anchored to the reset day (2026-08-18). Named rather than
 # discovered so each test says plainly which listing it is about.
@@ -52,6 +56,41 @@ def _availability(repository: SqlAlchemyRepository) -> dict[str, str]:
         }
 
 
+def _availability_of(repository: SqlAlchemyRepository, activity_id: str) -> ActivityAvailability:
+    return ActivityAvailability(_availability(repository)[activity_id])
+
+
+def _open_offers(repository: SqlAlchemyRepository) -> list[ReplanOfferRow]:
+    """The live run's offers still awaiting an answer, for a plan whose day has not passed --
+    the offers the removed notice read view (`replan_notices`) turned into notices."""
+    run_id = active_run_id(repository, DEMO_PERSON_ID)
+    today = repository.person_state().current_day
+    with repository.sessions() as session:
+        offers = session.scalars(
+            select(ReplanOfferRow)
+            .where(ReplanOfferRow.run_id == run_id, ReplanOfferRow.resolution.is_(None))
+            .order_by(ReplanOfferRow.offered_at, ReplanOfferRow.offer_id)
+        ).all()
+        return [
+            offer
+            for offer in offers
+            if (plan := session.get(WeekPlanEntryRow, offer.plan_id)) is not None
+            and plan.replaced_reason is None
+            and plan.day >= today
+        ]
+
+
+def _start_day(repository: SqlAlchemyRepository, activity_id: str) -> date:
+    with repository.sessions() as session:
+        listing = session.get(ActivityCandidateRow, activity_id)
+        assert listing is not None and listing.start_at is not None
+        return local_date(listing.start_at)
+
+
+def _plan(repository: SqlAlchemyRepository, activity_id: str, day: date) -> None:
+    plan_activity(repository, activity_id, day, person_id=DEMO_PERSON_ID)
+
+
 def _plan_ids(repository: SqlAlchemyRepository) -> dict[str, str]:
     """`activity_id -> plan_id` across every run, so a test can name the dead run's own plan."""
     with repository.sessions() as session:
@@ -65,7 +104,7 @@ def _plan_ids(repository: SqlAlchemyRepository) -> dict[str, str]:
 
 
 def test_a_full_programme_writes_one_offer_and_audits_it(repo: SqlAlchemyRepository) -> None:
-    repo.plan_activity("activity-gardening-1", GARDENING_DAY, "senior")
+    _plan(repo, "activity-gardening-1", GARDENING_DAY)
 
     repo.advance("programme_becomes_full", event_id="full-1")
 
@@ -76,7 +115,11 @@ def test_a_full_programme_writes_one_offer_and_audits_it(repo: SqlAlchemyReposit
     assert offer.resolution is None
     assert offer.alternative_activity_id is not None
 
-    offered = [event for event in repo.list_events() if event.event_type == "replan_offered"]
+    offered = [
+        event
+        for event in audit_events(repo, person_id=DEMO_PERSON_ID)
+        if event.event_type == "replan_offered"
+    ]
     assert len(offered) == 1
     assert offered[0].detail["offer_id"] == offer.offer_id
     assert offered[0].detail["reason_code"] == ReplanReason.FULL.value
@@ -95,22 +138,18 @@ def test_the_event_fills_the_plan_for_the_next_simulated_day_and_offers_that_day
     it; "I could not find anything similar" is the honest answer only when the day genuinely has
     nothing, which is what makes this branch worth pinning.
     """
-    repo.plan_activity("activity-gardening-1", GARDENING_DAY, "senior")
-    repo.plan_activity("activity-chair-mobility-2", CHAIR_DAY, "senior")
+    _plan(repo, "activity-gardening-1", GARDENING_DAY)
+    _plan(repo, "activity-chair-mobility-2", CHAIR_DAY)
 
     repo.advance("programme_becomes_full", event_id="full-1")
 
-    assert repo.get_activity("activity-gardening-1").availability == ActivityAvailability.FULL
-    assert repo.get_activity("activity-chair-mobility-2").availability == (
-        ActivityAvailability.AVAILABLE
-    )
-    notices = repo.replan_notices()
-    assert len(notices) == 1
-    alternative = notices[0].alternative
-    assert alternative is not None
-    assert alternative.candidate.start_at is not None
-    assert local_date(alternative.candidate.start_at) == GARDENING_DAY
-    assert "looks like a similar option" in notices[0].message
+    assert _availability_of(repo, "activity-gardening-1") == ActivityAvailability.FULL
+    assert _availability_of(repo, "activity-chair-mobility-2") == (ActivityAvailability.AVAILABLE)
+    offers = _open_offers(repo)
+    assert len(offers) == 1
+    alternative_id = offers[0].alternative_activity_id
+    assert alternative_id is not None
+    assert _start_day(repo, alternative_id) == GARDENING_DAY
 
 
 def test_with_nothing_planned_the_event_changes_no_listing_at_all(
@@ -124,20 +163,7 @@ def test_with_nothing_planned_the_event_changes_no_listing_at_all(
 
     assert _availability(repo) == before
     assert _offers(repo) == []
-    assert repo.replan_notices() == []
-
-
-def test_the_notice_carries_the_offer_it_belongs_to(repo: SqlAlchemyRepository) -> None:
-    """Before the offer store, a notice had no id at all -- which is why "no thanks" could only
-    ever be browser state."""
-    repo.plan_activity("activity-gardening-1", GARDENING_DAY, "senior")
-    repo.advance("programme_becomes_full", event_id="full-1")
-
-    notices = repo.replan_notices()
-
-    assert len(notices) == 1
-    assert notices[0].offer_id == _offers(repo)[0].offer_id
-    assert notices[0].reason_code == ReplanReason.FULL
+    assert _open_offers(repo) == []
 
 
 def test_the_same_change_on_a_later_day_does_not_offer_the_same_thing_twice(
@@ -145,20 +171,20 @@ def test_the_same_change_on_a_later_day_does_not_offer_the_same_thing_twice(
 ) -> None:
     """The reappearing-notice half of audit F finding 8: the notice was recomputed on every read
     and every advance, so it came back however often it was answered."""
-    repo.plan_activity("activity-chair-mobility-2", CHAIR_DAY, "senior")
+    _plan(repo, "activity-chair-mobility-2", CHAIR_DAY)
     repo.advance("programme_becomes_full", event_id="full-1")
     repo.advance("recovery", event_id="recovery-1")
 
     assert len(_offers(repo)) == 1
-    assert len(repo.replan_notices()) == 1
+    assert len(_open_offers(repo)) == 1
 
 
 def test_an_offer_whose_day_has_passed_is_closed_rather_than_left_open(
     repo: SqlAlchemyRepository,
 ) -> None:
-    repo.plan_activity("activity-gardening-1", GARDENING_DAY, "senior")
+    _plan(repo, "activity-gardening-1", GARDENING_DAY)
     repo.advance("programme_becomes_full", event_id="full-1")
-    assert repo.replan_notices()
+    assert _open_offers(repo)
 
     repo.advance("recovery", event_id="recovery-1")
     repo.advance("recovery", event_id="recovery-2")
@@ -166,7 +192,7 @@ def test_an_offer_whose_day_has_passed_is_closed_rather_than_left_open(
     offer = _offers(repo)[0]
     assert offer.resolution == ReplanResolution.EXPIRED.value
     assert offer.resolved_at is not None
-    assert repo.replan_notices() == []
+    assert _open_offers(repo) == []
 
 
 # ── Weather is weather, not a fabricated catalogue fact ───────────────────────────────────────
@@ -176,36 +202,32 @@ def test_weather_never_marks_a_listing_full(repo: SqlAlchemyRepository) -> None:
     """Audit J finding F-J-A: `weather_turns` used to flip the listing's `availability` to FULL,
     which is a catalogue fact standing in for a context one -- and the senior read it as "fully
     booked"."""
-    repo.plan_activity("activity-gardening-1", GARDENING_DAY, "senior")
+    _plan(repo, "activity-gardening-1", GARDENING_DAY)
 
     repo.advance("weather_turns", event_id="weather-1")
 
-    assert repo.get_activity("activity-gardening-1").availability == ActivityAvailability.AVAILABLE
+    assert _availability_of(repo, "activity-gardening-1") == ActivityAvailability.AVAILABLE
 
 
-def test_weather_offers_a_weather_reason_and_says_the_forecast_turned(
+def test_weather_offers_a_weather_reason(
     repo: SqlAlchemyRepository,
 ) -> None:
-    repo.plan_activity("activity-gardening-1", GARDENING_DAY, "senior")
+    _plan(repo, "activity-gardening-1", GARDENING_DAY)
 
     repo.advance("weather_turns", event_id="weather-1")
 
     offers = _offers(repo)
     assert [offer.reason for offer in offers] == [ReplanReason.WEATHER.value]
-    notices = repo.replan_notices()
-    assert len(notices) == 1
-    assert notices[0].reason_code == ReplanReason.WEATHER
-    assert "forecast" in notices[0].reason
-    assert "booked" not in notices[0].message
+    assert [offer.reason for offer in _open_offers(repo)] == [ReplanReason.WEATHER.value]
 
 
 def test_weather_leaves_an_indoor_plan_alone(repo: SqlAlchemyRepository) -> None:
-    repo.plan_activity("activity-chair-mobility-1", GARDENING_DAY, "senior")
+    _plan(repo, "activity-chair-mobility-1", GARDENING_DAY)
 
     repo.advance("weather_turns", event_id="weather-1")
 
     assert _offers(repo) == []
-    assert repo.replan_notices() == []
+    assert _open_offers(repo) == []
 
 
 # ── A dead run's plan is not the live run's business ──────────────────────────────────────────
@@ -221,16 +243,16 @@ def test_a_dead_runs_plan_cannot_steer_which_listing_is_marked_full(
     outing won -- so the event the senior triggered filled up a listing they had nothing planned
     for and left the plan they *did* have untouched, with no notice at all.
     """
-    repo.plan_activity("activity-gardening-1", GARDENING_DAY, "senior")
+    _plan(repo, "activity-gardening-1", GARDENING_DAY)
     dead_plan_id = _plan_ids(repo)["activity-gardening-1"]
 
     repo.reset()
-    repo.plan_activity("activity-chair-mobility-2", CHAIR_DAY, "senior")
+    _plan(repo, "activity-chair-mobility-2", CHAIR_DAY)
 
     repo.advance("programme_becomes_full", event_id="full-1")
 
-    assert repo.get_activity("activity-chair-mobility-2").availability == ActivityAvailability.FULL
-    assert repo.get_activity("activity-gardening-1").availability == ActivityAvailability.AVAILABLE
+    assert _availability_of(repo, "activity-chair-mobility-2") == ActivityAvailability.FULL
+    assert _availability_of(repo, "activity-gardening-1") == ActivityAvailability.AVAILABLE
     offers = _offers(repo)
     assert [offer.plan_id for offer in offers] != [dead_plan_id]
     assert len(offers) == 1
@@ -238,10 +260,10 @@ def test_a_dead_runs_plan_cannot_steer_which_listing_is_marked_full(
 
 
 def test_a_dead_runs_plan_is_never_offered_a_replacement(repo: SqlAlchemyRepository) -> None:
-    repo.plan_activity("activity-gardening-1", GARDENING_DAY, "senior")
+    _plan(repo, "activity-gardening-1", GARDENING_DAY)
     repo.reset()
 
     repo.advance("programme_becomes_full", event_id="full-1")
 
     assert _offers(repo) == []
-    assert repo.replan_notices() == []
+    assert _open_offers(repo) == []

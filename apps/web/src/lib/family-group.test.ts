@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { calendarSourceFor, homeSeniorOf, seniorOf, taskOwnerOf } from './family-group';
+import { calendarSourceFor, homeSeniorOf, seniorOf } from './family-group';
 
 const linked = { group_id: 'grp_1', person_id: 'person-1' };
 const unlinked = { group_id: 'grp_2', person_id: null };
@@ -26,18 +26,6 @@ describe('homeSeniorOf', () => {
 
   it('keeps the fallback senior when there is no group at all', () => {
     assert.equal(homeSeniorOf(null, 'mdm-lim'), 'mdm-lim');
-  });
-});
-
-describe('taskOwnerOf', () => {
-  it('keys tasks by the senior once linked, else by the group', () => {
-    assert.equal(taskOwnerOf(linked, 'mdm-lim'), 'person-1');
-    assert.equal(taskOwnerOf(unlinked, 'mdm-lim'), 'grp_2');
-  });
-
-  it('falls back only when there is neither', () => {
-    assert.equal(taskOwnerOf(null, 'mdm-lim'), 'mdm-lim');
-    assert.equal(taskOwnerOf({ group_id: null, person_id: null }, 'mdm-lim'), 'mdm-lim');
   });
 });
 
