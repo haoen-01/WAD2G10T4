@@ -29,6 +29,27 @@ Chromium browser (through `e2e/`) and the frozen Python environment in `server/`
 
 Open <http://127.0.0.1:3000> for the demo and <http://127.0.0.1:8000/docs> for API exploration.
 
+## Moving an existing checkout to the client/server layout
+
+If your checkout predates the `client/`, `server/` and `e2e/` split, first delete the folders and
+files the old layout left behind (they are ignored by git, so pulling does not remove them), then
+run setup again. A leftover root `pnpm-workspace.yaml` in particular makes the `e2e/` install
+report "Already up to date" without installing Playwright.
+
+PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force node_modules, apps, libs, .nx, pnpm-lock.yaml, pnpm-workspace.yaml -ErrorAction SilentlyContinue
+pnpm run setup
+```
+
+Git Bash, macOS or Linux:
+
+```bash
+rm -rf node_modules apps libs .nx pnpm-lock.yaml pnpm-workspace.yaml
+pnpm run setup
+```
+
 ## Separate terminals
 
 If the combined process output is inconvenient:

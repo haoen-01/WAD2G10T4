@@ -21,6 +21,9 @@ node_modules/
 # The root package.json only runs scripts and has no dependencies. pnpm 11 still writes an empty
 # lockfile (and node_modules/) here the first time a root script runs; it is not used.
 /pnpm-lock.yaml
+# pnpm 11 writes this here when it blocks a build script (e.g. Nx left in an old root node_modules).
+# It would make client/ and e2e/ part of one root workspace, so it must never be committed.
+/pnpm-workspace.yaml
 # Task cache from the former Nx setup; existing checkouts may still have one.
 .nx/
 dist/
