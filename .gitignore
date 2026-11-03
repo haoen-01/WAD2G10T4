@@ -76,3 +76,6 @@ infra/supabase/.branches/
 
 # Nested git worktrees created by isolated agent sessions
 .claude/worktrees/
+
+# Claude Code per-user settings (local permissions); never committed
+**/.claude/settings.local.json

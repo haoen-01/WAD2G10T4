@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { RouterLink, useRoute } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 
 import type { AppointmentRequest } from '@silverloop/api-client';
 
@@ -16,6 +16,7 @@ import WeekStrip from '@/components/calendar/WeekStrip.vue';
 import BottomSheet from '@/components/motion/BottomSheet.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { showToast } from '@/composables/useToast';
+import { useAsks } from '@/composables/useAsks';
 import { useFamily } from '@/composables/useFamily';
 import { useTasks } from '@/composables/useTasks';
 import { addDays, monthGrid, monthOf, dayClick, shiftMonth } from '@/lib/calendar';
@@ -28,6 +29,7 @@ import { oneOffTasksByDay, parseShowRepeating } from '@/lib/tasks';
 import type { TaskInput, TaskOccurrence } from '@/lib/tasks';
 
 const route = useRoute();
+const router = useRouter();
 const family = useFamily();
 const { state, today, appointments, currentMember, elderName, loaded, groupId } = family;
 
@@ -79,6 +81,17 @@ const uncoveredByDay = computed(() => {
   const days: Record<string, number> = {};
   for (const appointment of visible.value) {
     if (stillNeedsHelper(state.assignments, appointment)) {
+      days[appointment.date] = (days[appointment.date] ?? 0) + 1;
+    }
+  }
+  return days;
+});
+// Of those, how many have someone asked and waiting: when all of a day's do, its marker is amber.
+const asks = useAsks();
+const askedByDay = computed(() => {
+  const days: Record<string, number> = {};
+  for (const appointment of visible.value) {
+    if (stillNeedsHelper(state.assignments, appointment) && asks.openAskOf(appointment.id)) {
       days[appointment.date] = (days[appointment.date] ?? 0) + 1;
     }
   }
@@ -286,6 +299,25 @@ watch(
   { immediate: true },
 );
 
+// A link followed while the calendar is already open (a notification in the bell) keeps this
+// page, so open the newly linked appointment here.
+watch(
+  () => route.query.appointment,
+  (next, previous) => {
+    if (typeof next !== 'string' || next === previous) return;
+    const linked = appointments.find((appointment) => appointment.id === next);
+    if (linked) pickAppointment(linked);
+  },
+);
+// Once the linked appointment is closed (or another one chosen), the link is spent: drop it from
+// the address, so following the same link again (from the bell) opens it again.
+watch(selectedId, (id) => {
+  const linked = route.query.appointment;
+  if (typeof linked !== 'string' || linked === id || !loaded.value) return;
+  const { appointment: _spent, ...rest } = route.query;
+  void router.replace({ query: rest });
+});
+
 // ---- Adding, editing, moving and removing appointments ----
 const canChange = computed(() => !!groupId.value && !!currentMember.value);
 /** The open form: a new appointment, one being edited, or nothing. */
@@ -430,6 +462,7 @@ const detailsProps = computed(() =>
         elderName: elderName.value,
         today,
         groupId: groupId.value,
+        availability: state.availability,
       }
     : null,
 );
@@ -538,6 +571,7 @@ onBeforeUnmount(() => {
           :today="today"
           :appointments-by-day="byDay"
           :uncovered-by-day="uncoveredByDay"
+          :asked-by-day="askedByDay"
           :holidays-by-day="holidays"
           :picked-day="formOpen ? draft.date : null"
           @select-day="onSelectDay"
@@ -551,6 +585,7 @@ onBeforeUnmount(() => {
           :selected-day="selectedDay"
           :appointments-by-day="byDay"
           :uncovered-by-day="uncoveredByDay"
+          :asked-by-day="askedByDay"
           :holidays-by-day="holidays"
           :tasks-by-day="tasksByDay"
           :heat-by-day="heatByDay"

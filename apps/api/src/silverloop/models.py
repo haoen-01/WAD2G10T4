@@ -1933,6 +1933,9 @@ class MyGroup(BaseModel):
     member_count: int
     # True on at most one group: the active membership this account opened most recently.
     last_opened: bool
+    # This member's unread notifications in this group, for a badge on its group card. The bell
+    # counts across every group; this is the same count split by group. 0 while pending.
+    unread_count: int
 
 
 class MeResponse(BaseModel):
@@ -2160,6 +2163,8 @@ class FamilyActivityKind(StrEnum):
     NOTE_ADDED = "note_added"
     SENIOR_LINKED = "senior_linked"
     SENIOR_RENAMED = "senior_renamed"
+    HELPER_ASKED = "helper_asked"
+    HELPER_DECLINED = "helper_declined"
 
 
 class CheckInKind(StrEnum):
@@ -2193,7 +2198,7 @@ class FamilyActivityEntry(BaseModel):
     actor_member_id: str
     actor_name: str
     is_me: bool
-    # `member_approved` only: the member who was let in.
+    # `member_approved`: the member who was let in. `helper_asked`: the member who was asked.
     subject_name: str | None
     appointment_id: str | None
     # A snapshot from when it happened, so it survives the appointment being removed.
@@ -2297,6 +2302,115 @@ class AppointmentDraft(BaseModel):
     generated_at: datetime
     model: str | None
     steps: list[AgentStep]
+
+
+# ── Asks and notifications ────────────────────────────────────────────────────
+#
+# One family member asking another, by name, to take one day of an appointment that needs a
+# helper, and the in-app notifications about it. Never sent to the senior, and none leaves the app.
+
+
+class HelperAskState(StrEnum):
+    """An ask is `open` until it ends in exactly one of the other states; it never reopens."""
+
+    OPEN = "open"
+    ACCEPTED = "accepted"  # the asked member said yes and became the helper
+    DECLINED = "declined"  # the asked member said no; the day needs a helper again
+    WITHDRAWN = "withdrawn"  # the asker took it back, or the appointment day was removed
+    LAPSED = "lapsed"  # the appointment started with no answer
+    CLOSED = "closed"  # someone else pressed "I'll go"
+
+
+class NotificationKind(StrEnum):
+    """What a notification tells its one recipient. Closed: the browser words each one itself."""
+
+    ASK_RECEIVED = "ask_received"  # to the asked member
+    ASK_ACCEPTED = "ask_accepted"  # to the asker
+    ASK_DECLINED = "ask_declined"  # to the asker
+    ASK_WITHDRAWN = "ask_withdrawn"  # to the asked member
+    ASK_LAPSED = "ask_lapsed"  # to the asker
+    ASK_CLOSED = "ask_closed"  # to the asker and the asked member, but not whoever closed it
+
+
+class HelperAskRequest(BaseModel):
+    """Ask an active member of the group to take one day of an appointment."""
+
+    occurrence_id: str = Field(max_length=100)
+    asked_member_id: str = Field(max_length=64)
+
+
+class HelperAsk(BaseModel):
+    ask_id: str
+    occurrence_id: str
+    appointment_id: str
+    on_date: date
+    asker_member_id: str
+    asker_name: str
+    asked_member_id: str
+    asked_name: str
+    created_at: datetime
+    state: HelperAskState
+    # For the viewer: whether they are the asked member (yes / no) or the asker (withdraw), while
+    # the ask is open.
+    can_answer: bool
+    can_withdraw: bool
+
+
+class HelperAskList(BaseModel):
+    asks: list[HelperAsk]
+
+
+class NotificationItem(BaseModel):
+    """One notification for the signed-in member, with what the bell needs to show it."""
+
+    notification_id: str
+    kind: NotificationKind
+    created_at: datetime
+    read: bool
+    group_id: str
+    # The senior's name, as the group is labelled everywhere else.
+    group_label: str
+    ask_id: str
+    # The ask's state now, which may have moved on since the notification was written.
+    ask_state: HelperAskState
+    # Set only while the appointment exists and still has that day.
+    occurrence_id: str | None
+    # The appointment's title now, or the one it had when asked once it is gone.
+    appointment_title: str
+    on_date: date
+    # The appointment's start time now; None once the appointment or its day is gone.
+    start: str | None
+    asker_name: str
+    asked_name: str
+    # Who ended the ask, when a member did (None while open, and for a lapse).
+    ended_by_name: str | None
+    # The recipient is the asked member and the ask is still open: show "Yes, I'll go" / "Can't go".
+    is_open_for_me: bool
+
+
+class NotificationPage(BaseModel):
+    """Newest first, across all the member's family groups. Pass `next_before` as `before` for the
+    next page; None at the end. `unread_count` counts every unread notification, not just this
+    page's."""
+
+    items: list[NotificationItem]
+    unread_count: int
+    next_before: str | None
+
+
+class NotificationReadRequest(BaseModel):
+    """Mark some of your notifications read (`notification_ids`), or all of them (`all`)."""
+
+    notification_ids: list[Annotated[str, Field(max_length=64)]] = Field(
+        default_factory=list, max_length=100
+    )
+    all: bool = False
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> NotificationReadRequest:
+        if bool(self.notification_ids) == self.all:
+            raise ValueError("Send either notification_ids or all: true.")
+        return self
 
 
 # ── Appointment notes ─────────────────────────────────────────────────────────

@@ -2,9 +2,18 @@
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 
+import AskActions from '@/components/family/AskActions.vue';
+import AskedTag from '@/components/family/AskedTag.vue';
+import AskSomeone from '@/components/family/AskSomeone.vue';
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import Icon from '@/components/ui/Icon.vue';
-import { KIND_LABELS, type Appointment, type FamilyMember } from '@/lib/family';
+import { openAskOf } from '@/composables/useAsks';
+import {
+  KIND_LABELS,
+  type Appointment,
+  type AvailabilityEntry,
+  type FamilyMember,
+} from '@/lib/family';
 import { capRows } from '@/lib/home';
 import { visitWhen } from '@/lib/today';
 
@@ -14,6 +23,10 @@ import { visitWhen } from '@/lib/today';
  * Home owns the change (`useFamily().volunteer`), so this only emits. At most five rows show; "See
  * all" opens the calendar filtered to visits that need a helper. When every visit has someone, it
  * says so instead of disappearing.
+ *
+ * A visit with someone asked stays on the list (it still needs a helper) with an amber "Asked
+ * Emily · waiting" tag. The asked member answers here instead of "I'll go"; the asker can withdraw;
+ * with nobody asked, "Ask someone" sits beside "I'll go".
  */
 const props = defineProps<{
   appointments: Appointment[];
@@ -22,11 +35,20 @@ const props = defineProps<{
   canVolunteer: boolean;
   /** The viewer, for the "You're going" moment on the button. */
   helper?: Pick<FamilyMember, 'name' | 'colour'> | null;
+  /** For "Ask someone": the group, when each said they are free, and who is looking. */
+  members: readonly FamilyMember[];
+  availability: readonly AvailabilityEntry[];
+  currentMemberId: string | null;
 }>();
 
 const emit = defineEmits<{ volunteer: [appointment: Appointment] }>();
 
 const rows = computed(() => capRows(props.appointments));
+
+// "12:00 pm" stays on one line: the time and its am/pm never split, now the buttons beside it leave
+// the line less room. Display only; screen readers read the same words.
+const whenText = (date: string, start: string, end?: string | null) =>
+  visitWhen(date, start, end).replace(/ (am|pm)\b/g, '\u00a0$1');
 
 // Taking a visit removes its row, so focus moves on instead of falling to the page: to the next
 // "I'll go" (or the one before), or to the heading when none are left.
@@ -77,6 +99,7 @@ async function go(item: Appointment, index: number) {
 <template>
   <section
     ref="root"
+    data-ask-region
     class="needs sl-panel"
     :class="{ covered: !appointments.length }"
     aria-labelledby="needs-heading"
@@ -84,8 +107,9 @@ async function go(item: Appointment, index: number) {
     <h3
       id="needs-heading"
       ref="heading"
-      class="h4 d-flex align-items-center gap-2 mb-1 needs-heading"
       tabindex="-1"
+      data-ask-fallback
+      class="h4 d-flex align-items-center gap-2 mb-1 needs-heading"
     >
       <Icon :name="appointments.length ? 'user-plus' : 'check-circle'" class="needs-icon" />
       Needs someone to go along
@@ -102,7 +126,13 @@ async function go(item: Appointment, index: number) {
         someone in the next 2 weeks
       </p>
       <ul class="needs-list">
-        <li v-for="(item, index) in rows.shown" :key="item.id" class="needs-item">
+        <li
+          v-for="(item, index) in rows.shown"
+          :key="item.id"
+          data-ask-scope
+          tabindex="-1"
+          class="needs-item"
+        >
           <span class="sl-kind-strip" :class="`kind-${item.kind}`" aria-hidden="true"></span>
           <RouterLink
             class="needs-link"
@@ -111,38 +141,55 @@ async function go(item: Appointment, index: number) {
             <span class="needs-title">{{ item.title }}</span>
             <span class="needs-kind">{{ KIND_LABELS[item.kind] }}</span>
             <span class="needs-when">
-              <Icon name="clock" class="me-1" />{{ visitWhen(item.date, item.start, item.end) }}
+              <Icon name="clock" class="me-1" />{{ whenText(item.date, item.start, item.end) }}
             </span>
+            <AskedTag
+              v-if="openAskOf(item.id)"
+              :ask="openAskOf(item.id)!"
+              class="needs-asked mt-1"
+            />
           </RouterLink>
-          <button
-            v-if="canVolunteer"
-            type="button"
-            class="btn needs-go"
-            :class="[
-              index === 0 ? 'btn-primary' : 'btn-outline-primary',
-              { going: going === item.id },
-            ]"
-            :aria-label="
-              going === item.id
-                ? `You’re going with ${elder} to ${item.title}`
-                : `I’ll go with ${elder} to ${item.title}, ${visitWhen(item.date, item.start, item.end)}`
-            "
-            :aria-disabled="going === item.id ? 'true' : undefined"
-            :data-go="item.id"
-            @click="go(item, index)"
-          >
-            <span v-if="going === item.id" class="going-face" data-testid="needs-going">
-              <MemberAvatar
-                v-if="helper"
-                :name="helper.name"
-                :colour="helper.colour"
-                size="sm"
-                class="me-2"
-              />
-              <span>You’re going</span>
-            </span>
-            <template v-else><Icon name="user-plus" class="me-1" />I’ll go</template>
-          </button>
+          <div v-if="canVolunteer" class="needs-actions">
+            <button
+              v-if="!openAskOf(item.id)?.can_answer"
+              type="button"
+              class="btn needs-go"
+              :class="[
+                index === 0 ? 'btn-primary' : 'btn-outline-primary',
+                { going: going === item.id },
+              ]"
+              :aria-label="
+                going === item.id
+                  ? `You’re going with ${elder} to ${item.title}`
+                  : `I’ll go with ${elder} to ${item.title}, ${visitWhen(item.date, item.start, item.end)}`
+              "
+              :aria-disabled="going === item.id ? 'true' : undefined"
+              :data-go="item.id"
+              @click="go(item, index)"
+            >
+              <span v-if="going === item.id" class="going-face" data-testid="needs-going">
+                <MemberAvatar
+                  v-if="helper"
+                  :name="helper.name"
+                  :colour="helper.colour"
+                  size="sm"
+                  class="me-2"
+                />
+                <span>You’re going</span>
+              </span>
+              <template v-else><Icon name="user-plus" class="me-1" />I’ll go</template>
+            </button>
+            <AskActions v-if="openAskOf(item.id)" :ask="openAskOf(item.id)!" :title="item.title" />
+            <AskSomeone
+              v-else
+              :appointment="item"
+              :members="members"
+              :availability="availability"
+              :current-member-id="currentMemberId"
+              :helper-ids="[]"
+              :elder="elder"
+            />
+          </div>
         </li>
       </ul>
       <RouterLink
@@ -233,6 +280,17 @@ async function go(item: Appointment, index: number) {
   font-weight: 700;
 }
 
+/* The tag keeps its own width rather than stretching across the card. */
+.needs-asked {
+  align-self: flex-start;
+}
+
+/* Focus lands on the heading (or a card) after an ask changes the list: no ring on non-controls. */
+#needs-heading:focus,
+.needs-item:focus {
+  outline: none;
+}
+
 .needs-when {
   display: inline-flex;
   align-items: center;
@@ -240,13 +298,27 @@ async function go(item: Appointment, index: number) {
   font-size: 0.95rem;
 }
 
-.needs-go {
-  display: inline-flex;
-  flex: none;
+/* "I'll go" with "Ask someone" (or the answer to an ask) beside it; an open "Ask someone" list
+   takes a whole row under them. */
+.needs-actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
   align-self: center;
+  gap: 0.4rem;
+}
+
+.needs-actions :deep(.btn) {
+  display: inline-flex;
+  align-items: center;
   min-height: 2.75rem;
   font-weight: 700;
+}
+
+.needs-go {
+  flex: none;
 }
 
 /* "You're going": the button fills with the pale jade of a taken visit, and the helper's face fades

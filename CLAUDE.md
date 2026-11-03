@@ -196,7 +196,8 @@ pnpm test:postgres    # needs SILVERLOOP_POSTGRES_TEST_URL; db name must contain
 pnpm test:scenarios   # YAML scenarios under scenarios/
 pnpm client:generate  # regenerate openapi/silverloop.json + libs/api-client/src/generated
 pnpm client:check     # fails if the generated contract is stale or uncommitted
-pnpm demo:smoke       # in-process deterministic loop smoke
+pnpm demo:smoke       # loop smoke against a running API on :8000 (start one first)
+pnpm demo:story       # put the signed-in Supabase demo into its starting state (shared profile)
 pnpm demo:supabase-smoke
 ```
 
@@ -242,7 +243,7 @@ integrations are future, authorised adapters only.
 - `main.py` — FastAPI app factory, routes, lifespan (runtime check → `alembic upgrade head` → seed).
 - `models.py` — Pydantic contract. **Editing this changes the public contract.**
 - `db_models.py` / `sql_repository.py` — SQLAlchemy schema and the single large repository
-  implementation (~14k lines) behind the `SilverLoopRepository` Protocol in `repository.py`.
+  implementation (~9k lines) behind the `SilverLoopRepository` Protocol in `repository.py`.
   `advance` is the daily step: context → metric → decision → outreach planner → intervention or
   review case → audit.
 - `policy.py` — the deterministic decision ladder. `Decision` is one of `suppress`, `no_action`,
@@ -254,6 +255,12 @@ integrations are future, authorised adapters only.
   `family_activity.py` records the family activity feed (written in the same transaction as the
   change it describes); `/v1/groups/{id}/activity`, `/check-ins` and the per-day appointment
   `/notes` routes are for active group members only (a senior gets 403, anyone else 404).
+- `family_tasks.py` — the family group's shared Tasks (`/v1/groups/{id}/tasks…`,
+  `/v1/people/{id}/tasks…`): the senior ticks today's tasks, the family adds and edits. Never read
+  by the safety loop.
+- `assistant.py` / `assistant_routes.py` — Kaki, the read-only assistant. Emergency, medicine and
+  symptom questions get a fixed safety reply and never reach an AI; OpenAI is used only when
+  `OPENAI_API_KEY` is set and the profile is not `offline`, otherwise a built-in helper answers.
 - `wearable_status.py` — the simulated watch status shown on Home (`GET /v1/people/{id}/wearable`,
   registered in `family_routes.py`).
 - `agent/` — the outreach planner (Anthropic or Bedrock, off by default) and its deterministic
@@ -265,20 +272,23 @@ integrations are future, authorised adapters only.
 - `runtime.py` — refuses to start with SQLite under the `shared` profile, or with the committed
   placeholder DATABASE_URL. This guard is deliberate; don't relax it to make a run succeed.
 - `adapters/` — `synthetic` (default), `csv_sample` and `apple_export`; provider-neutral and detachable.
-- `scenarios.py`, `seed.py`, `smoke.py`, `supabase_smoke.py` — CLI entrypoints (`python -m silverloop.X`).
+- `scenarios.py`, `seed.py`, `smoke.py`, `supabase_smoke.py`, `demo_story.py`,
+  `setup_demo_accounts.py` — CLI entrypoints (`python -m silverloop.X`).
 
 Simulation (`POST /v1/simulation/advance`) accepts only `activity_declines`,
 `rain_explains_decline`, `rain_clears_activity_low`, `recovery`, `low_wear`, `consent_revoked`,
 `public_holiday`, `programme_becomes_full` and `weather_turns`. Calls pass an `event_id` and are
 idempotent per run.
 
-**API surface with no screen.** About two thirds of the routes serve features no current screen uses:
-coordinator tools (review queue, review cases, review setting, care priorities: `triage.py`,
-`review_threshold*.py`, `review_lessons.py`, `case_delta.py`), the evaluator ranker inspector,
-activity search, week plans, preferences, goals and replanning. Several of them still run inside
-`advance` (the review setting feeds `policy.decide`; replan offers and review cases are written
-there), so they cannot be deleted by removing files alone. The web app's routes are the ones in
-`apps/web/src/services/careApi.ts`, plus `/v1/auth/me`.
+**API surface.** The routes are the ones the web app calls (`apps/web/src/services/careApi.ts` plus
+`/v1/auth/me`), the e2e and demo tooling routes (`/health`, `/ready`, `/v1/demo/reset`,
+`/v1/simulation/advance`, `/v1/people/{id}/consent`), and `POST /v1/groups/{id}/open`, which records
+the last-opened group for the switcher but has no caller in the web app yet. The 51 routes no screen
+used (coordinator, review setting, week plans, preferences, goals, activity search, evaluator) were
+removed in step 7; see `docs/research/aac-route-removal.md`. Code they used that `advance` still
+runs stays (the review setting feeds `policy.decide`; replan offers and review cases are written
+there; `world_model.py` and `follow_up.py` back `repository.metrics()`), so do not delete it as
+dead.
 
 ## Runtime profiles
 
@@ -304,7 +314,8 @@ matches the repo head.
   indicator stays CSS only). Every motion component honours `prefers-reduced-motion` via
   `composables/useReducedMotion.ts`, and a swipe or drag always has a visible button that does the
   same thing.
-- Branches: short-lived `feat/`, `fix/`, `test/`, `docs/` off `main`; conventional commit prefixes.
+- Branches: short-lived `feat/`, `fix/`, `test/`, `docs/` off `dev`, with PRs into `dev`; `dev` goes
+  to `main` after integration. Conventional commit prefixes.
   Schema and safety-policy changes need a reviewer.
 - Every behavioural change needs a scenario or test update — add to `scenarios/*.yaml` for policy
   behaviour, `apps/api/tests/` for units and API, `apps/e2e/tests/` for the browser loop.

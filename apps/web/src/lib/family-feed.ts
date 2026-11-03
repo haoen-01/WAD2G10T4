@@ -11,7 +11,7 @@ import { formatIsoDay, formatMomentDay } from './format-date';
  */
 
 export type FeedIcon =
-  'phone' | 'walk' | 'chat' | 'calendar' | 'users' | 'check' | 'note' | 'clock';
+  'phone' | 'walk' | 'chat' | 'calendar' | 'users' | 'check' | 'note' | 'clock' | 'hand' | 'user-x';
 
 export interface FeedLine {
   /** "You" or the member's name. */
@@ -107,6 +107,12 @@ export function feedLine(entry: FamilyActivityEntry, options: FeedOptions = {}):
           : `stepped back from ${entry.appointment_title || 'an appointment'} (every time)`,
         'check',
       );
+    // Asks: the asker asked someone by name; the asked member said no. A yes is `helper_joined`,
+    // and a withdrawn, lapsed or closed ask writes no line.
+    case 'helper_asked':
+      return line(`asked ${entry.subject_name || 'someone'} to go to ${titled(entry)}`, 'hand');
+    case 'helper_declined':
+      return line(`can’t make ${titled(entry)}`, 'user-x');
     case 'availability_updated':
       return line(day ? `updated free times for ${day}` : 'updated free times', 'clock');
     case 'check_in': {

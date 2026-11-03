@@ -2,8 +2,11 @@
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 
+import AskedTag from '@/components/family/AskedTag.vue';
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import Icon from '@/components/ui/Icon.vue';
+import { openAskOf } from '@/composables/useAsks';
+import { askTagLabel } from '@/lib/asks';
 import { addDays } from '@/lib/calendar';
 import type { Appointment, FamilyMember } from '@/lib/family';
 import { WEEKDAYS_SHORT, formatClockTime, formatIsoDay, parseIsoDay } from '@/lib/format-date';
@@ -41,14 +44,23 @@ const days = computed(() =>
   }),
 );
 
-function linkLabel(iso: string, count: number, open: number, taskCount = 0) {
+function linkLabel(iso: string, items: Appointment[], taskCount = 0) {
+  const count = items.length;
+  const unhelped = items.filter((item) => props.helpersOf(item.id).length === 0);
+  const open = unhelped.length;
   const what =
     count === 0
       ? taskCount
         ? 'no appointments'
         : 'nothing planned'
       : `${count} ${count === 1 ? 'appointment' : 'appointments'}`;
-  const need = open ? `, ${open} with no one going yet` : '';
+  // An asked day is still not covered: say who was asked, so it is not only the amber colour.
+  const asked = unhelped
+    .map((item) => openAskOf(item.id))
+    .filter((ask) => ask !== null)
+    .map((ask) => ` (${askTagLabel(ask)})`)
+    .join('');
+  const need = open ? `, ${open} with no one going yet${asked}` : '';
   const tasks = taskCount ? `, ${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}` : '';
   return `${formatIsoDay(iso, { style: 'long' })}: ${what}${need}${tasks}. Open in the calendar.`;
 }
@@ -66,14 +78,7 @@ function linkLabel(iso: string, count: number, open: number, taskCount = 0) {
           empty: !day.items.length && !day.tasks.length && !day.repeating,
         }"
         :to="{ path: '/calendar', query: { day: day.iso } }"
-        :aria-label="
-          linkLabel(
-            day.iso,
-            day.items.length,
-            day.items.filter((item) => helpersOf(item.id).length === 0).length,
-            day.tasks.length + day.repeating,
-          )
-        "
+        :aria-label="linkLabel(day.iso, day.items, day.tasks.length + day.repeating)"
       >
         <span class="week-date" aria-hidden="true">
           <span class="week-weekday">{{ day.weekday }}</span>
@@ -87,7 +92,13 @@ function linkLabel(iso: string, count: number, open: number, taskCount = 0) {
             v-for="item in day.items"
             :key="item.id"
             class="week-item"
-            :class="[`kind-${item.kind}`, { open: !helpersOf(item.id).length }]"
+            :class="[
+              `kind-${item.kind}`,
+              {
+                open: !helpersOf(item.id).length && !openAskOf(item.id),
+                asked: !helpersOf(item.id).length && !!openAskOf(item.id),
+              },
+            ]"
           >
             <span class="week-time">{{ timeRange(item.start, item.end) }}</span>
             <span class="week-title">{{ item.title }}</span>
@@ -100,6 +111,12 @@ function linkLabel(iso: string, count: number, open: number, taskCount = 0) {
                 size="sm"
               />
             </span>
+            <AskedTag
+              v-else-if="openAskOf(item.id)"
+              :ask="openAskOf(item.id)!"
+              small
+              class="week-asked"
+            />
             <span v-else class="week-need"><Icon name="alert" class="me-1" />No one going</span>
           </span>
           <span v-if="day.tasks.length" class="week-count d-md-none">
@@ -230,6 +247,19 @@ function linkLabel(iso: string, count: number, open: number, taskCount = 0) {
   border: 2px dashed var(--sl-coral);
   border-left: 4px solid var(--kind);
   background: var(--sl-coral-soft);
+}
+
+/* Someone asked, no answer yet: still not covered, but in hand. Amber rather than coral. */
+.week-item.asked {
+  border: 2px dashed var(--sl-sun-deep);
+  border-left: 4px solid var(--kind);
+  background: var(--sl-sun-soft);
+}
+
+.week-asked {
+  align-self: flex-start;
+  margin-top: 0.2rem;
+  background: var(--sl-surface);
 }
 
 .week-task.done .week-title {

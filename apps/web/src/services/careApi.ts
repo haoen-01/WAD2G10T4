@@ -20,10 +20,15 @@ import type {
   FamilyActivityEntry,
   FamilyActivityPage,
   FamilyCalendar,
+  HelperAsk,
+  HelperAskList,
+  HelperAskRequest,
   Intervention,
   LinkSeniorRequest,
   MeResponse,
   MyGroup,
+  NotificationPage,
+  NotificationReadRequest,
   OutcomeKind,
   PersonState,
   PinResponse,
@@ -330,6 +335,62 @@ export async function getGroupActivity(
 export async function checkIn(groupId: string, body: CheckInRequest): Promise<FamilyActivityEntry> {
   const response = await http.post<FamilyActivityEntry>(`/v1/groups/${groupId}/check-ins`, body);
   return response.data;
+}
+
+// ── Asks (one member asking another to take a day) and the bell's notifications ──
+
+/**
+ * Asks a named active member to take one day that needs a helper. 409 while someone is already
+ * asked for that day; 422 for yourself, a current helper, a day that has started or is covered.
+ */
+export async function createAsk(
+  groupId: string,
+  occurrenceId: string,
+  askedMemberId: string,
+): Promise<HelperAsk> {
+  const body: HelperAskRequest = { occurrence_id: occurrenceId, asked_member_id: askedMemberId };
+  const response = await http.post<HelperAsk>(`/v1/groups/${groupId}/asks`, body);
+  return response.data;
+}
+
+/** The group's open asks, oldest first (each says whether you can answer or withdraw it). */
+export async function getOpenAsks(groupId: string): Promise<HelperAsk[]> {
+  const response = await http.get<HelperAskList>(`/v1/groups/${groupId}/asks`, {
+    params: { state: 'open' },
+  });
+  return response.data.asks;
+}
+
+/** The asked member says yes, and so becomes the helper. 409 once the ask has ended. */
+export async function acceptAsk(groupId: string, askId: string): Promise<void> {
+  await http.post(`/v1/groups/${groupId}/asks/${askId}/accept`);
+}
+
+/** The asked member says no; the day needs a helper again. */
+export async function declineAsk(groupId: string, askId: string): Promise<void> {
+  await http.post(`/v1/groups/${groupId}/asks/${askId}/decline`);
+}
+
+/** The asker takes the ask back. */
+export async function withdrawAsk(groupId: string, askId: string): Promise<void> {
+  await http.post(`/v1/groups/${groupId}/asks/${askId}/withdraw`);
+}
+
+/** Your notifications across all your family groups, newest first, with the unread count. */
+export async function getNotifications(
+  options: { limit?: number; before?: string } = {},
+): Promise<NotificationPage> {
+  const response = await http.get<NotificationPage>('/v1/me/notifications', {
+    params: { limit: options.limit, before: options.before },
+  });
+  return response.data;
+}
+
+/** Marks some of your notifications read, or all of them. Ids that are not yours are ignored. */
+export async function markNotificationsRead(which: string[] | 'all'): Promise<void> {
+  const body: NotificationReadRequest =
+    which === 'all' ? { all: true } : { notification_ids: which };
+  await http.post('/v1/me/notifications/read', body);
 }
 
 // ── Appointment notes (one day of an appointment, for the family group only) ──

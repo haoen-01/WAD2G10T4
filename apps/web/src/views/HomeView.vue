@@ -16,6 +16,7 @@ import WeatherCard from '@/components/home/WeatherCard.vue';
 import WeekAhead from '@/components/home/WeekAhead.vue';
 import Icon from '@/components/ui/Icon.vue';
 import { useAction } from '@/composables/useAction';
+import { useAsks } from '@/composables/useAsks';
 import { useFamily } from '@/composables/useFamily';
 import { useFamilyActivity } from '@/composables/useFamilyActivity';
 import { currentGroup, loadMe } from '@/composables/useMe';
@@ -42,6 +43,8 @@ import { getPersonMetrics, getPersonState, getWearable } from '@/services/careAp
  */
 const { error, run } = useAction();
 const family = useFamily();
+// Who has been asked to go along (the amber "Asked Emily · waiting" tags), read fresh on opening.
+useAsks();
 const now = useNow();
 
 // The senior's watch (simulated until a real device): shown in the hero so the family can remind
@@ -240,6 +243,9 @@ watch(
             :elder="elder"
             :can-volunteer="canVolunteer"
             :helper="family.currentMember.value"
+            :members="state.members"
+            :availability="state.availability"
+            :current-member-id="state.currentMemberId"
             @volunteer="goWith"
           />
           <CheckInCard v-if="currentGroup" :elder="elder" :actor="checkInActor" />

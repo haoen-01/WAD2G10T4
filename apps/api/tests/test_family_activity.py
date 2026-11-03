@@ -701,7 +701,8 @@ def test_nothing_on_the_decision_path_imports_the_feed() -> None:
 
 def test_the_private_demo_helpers_never_record() -> None:
     """`_answer`, `_volunteer` and `_step_back` seed the demo and run inside public methods, which
-    decide what is news; they must not write the feed themselves."""
+    decide what is news; they must not write the feed themselves, nor end or write an ask or a
+    notification (`family_asks`)."""
     tree = ast.parse((_SOURCE / "family_calendar.py").read_text(encoding="utf-8"))
     private = {"_answer", "_volunteer", "_step_back"}
     found = set()
@@ -718,4 +719,8 @@ def test_the_private_demo_helpers_never_record() -> None:
                 if isinstance(call, ast.Call)
             }
             assert not calls & {"record", "record_availability_updated"}, node.name
+            names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)} | {
+                n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)
+            }
+            assert "family_asks" not in names, node.name
     assert found == private

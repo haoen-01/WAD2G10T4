@@ -1,11 +1,12 @@
-"""HTTP routes for accounts, family groups, the family calendar and tasks. The rules live in
-`silverloop.family_groups`, `silverloop.family_calendar` and `silverloop.family_tasks`."""
+"""HTTP routes for accounts, family groups, the family calendar, asks and notifications, and
+tasks. The rules live in `silverloop.family_groups`, `silverloop.family_calendar`,
+`silverloop.family_asks` and `silverloop.family_tasks`."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 
@@ -38,11 +39,16 @@ from silverloop.models import (
     FamilyActivityEntry,
     FamilyActivityPage,
     FamilyCalendar,
+    HelperAsk,
+    HelperAskList,
+    HelperAskRequest,
     JoinGroupRequest,
     LinkSeniorRequest,
     MeResponse,
     MyDay,
     MyGroup,
+    NotificationPage,
+    NotificationReadRequest,
     OccurrenceAnswerRequest,
     OccurrenceRequest,
     OnboardRequest,
@@ -526,6 +532,110 @@ def register_family_routes(application: FastAPI) -> None:
         group. Nothing is sent to the senior."""
         store = _calendar(request)
         return _call(lambda: store.check_in(current_user.sub, group_id, body))
+
+    # ── Asks and notifications ────────────────────────────────────────────────
+
+    @application.post(
+        "/v1/groups/{group_id}/asks",
+        response_model=HelperAsk,
+        status_code=status.HTTP_201_CREATED,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 409: {}, 422: {}},
+    )
+    def create_ask(
+        request: Request, group_id: str, body: HelperAskRequest, current_user: Family
+    ) -> HelperAsk:
+        """Ask an active member, by name, to take one day of an appointment that needs a helper.
+        They get a notification. 422 for yourself, someone not active in the group, a current
+        helper, a day that has started or no longer needs a helper; 409 when someone has already
+        been asked for that day."""
+        store = _calendar(request)
+        return _call(lambda: store.create_ask(current_user.sub, group_id, body))
+
+    @application.get(
+        "/v1/groups/{group_id}/asks",
+        response_model=HelperAskList,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def list_asks(
+        request: Request,
+        group_id: str,
+        current_user: Family,
+        state: Annotated[Literal["open"], Query()] = "open",
+    ) -> HelperAskList:
+        """The group's open asks (asks whose day has started lapse first). Active members only."""
+        store = _calendar(request)
+        return _call(lambda: store.open_asks(current_user.sub, group_id))
+
+    @application.post(
+        "/v1/groups/{group_id}/asks/{ask_id}/accept",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 409: {}},
+    )
+    def accept_ask(request: Request, group_id: str, ask_id: str, current_user: Family) -> Response:
+        """The asked member says yes and becomes the helper for that day; the asker is told."""
+        store = _calendar(request)
+        _call(lambda: store.accept_ask(current_user.sub, group_id, ask_id))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @application.post(
+        "/v1/groups/{group_id}/asks/{ask_id}/decline",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 409: {}},
+    )
+    def decline_ask(request: Request, group_id: str, ask_id: str, current_user: Family) -> Response:
+        """The asked member says no; the day needs a helper again and the asker is told."""
+        store = _calendar(request)
+        _call(lambda: store.decline_ask(current_user.sub, group_id, ask_id))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @application.post(
+        "/v1/groups/{group_id}/asks/{ask_id}/withdraw",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 409: {}},
+    )
+    def withdraw_ask(
+        request: Request, group_id: str, ask_id: str, current_user: Family
+    ) -> Response:
+        """The asker takes the ask back; the asked member is told."""
+        store = _calendar(request)
+        _call(lambda: store.withdraw_ask(current_user.sub, group_id, ask_id))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @application.get(
+        "/v1/me/notifications",
+        response_model=NotificationPage,
+        tags=["family"],
+        responses={401: {}, 403: {}, 422: {}},
+    )
+    def my_notifications(
+        request: Request,
+        current_user: Family,
+        limit: Annotated[int, Query(ge=1, le=50)] = 20,
+        before: Annotated[str | None, Query(max_length=64)] = None,
+    ) -> NotificationPage:
+        """The caller's notifications across their family groups, newest first, with the unread
+        count. `before` is the `next_before` of the previous page. Never for the senior."""
+        store = _calendar(request)
+        return _call(lambda: store.notifications(current_user.sub, limit, before))
+
+    @application.post(
+        "/v1/me/notifications/read",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["family"],
+        responses={401: {}, 403: {}, 422: {}},
+    )
+    def read_notifications(
+        request: Request, body: NotificationReadRequest, current_user: Family
+    ) -> Response:
+        """Mark your notifications read: the ones named, or `all`. Other ids are ignored."""
+        store = _calendar(request)
+        _call(lambda: store.mark_notifications_read(current_user.sub, body))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ── Appointment notes ─────────────────────────────────────────────────────
 

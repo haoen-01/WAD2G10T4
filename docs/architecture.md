@@ -136,7 +136,9 @@ Top-level modules:
   (appointments, family availability, who is helping, per-day appointment notes), the family activity feed and check-ins, and
   the `/v1/me` and `/v1/groups/...` routes for all of them. They own their own tables and share the
   repository's database sessions. `family_activity.py` imports nothing from the decision path
-  (tested).
+  (tested). `family_asks.py` holds the rules for asking a member to take an appointment day and
+  the in-app notifications about it; its routes are thin methods on the calendar store, and it
+  imports nothing from the decision path or `family_calendar.py` (tested).
 - `wearable_status.py` -- the simulated watch status on Home (connected, last sync, battery). No
   real device is connected.
 - `db_models.py` -- the SQLAlchemy 2 declarative schema. See [Data model](#data-model).
@@ -395,7 +397,9 @@ left alone ("write-once"), or updated in place:
   lockout); `appointments`, `availability_entries` and `helper_assignments` (the shared calendar);
   `family_activity` (the family feed: append-only, no FK to appointments, cleared only by the demo
   reset); `appointment_notes` (per-day notes on an appointment, group-only, deletable by their
-  author; deleted with their appointment).
+  author; deleted with their appointment); `helper_asks` (a member asking another to take one
+  appointment day; at most one open per day, no FK to appointments) and `notifications` (one
+  in-app notification per recipient about an ask; only `read_at` changes).
 
 ## Schema ownership
 

@@ -92,17 +92,32 @@ function applyCalendar(calendar: FamilyCalendar): void {
 }
 
 let reading: Promise<void> | null = null;
+let rereadAfter = false;
 
-/** Reads the calendar again. Calls made while a read is in flight share it. */
-function refresh(): Promise<void> {
-  reading ??= (async () => {
+/**
+ * Reads the calendar again. A screen opening shares a read already in flight. After a change
+ * (`afterChange`) it must not: that read may have started before the change was saved, so one
+ * follow-up read is queued behind it (shared by every such call meanwhile), and the promise
+ * resolves once that one has been applied.
+ */
+function refresh(afterChange = false): Promise<void> {
+  if (reading) {
+    if (afterChange) rereadAfter = true;
+    return reading;
+  }
+  reading = (async () => {
     loading.value = true;
     try {
-      applyCalendar(await readCalendar());
-      error.value = null;
-      loaded.value = true;
-    } catch (caught) {
-      error.value = classifyApiError(caught).message;
+      do {
+        rereadAfter = false;
+        try {
+          applyCalendar(await readCalendar());
+          error.value = null;
+          loaded.value = true;
+        } catch (caught) {
+          error.value = classifyApiError(caught).message;
+        }
+      } while (rereadAfter);
     } finally {
       loading.value = false;
       reading = null;
@@ -111,11 +126,21 @@ function refresh(): Promise<void> {
   return reading;
 }
 
+/**
+ * Something changed the calendar outside this file's save queue (an ask answered from the bell or
+ * a card, or a new notification saying someone else did): read it back and tell the listeners, as
+ * a drained queue does, so the asks, the bell and the feed re-read too.
+ */
+export async function announceFamilyChange(): Promise<void> {
+  await refresh(true);
+  if (useViewMode().mode.value !== 'senior') notify('saved');
+}
+
 // Picking another senior in the navbar shows their calendar.
 watch(
   () => currentGroup.value?.group_id,
   (next, previous) => {
-    if (loaded.value && next !== previous) void refresh();
+    if (loaded.value && next !== previous) void refresh(true);
   },
 );
 
@@ -143,7 +168,7 @@ function save(work: (group: string) => Promise<unknown>): Promise<void> {
       if (inFlight === 0) {
         // Queue drained: temp ids are gone after the refresh, so the map need not grow all session.
         savedIds.clear();
-        void refresh();
+        void refresh(true);
         // The senior screen shares this queue, and the family routes refuse a senior.
         if (groupId.value && useViewMode().mode.value !== 'senior') notify('saved');
       }
@@ -200,7 +225,7 @@ function setCurrentMember(id: string): void {
   setDemoMember(sub);
   state.currentMemberId = id;
   notify('viewer');
-  void refresh();
+  void refresh(true);
 }
 
 /** Saves a window ("free on Friday afternoon") for the current member. Returns an error, if any. */

@@ -39,6 +39,7 @@ from silverloop.db_models import (
     CareGroupRow,
     FamilyPinRow,
     GroupMemberRow,
+    NotificationRow,
     PersonRow,
     PinAttemptRow,
 )
@@ -202,6 +203,7 @@ class FamilyGroups:
                 .order_by(GroupMemberRow.created_at)
             ).all()
             counts = self._active_member_counts(session, [group.group_id for _, group, _ in rows])
+            unread = self._unread_counts(session, sub)
             display_name = account.display_name if account else None
             if display_name is None and person_id is not None:
                 person = session.get(PersonRow, person_id)
@@ -223,6 +225,7 @@ class FamilyGroups:
                     my_status=MemberStatus(member.status),
                     member_count=counts.get(group.group_id, 0),
                     last_opened=group.group_id == current_group_id,
+                    unread_count=unread.get(group.group_id, 0),
                 )
                 for member, group, person in rows
             ],
@@ -238,6 +241,22 @@ class FamilyGroups:
                 GroupMemberRow.status == MemberStatus.ACTIVE.value,
             )
             .group_by(GroupMemberRow.group_id)
+        ).all()
+        return {group_id: count for group_id, count in rows}
+
+    @staticmethod
+    def _unread_counts(session: Session, sub: str) -> dict[str, int]:
+        """This account's unread notifications, per group, in one grouped count. Only active
+        memberships count, as in the bell; a group with none is missing (read it as 0)."""
+        rows = session.execute(
+            select(NotificationRow.group_id, func.count())
+            .join(GroupMemberRow, GroupMemberRow.member_id == NotificationRow.recipient_member_id)
+            .where(
+                GroupMemberRow.sub == sub,
+                GroupMemberRow.status == MemberStatus.ACTIVE.value,
+                NotificationRow.read_at.is_(None),
+            )
+            .group_by(NotificationRow.group_id)
         ).all()
         return {group_id: count for group_id, count in rows}
 
@@ -549,6 +568,7 @@ class FamilyGroups:
             my_status=MemberStatus.PENDING,
             member_count=member_count,
             last_opened=False,  # a pending group is never current
+            unread_count=0,  # nobody is notified while pending
         )
 
     def open_group(self, sub: str, group_id: str) -> None:
