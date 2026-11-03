@@ -5,8 +5,8 @@ import LoopRing from '@/components/ui/LoopRing.vue';
 import type { Coverage } from '@/lib/coverage';
 
 /**
- * The month ahead at a glance: how many visits already have someone going, as a ring that closes
- * (jade once every visit is covered, coral until then) and a sentence.
+ * The month ahead at a glance: a ring that closes as visits get someone going (jade once every
+ * visit is covered, coral until then), and a sentence that counts what is still open.
  */
 export default defineComponent({
   name: 'CoverageSummary',
@@ -36,7 +36,13 @@ export default defineComponent({
       <span class="visually-hidden">{{ coverage.covered }} of {{ coverage.total }}</span>
     </LoopRing>
     <p class="mb-0 lh-sm">
-      <strong class="tabular">{{ coverage.covered }}/{{ coverage.total }} covered</strong>
+      <strong v-if="coverage.total === 0">No visits in the next 30 days</strong>
+      <strong v-else-if="complete">Every visit has someone going</strong>
+      <strong v-else class="tabular" data-testid="coverage-open"
+        >{{ coverage.total - coverage.covered }}
+        {{ coverage.total - coverage.covered === 1 ? 'visit still needs' : 'visits still need' }}
+        someone</strong
+      >
       <span class="d-block small text-body-secondary">next 30 days</span>
     </p>
   </div>

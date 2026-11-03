@@ -110,7 +110,7 @@ defineProps<{ title: string; lead?: string; width?: 'narrow' | 'medium' | 'wide'
 }
 
 .auth-shell .auth-choice:focus-visible {
-  outline: 3px solid var(--sl-jade);
+  outline: 3px solid var(--sl-focus);
   outline-offset: 2px;
 }
 

@@ -108,6 +108,7 @@ export default defineComponent({
   <BasePanel
     title="Weather nearby"
     heading-class="h4 mb-0"
+    heading-tag="h3"
     class="weather"
     :class="{ wet: status === 'ready' && wet, 'weather-live': scene }"
     :data-scene="scene ? `${scene.sky}-${scene.time}` : null"
@@ -126,9 +127,10 @@ export default defineComponent({
       </button>
     </template>
 
-    <div v-if="status === 'loading'" class="placeholder-glow" aria-hidden="true">
-      <span class="placeholder col-8 mb-2"></span>
-      <span class="placeholder col-12"></span>
+    <div v-if="status === 'loading'" role="status">
+      <span class="visually-hidden">Loading the forecast…</span>
+      <span class="sl-skeleton mb-2" style="width: 66%; height: 1.2rem" aria-hidden="true"></span>
+      <span class="sl-skeleton" style="height: 1.2rem" aria-hidden="true"></span>
     </div>
 
     <p v-else-if="status === 'error'" class="text-body-secondary mb-0" role="status">
@@ -165,10 +167,6 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.weather.wet {
-  border-color: var(--sl-coral-soft);
-}
-
 /* ---- With a forecast: the card is a window onto the sky, with white words over it ---- */
 .weather {
   position: relative;
@@ -192,6 +190,7 @@ export default defineComponent({
 }
 
 .weather-live :deep(h2),
+.weather-live :deep(h3),
 .weather-live .weather-now,
 .weather-live .form-label {
   color: #fff;

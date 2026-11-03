@@ -232,16 +232,23 @@ test.describe('the senior', () => {
     await expect(page.getByRole('button', { name: 'Settings' })).toHaveCount(0);
   });
 
-  test('keeps only the menu row pinned while scrolling on a phone', async ({ page, request }) => {
+  test('keeps one pinned bar on a phone: the section tabs at the bottom', async ({
+    page,
+    request,
+  }) => {
     await resetDemo(request);
     await enterAs(page, 'senior');
     await scrollToBottom(page);
-    const nav = page.getByRole('banner').getByRole('navigation', { name: 'Main' });
-    await expect(nav).toBeInViewport();
-    await expect.poll(async () => ((await nav.boundingBox())?.y ?? 99) < 10).toBe(true);
-    // The brand row has scrolled out of view above the menu row.
-    const brand = await page.getByRole('banner').getByRole('link', { name: /Care/ }).boundingBox();
-    expect(!!brand && brand.y + brand.height <= 0).toBe(true);
+    // The section tabs stay on screen, flush with the bottom edge, like the family's tab bar.
+    const tabs = page.getByRole('tablist', { name: 'My day sections' });
+    await expect(tabs).toBeInViewport();
+    const box = await tabs.boundingBox();
+    expect(!!box && Math.abs(box.y + box.height - (page.viewportSize()?.height ?? 0)) <= 2).toBe(
+      true,
+    );
+    // The top bar (with its "My day" link) has scrolled away, so two bars never take the screen.
+    const banner = await page.getByRole('banner').boundingBox();
+    expect(!!banner && banner.y + banner.height <= 0).toBe(true);
   });
 });
 

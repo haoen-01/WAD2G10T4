@@ -23,7 +23,7 @@ const firstLoad = computed(() => loading.value && !loaded.value);
     <p v-if="firstLoad" class="fs-5 mb-0" role="status">Loading your family…</p>
     <p v-else-if="error && !loaded" class="fs-5 mb-0">Your family can’t be shown right now.</p>
     <p v-else-if="groups.length === 0" class="fs-5 mb-0" data-testid="my-family-empty">
-      No family linked yet.
+      No family linked yet. Show your family the PIN below so they can link to you.
     </p>
     <template v-else>
       <div v-for="group in groups" :key="group.id" class="mb-3 last-mb-0">

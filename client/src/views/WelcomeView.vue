@@ -121,7 +121,7 @@ fieldset {
 }
 
 .role-row:has(:focus-visible) {
-  outline: 3px solid var(--sl-jade);
+  outline: 3px solid var(--sl-focus);
   outline-offset: 2px;
 }
 

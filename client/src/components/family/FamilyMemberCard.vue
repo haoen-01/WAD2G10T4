@@ -45,16 +45,7 @@ const helping = computed(() =>
 </template>
 
 <style scoped>
-.member {
-  transition:
-    border-color 0.15s ease,
-    transform 0.15s var(--sl-ease);
-}
-
-.member:hover {
-  transform: translateY(-2px);
-}
-
+/* The card itself is not a control, so it does not lift on hover (only its button reacts). */
 .member.current {
   border: 2px solid var(--sl-ink);
 }

@@ -47,7 +47,12 @@ const { mode } = useViewMode();
 const { me, currentGroup } = useMe();
 
 const senior = computed(() => mode.value === 'senior');
-const orbSize = computed(() => (senior.value ? 72 : 60));
+/** Phones get a smaller orb, so it covers less of the page. */
+const orbSize = computed(() => {
+  const phone = viewport.value.width < 768;
+  if (senior.value) return phone ? 60 : 72;
+  return phone ? 52 : 60;
+});
 const place = ref<Point | null>(null);
 const viewport = ref({ width: 1024, height: 768 });
 const dock = ref<HTMLElement | null>(null);
@@ -73,10 +78,15 @@ const insets = computed<Insets>(() => ({
   bottom: viewport.value.width < 768 ? (senior.value ? 108 : 78) : 0,
 }));
 
+/**
+ * Bottom right on a wide screen. On a phone, bottom left above the tab bar: the right-hand side is
+ * where each row's action sits ("I'll go", the senior's ticks, Edit), so Kaki never covers one.
+ */
 function defaultPlace(): Point {
   const size = orbSize.value;
+  const phone = viewport.value.width < 768;
   return {
-    x: viewport.value.width - size - 20,
+    x: phone ? 16 : viewport.value.width - size - 20,
     y: viewport.value.height - size - 20 - insets.value.bottom,
   };
 }
@@ -429,7 +439,12 @@ const orbLabel = computed(() => {
       @click="tap"
       @keydown="keys"
     >
-      <AssistantOrb :size="orbSize" :mood="assistant.mood.value" :lifted="hovered || dragging" />
+      <AssistantOrb
+        :size="orbSize"
+        :mood="assistant.mood.value"
+        :lifted="hovered || dragging"
+        :still="senior"
+      />
       <span
         v-if="assistant.unread.value"
         class="kaki-unread"
@@ -457,7 +472,7 @@ const orbLabel = computed(() => {
       }"
     >
       <header class="kaki-head">
-        <AssistantOrb :size="40" :mood="assistant.mood.value" />
+        <AssistantOrb :size="40" :mood="assistant.mood.value" :still="senior" />
         <div class="kaki-who">
           <h2 id="kaki-title" class="kaki-name">{{ ASSISTANT_NAME }}</h2>
           <p class="kaki-status">
@@ -507,33 +522,27 @@ const orbLabel = computed(() => {
 
 <style scoped>
 .kaki {
-  --as-ink: #102a26;
-  --as-soft: #5a6f6a;
+  --as-ink: var(--sl-ink);
+  --as-soft: var(--sl-ink-soft);
   --as-line: rgb(16 42 38 / 12%);
   --as-panel: rgb(255 255 255 / 86%);
   --as-field: rgb(255 255 255 / 92%);
   --as-bubble: rgb(16 42 38 / 6%);
   --as-hover: rgb(11 104 79 / 8%);
-  --as-accent: #0b684f;
-  --as-on-accent: #fff;
+  --as-accent: var(--sl-jade);
+  --as-on-accent: var(--sl-jade-on);
   --as-ring: rgb(11 104 79 / 22%);
-  --as-warn: #8e2c1c;
-  --as-warn-soft: #fbe3dc;
+  --as-warn: var(--sl-coral-deep);
+  --as-warn-soft: var(--sl-coral-soft);
   font-size: 1rem;
 }
 :root[data-bs-theme='dark'] .kaki {
-  --as-ink: #e3ece8;
-  --as-soft: #a7b8b2;
   --as-line: rgb(255 255 255 / 12%);
   --as-panel: rgb(20 30 28 / 88%);
   --as-field: rgb(255 255 255 / 6%);
   --as-bubble: rgb(255 255 255 / 8%);
   --as-hover: rgb(95 211 176 / 12%);
-  --as-accent: #5fd3b0;
-  --as-on-accent: #0b2a22;
   --as-ring: rgb(95 211 176 / 28%);
-  --as-warn: #ffb4a6;
-  --as-warn-soft: rgb(178 58 38 / 25%);
 }
 .kaki.is-senior {
   font-size: 1.15rem;
@@ -563,7 +572,7 @@ const orbLabel = computed(() => {
   transition: transform 0.35s var(--sl-ease-spring);
 }
 .kaki-orb:focus-visible {
-  outline: 3px solid var(--sl-blue-deep);
+  outline: 3px solid var(--sl-focus);
   outline-offset: 4px;
 }
 .kaki-unread {
@@ -577,8 +586,8 @@ const orbLabel = computed(() => {
   padding: 0 0.35rem;
   border: 2px solid var(--sl-surface);
   border-radius: 999px;
-  background: #d93a4a;
-  color: #fff;
+  background: var(--sl-coral);
+  color: var(--sl-coral-on);
   font-size: 0.75rem;
   font-weight: 800;
 }
@@ -666,7 +675,7 @@ const orbLabel = computed(() => {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
-  background: #2fbf71;
+  background: var(--sl-jade);
   box-shadow: 0 0 0 3px rgb(47 191 113 / 20%);
 }
 .kaki-icon {

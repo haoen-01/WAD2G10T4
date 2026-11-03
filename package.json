@@ -35,6 +35,7 @@
     "demo:smoke": "node scripts/run.mjs server uv run python -m silverloop.smoke",
     "demo:supabase-smoke": "node scripts/run.mjs server uv run python -m silverloop.supabase_smoke",
     "demo:offline": "node scripts/demo-offline.mjs",
+    "demo:agent": "node scripts/demo-offline.mjs --agent",
     "verify": "bash scripts/verify.sh"
   }
 }

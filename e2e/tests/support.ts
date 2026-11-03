@@ -92,3 +92,12 @@ export async function openSettings(page: Page) {
   await expect(panel).toBeVisible();
   return panel;
 }
+
+/**
+ * Opens Home's "See more about this week" before the page loads (the day by the hour, the two-week
+ * chart, the weather and the week ahead), the way a family member who opened it before would see
+ * it: the choice is remembered in this browser. Call before `page.goto`.
+ */
+export async function showMoreOnHome(page: Page) {
+  await page.addInitScript(() => window.localStorage.setItem('careplus.home.more.v1', 'open'));
+}

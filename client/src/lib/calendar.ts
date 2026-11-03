@@ -96,3 +96,41 @@ export function spansOverlap(
     timeToMinutes(a.start) < timeToMinutes(b.end) && timeToMinutes(b.start) < timeToMinutes(a.end)
   );
 }
+
+/**
+ * Whether choosing a day on the calendar should open the add form for it: someone who can add, a
+ * day that is today or later, and nothing booked yet (tasks do not count as booked).
+ */
+export function opensAddForm(
+  day: string,
+  today: string,
+  canAdd: boolean,
+  appointmentsThatDay: number,
+): boolean {
+  return canAdd && day >= today && appointmentsThatDay === 0;
+}
+
+/**
+ * What a click on a calendar day does:
+ * - `form-date`: the form is open and is the person's own (opened with Add, or one they have
+ *   started filling in): the day becomes the form's date, from today on.
+ * - `select`: show that day. A form that opened by itself for an empty day and has not been
+ *   touched closes; it never takes over later clicks.
+ * - `select-and-add`: show that day and open the add form for it (an empty day from today on).
+ */
+export type DayClick = 'form-date' | 'select' | 'select-and-add';
+
+export function dayClick(input: {
+  day: string;
+  today: string;
+  canAdd: boolean;
+  appointmentsThatDay: number;
+  formOpen: boolean;
+  /** True while the open form is one that opened by itself and has not been touched. */
+  formIsAuto: boolean;
+}): DayClick {
+  if (input.formOpen && !input.formIsAuto && input.day >= input.today) return 'form-date';
+  return opensAddForm(input.day, input.today, input.canAdd, input.appointmentsThatDay)
+    ? 'select-and-add'
+    : 'select';
+}

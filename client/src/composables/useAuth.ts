@@ -6,7 +6,7 @@ import type { Router } from 'vue-router';
 import { createApiClient } from '@/lib/client';
 import { AUTH_ENABLED } from '@/lib/config';
 import { createKeyedOnceLoader } from '@/lib/current-user';
-import { loginPathFor } from '@/lib/route-guard';
+import { attempt, loginPathFor } from '@/lib/route-guard';
 import { getSupabase } from '@/lib/supabase';
 import { isLoginPath, isViewPath } from '@/lib/view-mode';
 
@@ -90,7 +90,13 @@ export async function signOut(): Promise<void> {
 export async function loadCurrentUser(accessToken?: string): Promise<CurrentUser> {
   const token = accessToken ?? (await getAccessToken());
   try {
-    return await readCurrentUser(token);
+    const user = await readCurrentUser(token);
+    // Recorded for the nav and the guard too, but only when it is still the current session's
+    // account: a read that resolves after a sign-out or a switch of account is not recorded.
+    if (token === (state.session?.access_token ?? null) || (!AUTH_ENABLED && !accessToken)) {
+      state.currentUser = user;
+    }
+    return user;
   } catch (caught) {
     // The shared read carries no 401 hook, so the caller that asked gets the same session-expired
     // handling every other call through the client gets.
@@ -101,16 +107,20 @@ export async function loadCurrentUser(accessToken?: string): Promise<CurrentUser
 
 let applySequence = 0;
 
-/** Records a session and looks the account up; any failure reads as "nobody is signed in". */
+/**
+ * Records a session and looks the account up. A failed lookup records no account; the route guard
+ * reads it again and tells "signed out" (a 401) from "Care+ can't be reached".
+ */
 async function apply(session: Session | null): Promise<void> {
   const mine = ++applySequence;
   state.session = session;
-  if (!session?.access_token) {
+  const token = session?.access_token;
+  if (!token) {
     state.currentUser = null;
     return;
   }
-  const user = await readCurrentUser(session.access_token).catch(() => null);
-  if (mine === applySequence) state.currentUser = user;
+  const read = await attempt(() => readCurrentUser(token));
+  if (mine === applySequence) state.currentUser = read.ok ? read.value : null;
 }
 
 /**

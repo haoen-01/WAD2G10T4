@@ -5,11 +5,17 @@ import {
   readTab,
   saveTab,
   sevenDays,
+  seniorActivity,
   stepProgress,
   stepWords,
   sortSeniorTasks,
   nextSeniorTask,
   TAB_KEY,
+  CHEERED_KEY,
+  finishedTheDay,
+  readCheered,
+  saveCheered,
+  shouldCheer,
 } from './senior-view';
 test('ring caps only the visual fill, preserves over-usual labels, and handles missing baselines', () => {
   assert.deepEqual(stepProgress(1200, 1000), { percent: 120, fill: 100 });
@@ -112,4 +118,58 @@ test('ticking and unticking a task leaves its position unchanged', () => {
     before,
   );
   assert.equal(nextSeniorTask(unticked, '08:00'), 'earlier');
+});
+
+test('the senior gets one plain sentence about their steps', () => {
+  assert.deepEqual(seniorActivity(5720, 5747), {
+    sentence: 'You walked about as much as usual.',
+    icon: 'thumbs-up',
+  });
+  assert.equal(seniorActivity(7000, 5000).sentence, 'You walked more than usual.');
+  assert.equal(seniorActivity(4000, 5000).sentence, 'You walked a little less than usual.');
+  assert.equal(seniorActivity(1000, 5000).sentence, 'You walked a little less than usual.');
+  assert.match(seniorActivity(1000, 0).sentence, /Not enough steps yet/);
+  assert.equal(seniorActivity(5000, 5000, false).icon, 'watch');
+  for (const steps of [0, 1000, 5000, 9000]) {
+    assert.doesNotMatch(seniorActivity(steps, 5000).sentence, /well below|worr|concern|health/i);
+  }
+});
+
+test('finishedTheDay is true only on the tick that completes every task', () => {
+  assert.equal(finishedTheDay({ done: 2, total: 3 }, { done: 3, total: 3 }), true);
+  assert.equal(finishedTheDay({ done: 1, total: 3 }, { done: 2, total: 3 }), false);
+  // Already all done (an untick then nothing) or an empty day never counts.
+  assert.equal(finishedTheDay({ done: 3, total: 3 }, { done: 3, total: 3 }), false);
+  assert.equal(finishedTheDay({ done: 0, total: 0 }, { done: 0, total: 0 }), false);
+  assert.equal(finishedTheDay({ done: 3, total: 3 }, { done: 2, total: 3 }), false);
+});
+
+test('shouldCheer cheers once a day and never under reduced motion', () => {
+  const base = { finished: true, today: '2026-11-03', lastCheered: null, reducedMotion: false };
+  assert.equal(shouldCheer(base), true);
+  assert.equal(shouldCheer({ ...base, lastCheered: '2026-11-03' }), false);
+  assert.equal(shouldCheer({ ...base, lastCheered: '2026-11-02' }), true);
+  assert.equal(shouldCheer({ ...base, reducedMotion: true }), false);
+  assert.equal(shouldCheer({ ...base, finished: false }), false);
+});
+
+test('the cheered day survives storage that throws', () => {
+  const broken = {
+    getItem: () => {
+      throw new Error('blocked');
+    },
+    setItem: () => {
+      throw new Error('blocked');
+    },
+  };
+  assert.equal(readCheered(broken), null);
+  assert.doesNotThrow(() => saveCheered(broken, '2026-11-03'));
+  const map = new Map<string, string>();
+  const ok = {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+  };
+  saveCheered(ok, '2026-11-03');
+  assert.equal(readCheered(ok), '2026-11-03');
+  assert.equal(map.has(CHEERED_KEY), true);
 });

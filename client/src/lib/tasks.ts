@@ -191,3 +191,43 @@ export function storeFromList(list: TaskListLike): TaskStore {
     completions,
   };
 }
+
+/** Whether a task happens on more than one day (daily or weekly). */
+export function isRepeating(task: Pick<TaskInput, 'repeat'>): boolean {
+  return task.repeat !== 'none';
+}
+
+/**
+ * The month grid's tasks with the repeating ones left out, so a daily medicine does not fill every
+ * cell. The chosen day's own list still shows them all. Days left with nothing are dropped.
+ */
+export function oneOffTasksByDay<T extends Pick<TaskInput, 'repeat'>>(
+  byDay: Record<string, T[]>,
+): Record<string, T[]> {
+  const kept: Record<string, T[]> = {};
+  for (const [day, tasks] of Object.entries(byDay)) {
+    const once = tasks.filter((task) => !isRepeating(task));
+    if (once.length) kept[day] = once;
+  }
+  return kept;
+}
+
+/**
+ * How many repeating (daily or weekly) tasks fall on each day, for a "+2 daily tasks" note where
+ * only the one-off tasks are listed (Home's week ahead). Days with none are left out.
+ */
+export function repeatingCountByDay<T extends Pick<TaskInput, 'repeat'>>(
+  byDay: Record<string, T[]>,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const [day, tasks] of Object.entries(byDay)) {
+    const count = tasks.filter(isRepeating).length;
+    if (count) counts[day] = count;
+  }
+  return counts;
+}
+
+/** The stored "Show repeating tasks" choice: on only when it was saved as on. */
+export function parseShowRepeating(saved: string | null): boolean {
+  return saved === 'on';
+}

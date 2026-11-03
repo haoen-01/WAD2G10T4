@@ -30,9 +30,10 @@ import { getPersonMetrics } from '@/services/careApi';
  * through `careApi.ts`, the same readings as Home) and from walks finished on the Walk page, plus
  * which ones she has claimed and every badge she has ever earned (so none is ever taken away).
  *
- * All of that is kept in this browser only (`careplus.badges.v1`), like Tasks: it is
- * encouragement, not care data, and nothing here is sent anywhere or seen by the policy. Two tabs
- * open at once share it: each joins in what the other saved rather than writing over it.
+ * All of that is kept in this browser only (`careplus.badges.v1`), unlike Tasks, which the API
+ * stores for the family group. Badges are encouragement, not care data: nothing here is sent
+ * anywhere or seen by the policy. Two tabs open at once share it: each joins in what the other
+ * saved rather than writing over it.
  */
 
 /** How many days of readings to look at (the API's most). */

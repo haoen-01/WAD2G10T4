@@ -26,6 +26,12 @@ dev = [
   "pytest-asyncio>=1.1,<2",
   "ruff>=0.12,<1",
 ]
+# The "Read my day" voice: Kokoro-82M on ONNX Runtime, CPU only, no PyTorch (silverloop.tts).
+# Installed by default (see `default-groups`); the model files are a separate, one-time download:
+# `uv run python -m silverloop.tts download`.
+tts = [
+  "kokoro-onnx>=0.6.1,<0.7",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -51,3 +57,6 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.uv]
+default-groups = ["dev", "tts"]

@@ -51,6 +51,7 @@ from silverloop.sql_repository import (
     SqlAlchemyRepository,
     StaleRunConflict,
 )
+from silverloop.tts import warm_up as warm_up_speech
 
 
 def resets_demo_family_on_start(config: Settings, repository: object) -> bool:
@@ -113,6 +114,10 @@ def create_app(
             # Sign-in off: a demo family member already in Mdm Lim's group (family_groups.py).
             family_groups.ensure_demo_group()
             reset_demo_family(application)
+        if config.app_env != "test":
+            # Load the "Read my day" voice in the background so the first reading does not wait;
+            # a no-op when Kokoro or its model files are not installed (silverloop.tts).
+            warm_up_speech(config)
         yield
 
     security_schemes: dict = {}

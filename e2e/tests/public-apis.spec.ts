@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { resetDemo } from './support';
+import { resetDemo, showMoreOnHome } from './support';
 
 // The two public APIs the browser calls with Axios: NEA's 2-hour forecast (data.gov.sg) on Home
 // and Singapore's public holidays (Nager.Date) on the calendar. Both are answered here with fixed
@@ -33,8 +33,10 @@ function todayIso(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-test.beforeEach(async ({ request }) => {
+test.beforeEach(async ({ page, request }) => {
   await resetDemo(request);
+  // The weather card sits under Home's "See more about this week".
+  await showMoreOnHome(page);
 });
 
 test('Home shows the forecast for the chosen area and remembers it', async ({ page }) => {

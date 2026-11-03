@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 
 import AvailabilityGrid from '@/components/family/AvailabilityGrid.vue';
 import AvailabilityList from '@/components/family/AvailabilityList.vue';
 import AvailabilityPainter from '@/components/family/AvailabilityPainter.vue';
+import AvailabilityQuickPicks from '@/components/family/AvailabilityQuickPicks.vue';
 import AvatarCluster from '@/components/family/AvatarCluster.vue';
 import CareShare from '@/components/family/CareShare.vue';
 import FamilyMemberCard from '@/components/family/FamilyMemberCard.vue';
@@ -18,7 +19,7 @@ import { upcomingWithin } from '@/lib/coverage';
 import type { AvailabilityEntry } from '@/lib/family';
 import { describeWindow } from '@/lib/family';
 import { formatIsoDay } from '@/lib/format-date';
-import type { SlotStatus } from '@/lib/planner';
+import type { DayPartKey, SlotStatus } from '@/lib/planner';
 
 const family = useFamily();
 const { state, today, elderName, currentMember, appointments } = family;
@@ -48,6 +49,16 @@ function paint(day: string, slots: SlotStatus[]) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => showToast('Saved.'), 50);
 }
+
+// The quick way: Morning, Afternoon, Evening or All day for a day. Saved at once.
+function pick(day: string, part: DayPartKey) {
+  if (!family.pickDayPart(day, part)) return;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => showToast('Saved.'), 50);
+}
+
+// The hour-by-hour painter is there for anyone who needs exact times, one click away.
+const exactHours = ref(false);
 
 function remove(entry: AvailabilityEntry) {
   family.removeAvailability(entry.id);
@@ -131,13 +142,39 @@ function remove(entry: AvailabilityEntry) {
               />
               <strong>{{ currentMember.name }}</strong>
             </p>
-            <AvailabilityPainter
+            <AvailabilityQuickPicks
               :today="today"
               :member-id="currentMember.id"
-              :members="state.members"
               :availability="state.availability"
-              @paint="paint"
+              @pick="pick"
             />
+            <button
+              type="button"
+              class="btn btn-link exact-toggle px-0"
+              :aria-expanded="exactHours"
+              :aria-controls="exactHours ? 'exact-hours' : undefined"
+              data-testid="exact-hours-toggle"
+              @click="exactHours = !exactHours"
+            >
+              <Icon
+                name="chevron-right"
+                class="exact-chevron me-1"
+                :class="{ open: exactHours }"
+              />Choose exact hours
+            </button>
+            <div v-if="exactHours" id="exact-hours" class="mt-2">
+              <p class="sl-note">
+                Paint the hours from 8 am to 9 pm. Times outside those hours, such as the early
+                morning of an All day, stay as they are.
+              </p>
+              <AvailabilityPainter
+                :today="today"
+                :member-id="currentMember.id"
+                :members="state.members"
+                :availability="state.availability"
+                @paint="paint"
+              />
+            </div>
           </div>
           <p v-else class="text-body-secondary">
             Only family members in the group can share when they are free.
@@ -191,3 +228,19 @@ function remove(entry: AvailabilityEntry) {
     <SeniorLocationCard :elder="elderName" />
   </div>
 </template>
+
+<style scoped>
+.exact-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.exact-chevron {
+  transition: transform var(--sl-dur-base) var(--sl-ease);
+}
+
+.exact-chevron.open {
+  transform: rotate(90deg);
+}
+</style>

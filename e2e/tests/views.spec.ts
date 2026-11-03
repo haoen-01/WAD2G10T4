@@ -65,6 +65,12 @@ test('the senior sees only their day: activity, a suggestion and today’s plans
   await expect(page.getByText('Link your family', { exact: true })).toHaveCount(0);
   await page.keyboard.press('Home');
   await page.getByRole('tab', { name: 'Today', exact: true }).click();
+  // One plain sentence first; the week's chart is behind "See my week".
+  await expect(page.getByTestId('activity-status')).toHaveText(/^You walked /);
+  const seeWeek = page.getByTestId('see-my-week');
+  await expect(seeWeek).toHaveAttribute('aria-expanded', 'false');
+  await seeWeek.click();
+  await expect(seeWeek).toHaveAttribute('aria-expanded', 'true');
   const chart = page.getByRole('group', { name: 'Steps on each day. Choose a day for details.' });
   const bars = chart.getByRole('button');
   await expect(bars).toHaveCount(7);

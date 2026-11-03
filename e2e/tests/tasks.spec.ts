@@ -15,6 +15,8 @@ test('caregiver creates a daily task, senior completes it, and changes persist',
   await page.goto('/login/family');
   await page.getByTestId('continue-family').click();
   const panel = page.getByTestId('task-panel');
+  // Adding and editing wait behind "Manage tasks", so Home stays a list to tick.
+  await panel.getByTestId('manage-tasks').click();
   await panel.getByRole('button', { name: 'Add task', exact: true }).click();
   await panel.getByLabel('Name', { exact: true }).fill('Water the balcony plants');
   await panel.getByLabel('Repeat', { exact: true }).selectOption('daily');
@@ -49,6 +51,7 @@ test('caregiver creates a daily task, senior completes it, and changes persist',
   await page.getByTestId('choose-family').click();
   await page.getByTestId('continue-family').click();
   await expect(panel.getByRole('checkbox', { name: /Water the balcony plants/ })).toBeChecked();
+  await panel.getByTestId('manage-tasks').click();
   await panel.getByRole('button', { name: 'Edit Water the balcony plants', exact: true }).click();
   await panel.getByLabel('Name', { exact: true }).fill('Water the herbs');
   await panel.getByRole('button', { name: 'Save', exact: true }).click();
@@ -59,7 +62,7 @@ test('caregiver creates a daily task, senior completes it, and changes persist',
     throw new Error('Deleting a task should not ask for confirmation');
   });
   await panel.getByRole('button', { name: 'Delete', exact: true }).click();
-  await expect(panel.getByText('No tasks.', { exact: true })).toBeVisible();
+  await expect(panel.getByText('No tasks today.', { exact: true })).toBeVisible();
   await page.reload();
   await expect(panel.getByRole('checkbox')).toHaveCount(0);
 });
@@ -68,6 +71,8 @@ test('a new task shows on the calendar, where it can be edited and deleted', asy
   await page.goto('/login/family');
   await page.getByTestId('continue-family').click();
   const panel = page.getByTestId('task-panel');
+  // Adding and editing wait behind "Manage tasks", so Home stays a list to tick.
+  await panel.getByTestId('manage-tasks').click();
   await panel.getByRole('button', { name: 'Add task', exact: true }).click();
   await panel.getByTestId('add-task').click();
   // The name is a required field, so the browser itself stops a task with no name.
@@ -98,6 +103,8 @@ test('the task form fits a phone in portrait and landscape', async ({ page }, te
   await page.goto('/login/family');
   await page.getByTestId('continue-family').click();
   const panel = page.getByTestId('task-panel');
+  // Adding and editing wait behind "Manage tasks", so Home stays a list to tick.
+  await panel.getByTestId('manage-tasks').click();
   await panel.getByRole('button', { name: 'Add task', exact: true }).click();
   await panel.getByLabel('Name', { exact: true }).fill('Call my family');
   await panel.getByLabel('Repeat', { exact: true }).selectOption('weekly');

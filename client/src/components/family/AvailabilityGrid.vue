@@ -132,7 +132,10 @@ const dayHeading = (day: { iso: string; planned: number; open: number }) => {
 </template>
 
 <style scoped>
+/* Its own sideways scroll at high zoom. Positioned, so the table's visually-hidden labels (absolute)
+   are clipped here too instead of widening the page. */
 .grid-wrap {
+  position: relative;
   overflow-x: auto;
 }
 

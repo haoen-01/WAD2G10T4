@@ -25,6 +25,8 @@ const props = defineProps<{
   helpersOf: (appointmentId: string) => FamilyMember[];
   /** Tasks from the Tasks panel by date, listed after each day's appointments. */
   tasksByDay?: Record<string, TaskOccurrence[]>;
+  /** Repeating tasks left out of `tasksByDay`, counted per day ("+2 daily tasks"). */
+  repeatingByDay?: Record<string, number>;
 }>();
 
 const days = computed(() =>
@@ -37,6 +39,7 @@ const days = computed(() =>
       day: parts?.day ?? '',
       items: props.appointments.filter((appointment) => appointment.date === iso),
       tasks: props.tasksByDay?.[iso] ?? [],
+      repeating: props.repeatingByDay?.[iso] ?? 0,
     };
   }),
 );
@@ -69,17 +72,22 @@ function linkLabel(iso: string, items: Appointment[], taskCount = 0) {
   <ol class="week row row-cols-1 row-cols-sm-2 g-2 list-unstyled mb-0">
     <li v-for="day in days" :key="day.iso" class="col">
       <RouterLink
-        class="week-day"
-        :class="{ today: day.iso === today, empty: !day.items.length && !day.tasks.length }"
+        class="week-day sl-lift"
+        :class="{
+          today: day.iso === today,
+          empty: !day.items.length && !day.tasks.length && !day.repeating,
+        }"
         :to="{ path: '/calendar', query: { day: day.iso } }"
-        :aria-label="linkLabel(day.iso, day.items, day.tasks.length)"
+        :aria-label="linkLabel(day.iso, day.items, day.tasks.length + day.repeating)"
       >
         <span class="week-date" aria-hidden="true">
           <span class="week-weekday">{{ day.weekday }}</span>
           <span class="week-num">{{ day.day }}</span>
         </span>
         <span class="week-items" aria-hidden="true">
-          <span v-if="!day.items.length && !day.tasks.length" class="week-none">Free day</span>
+          <span v-if="!day.items.length && !day.tasks.length && !day.repeating" class="week-none"
+            >Free day</span
+          >
           <span
             v-for="item in day.items"
             :key="item.id"
@@ -123,6 +131,9 @@ function linkLabel(iso: string, items: Appointment[], taskCount = 0) {
             <span class="week-time">{{ formatClockTime(task.time) }} · Task</span>
             <span class="week-title">{{ task.completed ? '✓' : '☐' }} {{ task.title }}</span>
           </span>
+          <span v-if="day.repeating" class="week-repeating" data-testid="week-repeating">
+            +{{ day.repeating }} daily {{ day.repeating === 1 ? 'task' : 'tasks' }}
+          </span>
         </span>
       </RouterLink>
     </li>
@@ -130,6 +141,12 @@ function linkLabel(iso: string, items: Appointment[], taskCount = 0) {
 </template>
 
 <style scoped>
+.week-repeating {
+  color: var(--sl-ink-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 @media (min-width: 1200px) {
   .week > li {
     width: calc(100% / 7);
@@ -146,14 +163,13 @@ function linkLabel(iso: string, items: Appointment[], taskCount = 0) {
   background: var(--sl-surface);
   color: var(--sl-ink);
   text-decoration: none;
-  transition:
-    border-color 0.15s ease,
-    transform 0.15s var(--sl-ease);
 }
 
-.week-day:hover {
-  border-color: var(--sl-jade);
-  transform: translateY(-2px);
+/* A link to that day: it lifts under a mouse (the shared .sl-lift) and its edge turns jade. */
+@media (hover: hover) and (pointer: fine) {
+  .week-day:hover {
+    border-color: var(--sl-jade);
+  }
 }
 
 .week-day.today {

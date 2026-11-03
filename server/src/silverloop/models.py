@@ -2219,6 +2219,107 @@ class FamilyActivityPage(BaseModel):
     next_before: str | None
 
 
+AgentMode = Literal["agent", "fallback_disabled", "fallback_error", "fallback_no_proposal"]
+
+
+class AgentStep(BaseModel):
+    """One step a family-facing agent took: a tool it read, or its submission and the verdict."""
+
+    tool_name: str
+    ok: bool
+    summary: str
+
+
+class CatchUp(BaseModel):
+    """ "Since you last visited": a short catch-up for a family member opening Home.
+
+    `mode` is `agent` when the catch-up agent wrote it and the deterministic check approved it;
+    any `fallback_*` mode means Care+ assembled the same facts without a model (the flag is off,
+    the provider failed, or nothing passed the check). `source` says which model wrote an `agent`
+    result: `live` (a real provider) or `recorded` (a replayed recording); it is null otherwise.
+    `steps` is what the agent did, in order.
+    """
+
+    mode: AgentMode
+    source: Literal["live", "recorded"] | None
+    summary: str
+    highlights: list[str]
+    since: datetime | None
+    generated_at: datetime
+    model: str | None
+    new_updates: int = Field(ge=0)
+    visits_needing_someone: int = Field(ge=0)
+    tasks_done: int = Field(ge=0)
+    tasks_total: int = Field(ge=0)
+    steps: list[AgentStep]
+
+
+class MyDay(BaseModel):
+    """ "Read my day": a short spoken run-through of the senior's own day, for the browser to read
+    aloud with its built-in speech. `mode`, `source`, `model` and `steps` as on `CatchUp`."""
+
+    mode: AgentMode
+    source: Literal["live", "recorded"] | None
+    script: str
+    day: date
+    generated_at: datetime
+    model: str | None
+    appointments_today: int = Field(ge=0)
+    reminders_done: int = Field(ge=0)
+    reminders_total: int = Field(ge=0)
+    steps: list[AgentStep]
+
+
+class SpeechRequest(BaseModel):
+    """One sentence of a "Read my day" script to be spoken by the Kokoro voice. Never stored, never
+    logged; only a hash of it keys the in-memory audio cache."""
+
+    text: str = Field(min_length=1, max_length=500)
+
+
+class SpeechVoice(BaseModel):
+    """Whether "Read my day" can use the Kokoro voice here, and how to name it. When not, the
+    browser reads with its own voice."""
+
+    available: bool
+    voice: str | None
+    label: str | None
+
+
+class AppointmentDraftRequest(BaseModel):
+    """What a family member typed to describe an appointment ("Eye check-up next Tuesday 10:30 at
+    Bedok Polyclinic"). Never stored and never logged."""
+
+    text: str = Field(min_length=1, max_length=300)
+
+
+class AppointmentDraft(BaseModel):
+    """The appointment form, filled in from what was typed. Nothing is saved: the family member
+    checks the form and saves it with the ordinary `POST /appointments`.
+
+    Each field is null when it was not recognised; `missing` names those, `assumed` names the ones
+    filled in without being said (an end an hour after the start, a best-guess kind), and
+    `clashes` the titles of the group's appointments that overlap the slot. `mode`, `source`,
+    `model` and `steps` as on `CatchUp`; notes are never filled in.
+    """
+
+    mode: AgentMode
+    source: Literal["live", "recorded"] | None
+    title: str | None
+    kind: AppointmentKind | None
+    date: date | None
+    start: str | None
+    end: str | None
+    location: str | None
+    repeat: RepeatRule
+    missing: list[str]
+    assumed: list[str]
+    clashes: list[str]
+    generated_at: datetime
+    model: str | None
+    steps: list[AgentStep]
+
+
 # ── Asks and notifications ────────────────────────────────────────────────────
 #
 # One family member asking another, by name, to take one day of an appointment that needs a

@@ -14,16 +14,18 @@ import UpcomingList from '@/components/calendar/UpcomingList.vue';
 import ViewingAsPicker from '@/components/calendar/ViewingAsPicker.vue';
 import WeekStrip from '@/components/calendar/WeekStrip.vue';
 import BottomSheet from '@/components/motion/BottomSheet.vue';
+import Icon from '@/components/ui/Icon.vue';
 import { showToast } from '@/composables/useToast';
 import { useAsks } from '@/composables/useAsks';
 import { useFamily } from '@/composables/useFamily';
 import { useTasks } from '@/composables/useTasks';
-import { addDays, monthGrid, monthOf, shiftMonth } from '@/lib/calendar';
+import { addDays, monthGrid, monthOf, dayClick, shiftMonth } from '@/lib/calendar';
 import { coverageOf, stillNeedsHelper, upcomingWithin } from '@/lib/coverage';
 import { KIND_LABELS } from '@/lib/family';
 import type { Appointment, AppointmentKind, AvailabilityStatus, FamilyMember } from '@/lib/family';
 import { formatIsoDay, parseIsoDay } from '@/lib/format-date';
 import { freeMembers, heatFor } from '@/lib/planner';
+import { oneOffTasksByDay, parseShowRepeating } from '@/lib/tasks';
 import type { TaskInput, TaskOccurrence } from '@/lib/tasks';
 
 const route = useRoute();
@@ -99,17 +101,36 @@ const askedByDay = computed(() => {
 const dayList = computed(() => byDay.value[selectedDay.value] ?? []);
 
 // ---- Tasks (kept by the family group, `useTasks`), shown beside the appointments ----
-// They need nobody to go along, so "Only those still needing someone" hides them.
+// They need nobody to go along, so "Only those still needing someone" hides them. Daily and weekly
+// tasks would fill every cell of the month, so the grid leaves them out unless "Show repeating
+// tasks" is on (remembered in this browser); the chosen day's list always shows them.
 const tasks = useTasks();
-const tasksByDay = computed<Record<string, TaskOccurrence[]>>(() =>
-  onlyOpen.value
-    ? {}
-    : tasks.tasksByDay(
-        monthGrid(month.value)
-          .flat()
-          .map((cell) => cell.iso),
-      ),
-);
+const SHOW_REPEATING_KEY = 'careplus.calendar.repeating.v1';
+function savedShowRepeating(): boolean {
+  try {
+    return parseShowRepeating(window.localStorage.getItem(SHOW_REPEATING_KEY));
+  } catch {
+    return false;
+  }
+}
+const showRepeating = ref(savedShowRepeating());
+function toggleRepeating() {
+  showRepeating.value = !showRepeating.value;
+  try {
+    window.localStorage.setItem(SHOW_REPEATING_KEY, showRepeating.value ? 'on' : 'off');
+  } catch {
+    // Storage blocked: the choice lasts until the page reloads.
+  }
+}
+const tasksByDay = computed<Record<string, TaskOccurrence[]>>(() => {
+  if (onlyOpen.value) return {};
+  const all = tasks.tasksByDay(
+    monthGrid(month.value)
+      .flat()
+      .map((cell) => cell.iso),
+  );
+  return showRepeating.value ? all : oneOffTasksByDay(all);
+});
 const dayTasks = computed(() => (onlyOpen.value ? [] : tasks.tasksOn(selectedDay.value)));
 function toggleTask(task: TaskOccurrence) {
   void tasks.setCompleted(task.task_id, task.date, !task.completed);
@@ -306,13 +327,17 @@ const savingNew = ref(false);
 /** The form's day and times, shared with the calendar: tapping a day picks it. */
 const draft = reactive({ date: today, start: '10:00', end: '11:00' });
 
+/** True while the open form opened by itself for an empty day and has not been touched. */
+const formIsAuto = ref(false);
 function openAdd(day?: string) {
+  formIsAuto.value = false;
   const chosen = day ?? selectedDay.value;
   Object.assign(draft, { date: chosen >= today ? chosen : today, start: '10:00', end: '11:00' });
   selectedId.value = null;
   formFor.value = 'new';
 }
 function openEdit(appointment: Appointment) {
+  formIsAuto.value = false;
   Object.assign(draft, { date: appointment.date, start: appointment.start, end: appointment.end });
   selectedId.value = null;
   formFor.value = appointment;
@@ -394,10 +419,31 @@ const freeForDraft = computed(() =>
   freeMembers(state.availability, state.members, draft.date, draft.start, draft.end),
 );
 
-// While the form is open, tapping a day on the calendar picks it for the form.
+// While the person's own form is open, tapping a day picks it for the form. Choosing an empty day
+// from today on opens the form for it (tasks do not count; focus stays on the day); that form stays
+// out of the way until it is touched, so the next tap simply shows the next day (`dayClick`).
 function onSelectDay(iso: string) {
-  if (formOpen.value && iso >= today) draft.date = iso;
-  else pickDay(iso);
+  const action = dayClick({
+    day: iso,
+    today,
+    canAdd: canChange.value,
+    appointmentsThatDay: appointments.filter((appointment) => appointment.date === iso).length,
+    formOpen: formOpen.value,
+    formIsAuto: formIsAuto.value,
+  });
+  if (action === 'form-date') {
+    draft.date = iso;
+    return;
+  }
+  if (formIsAuto.value) {
+    formFor.value = null;
+    formIsAuto.value = false;
+  }
+  pickDay(iso);
+  if (action === 'select-and-add') {
+    openAdd(iso);
+    formIsAuto.value = true;
+  }
 }
 
 // ---- On a phone the details rise as a sheet over the page ----
@@ -489,6 +535,18 @@ onBeforeUnmount(() => {
       @clear="clearFilters"
     />
 
+    <div v-if="!phone" class="d-flex justify-content-end mb-2">
+      <button
+        type="button"
+        class="sl-chip"
+        :aria-pressed="showRepeating"
+        data-testid="show-repeating"
+        @click="toggleRepeating"
+      >
+        <Icon name="task" />Show repeating tasks
+      </button>
+    </div>
+
     <p v-if="formOpen" class="hint" role="status">
       <template v-if="phone">Tap a day in the week to pick it.</template>
       <template v-else>Greener days = more family free. Tap one to pick it.</template>
@@ -550,7 +608,13 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <div v-if="formFor" class="col-12 col-xl-5">
+      <!-- Typing or choosing anything in the form makes it the person's own. -->
+      <div
+        v-if="formFor"
+        class="col-12 col-xl-5"
+        @input="formIsAuto = false"
+        @change="formIsAuto = false"
+      >
         <AddAppointmentForm
           :key="formFor === 'new' ? 'new' : formFor.id"
           v-model:date="draft.date"
@@ -562,6 +626,7 @@ onBeforeUnmount(() => {
           :appointment="formFor === 'new' ? null : formFor"
           :free="freeForDraft"
           :family-size="state.members.length"
+          :group-id="groupId"
           @save="saveForm"
           @cancel="formFor = null"
         />

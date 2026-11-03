@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   homeFor,
   isLoginPath,
+  isSignInScreen,
   isPathInView,
   isViewPath,
   parseViewMode,
@@ -70,6 +71,28 @@ describe('isViewPath', () => {
       assert.equal(isViewPath(path), true, path);
     }
     for (const path of ['/login', '/nowhere']) assert.equal(isViewPath(path), false, path);
+  });
+});
+
+describe('isSignInScreen', () => {
+  it('covers the sign-in and sign-up pages and welcome', () => {
+    for (const path of [
+      '/login',
+      '/login/senior',
+      '/signup',
+      '/signup/family',
+      '/welcome',
+      '/Welcome',
+    ]) {
+      assert.equal(isSignInScreen(path), true, path);
+    }
+  });
+
+  it('leaves every app screen out, and does not widen isLoginPath', () => {
+    for (const path of ['/', '/senior', '/calendar', '/groups/start', '/welcomes']) {
+      assert.equal(isSignInScreen(path), false, path);
+    }
+    assert.equal(isLoginPath('/welcome'), false);
   });
 });
 

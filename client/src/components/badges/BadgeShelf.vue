@@ -220,7 +220,7 @@ function claimAll() {
   box-shadow: 0 4px 12px rgb(138 100 24 / 30%);
 }
 .shelf-claim-all:focus-visible {
-  outline: 3px solid var(--sl-blue-deep);
+  outline: 3px solid var(--sl-focus);
   outline-offset: 2px;
 }
 .shelf-failed {

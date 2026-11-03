@@ -83,15 +83,26 @@ function when(iso: string): string {
 </template>
 
 <style scoped>
-/* The kind's colour runs down the left edge; its name is the badge on the right. */
+/* The kind's colour is a rounded strip down the left; its name is written on the right. */
 .appointment {
+  position: relative;
   display: grid;
   grid-template-columns: 5.5rem minmax(0, 1fr) auto;
   gap: 0.25rem 0.85rem;
   align-items: start;
-  padding: 0.75rem 1rem 0.75rem 0.9rem;
-  border-left: 4px solid var(--kind);
+  padding: 0.75rem 1rem 0.75rem 1.5rem;
   transition: background-color 0.15s ease;
+}
+
+.appointment::before {
+  position: absolute;
+  top: 0.7rem;
+  bottom: 0.7rem;
+  left: 0.6rem;
+  width: 5px;
+  border-radius: 999px;
+  background: var(--kind);
+  content: '';
 }
 
 /* The category, quietly: a dot in its colour and its name, not a solid badge. */
