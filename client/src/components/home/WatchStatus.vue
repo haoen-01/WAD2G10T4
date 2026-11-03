@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { WearableStatus } from '@silverloop/api-client';
 import { computed } from 'vue';
+import { RouterLink } from 'vue-router';
 
+import Icon from '@/components/ui/Icon.vue';
 import { batteryLevel, describeBattery, syncedAgo } from '@/lib/wearable';
 
 /**
@@ -53,7 +55,10 @@ const synced = computed(() =>
         </span>
         <span><span class="visually-hidden">Watch battery </span>{{ words }}</span>
       </span>
-      <span class="sim">Simulated watch</span>
+      <!-- Opens the watch in 3D. -->
+      <RouterLink to="/watch" class="sim-link" data-testid="watch-open">
+        <Icon name="watch" class="me-1" />Simulated watch<Icon name="chevron-right" class="ms-1" />
+      </RouterLink>
     </template>
     <span v-else class="chip chip-off"
       ><span class="dot" aria-hidden="true"></span>Checking the watch…</span
@@ -146,9 +151,25 @@ const synced = computed(() =>
   color: var(--bs-danger-text-emphasis);
 }
 
-.sim {
-  color: var(--sl-ink-soft);
-  font-size: 0.8rem;
+.sim-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--sl-line);
+  border-radius: 999px;
+  color: var(--sl-jade-deep);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.sim-link:hover,
+.sim-link:focus-visible {
+  background: var(--sl-jade-soft);
+  transform: translateX(2px);
 }
 
 .remind {
