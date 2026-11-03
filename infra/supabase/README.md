@@ -15,7 +15,7 @@ The zero-setup local path uses SQLite and does not require Docker or the Supabas
 ## Files in this directory
 
 - `migrations/*.sql` — the historical, hand-applied record of how the schema and its RLS posture
-  were introduced over time, mirroring `apps/api/alembic/versions`. Do not rewrite an entry that
+  were introduced over time, mirroring `server/alembic/versions`. Do not rewrite an entry that
   has already been applied to a live project.
 - `rls_posture_apply.sql` — a single idempotent script that enables row-level security, clears
   `FORCE`, revokes `anon`/`authenticated` and installs `deny_browser_access` for every table the

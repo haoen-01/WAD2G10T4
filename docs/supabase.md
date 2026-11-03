@@ -66,7 +66,7 @@ evidence reject updates and deletes at the database layer.
 > adds (`activity_offer_responses`, `plan_follow_through`, `plan_enjoyment`) are person-scoped and
 > one carries a free-text note: until the mirror is applied, an API start against the project
 > leaves them created by Alembic **without RLS**. Apply the mirror first, or immediately after.
-> `apps/api/tests/test_supabase_mirror.py` asserts every ORM table has a deny policy in some
+> `server/tests/test_supabase_mirror.py` asserts every ORM table has a deny policy in some
 > mirror file and that the newest mirror advances `alembic_version` to the repository head, so a
 > new table cannot be added without its mirror.
 >
@@ -103,9 +103,9 @@ not exists`, and policy/trigger creation guarded by a catalogue lookup) so it ca
 > [`infra/supabase/rls_posture_check.sql`](../infra/supabase/rls_posture_check.sql) is the
 > read-only companion: one `select`, no side effects, reporting RLS-enabled / forced / policy
 > names / `anon`+`authenticated` grants per table. Run it before and after applying the fix; see
-> "Closing the RLS gap" below for the exact steps. `apps/api/tests/test_postgres_integration.py`
+> "Closing the RLS gap" below for the exact steps. `server/tests/test_postgres_integration.py`
 > replays `rls_posture_apply.sql` over an Alembic-built schema (twice) in CI and asserts the check
-> query reports every ORM table green; `apps/api/tests/test_rls_posture_apply.py` is a
+> query reports every ORM table green; `server/tests/test_rls_posture_apply.py` is a
 > database-free unit test asserting the script names every table `db_models.py` defines, so a
 > future table added without RLS coverage fails locally, not just in CI.
 
@@ -214,7 +214,7 @@ Three things can define this schema, and they have drifted from each other three
 
 | Layer                                  | Owns                                                                                                                                                                                             | Must not own                                                                            |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| Alembic (`apps/api/alembic/versions`)  | Tables, columns, indexes, constraints, triggers                                                                                                                                                  | Anything naming a Supabase platform role                                                |
+| Alembic (`server/alembic/versions`)    | Tables, columns, indexes, constraints, triggers                                                                                                                                                  | Anything naming a Supabase platform role                                                |
 | `infra/supabase/migrations/*.sql`      | RLS enablement, policies, grants and revokes                                                                                                                                                     | Table/column definitions that Alembic already owns                                      |
 | `infra/supabase/rls_posture_apply.sql` | Re-establishing RLS enablement, policy and grants on every table in one idempotent step, independent of migration history. Run from the FastAPI lifespan on every start, and by hand when needed | Table/column definitions, and anything the migrations above have not already introduced |
 | `infra/supabase/rls_posture_check.sql` | Read-only reporting of the posture the two rows above establish                                                                                                                                  | Any statement that changes the database                                                 |
@@ -232,7 +232,7 @@ a content mismatch between the two layers.
 The procedure below is no longer the _only_ thing that establishes the posture, and should no
 longer be the first thing that notices a gap.
 
-`apps/api/src/silverloop/migrations.py::apply_rls_posture` runs
+`server/src/silverloop/migrations.py::apply_rls_posture` runs
 [`infra/supabase/rls_posture_apply.sql`](../infra/supabase/rls_posture_apply.sql) from the FastAPI
 lifespan, immediately after `alembic upgrade head`, on every start. That order matters: the
 posture has to cover the tables the upgrade just created, and on Supabase those arrive already
@@ -283,7 +283,7 @@ file's contents in order.
    changelog above, or the operator's own runbook) so the next person does not have to re-derive
    whether the gap is closed from the live database alone.
 
-`apps/api/tests/test_postgres_integration.py` exercises exactly this apply-then-check sequence in
+`server/tests/test_postgres_integration.py` exercises exactly this apply-then-check sequence in
 CI against a disposable database, so a regression in either file is caught before it reaches a
 human running these steps against the shared project. It also exercises the startup path with no
 mirror and no manual script at all — a bare `alembic upgrade head` followed by `apply_rls_posture`
@@ -328,8 +328,8 @@ database containing real participant data.
 The admin setup script creates the shared demo accounts in Supabase Auth:
 
 ```bash
-cd apps/api
-uv run --env-file ../../.env python -m silverloop.setup_demo_accounts
+cd server
+uv run --env-file ../.env python -m silverloop.setup_demo_accounts
 ```
 
 It needs `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `DATABASE_URL`, and the schema must already be
@@ -370,12 +370,13 @@ starting state, using synthetic data only:
 pnpm demo:story
 ```
 
-Nx loads the repository's `.env` into the command's environment, which is where `SUPABASE_URL`,
-`SUPABASE_SECRET_KEY`, `DATABASE_URL` and `AUTH_ENABLED` come from. The same run without Nx is:
+The root script loads the repository's `.env` into the command's environment (`scripts/run.mjs`),
+which is where `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `DATABASE_URL` and `AUTH_ENABLED` come from.
+The same run by hand is:
 
 ```bash
-cd apps/api
-uv run --env-file ../../.env python -m silverloop.demo_story
+cd server
+uv run --env-file ../.env python -m silverloop.demo_story
 ```
 
 Run it on the morning of the demo and before each rehearsal, because the appointments are dated from

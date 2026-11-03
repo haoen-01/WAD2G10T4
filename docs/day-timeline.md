@@ -43,16 +43,16 @@ Inspired by Life360's day view and Caring Village's shared care calendar: one gl
 
 ## Files changed
 
-| File                                            | Change                                                                                                                                                                         |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `apps/web/src/lib/day-timeline.ts`              | **New.** Pure rules: clock times, Singapore day/minute of a timestamp, sorting, the drawn window (7 am–10 pm, widened), "now / next / latest", day summary and past-day record |
-| `apps/web/src/lib/day-timeline.test.ts`         | **New.** Unit tests for the above                                                                                                                                              |
-| `apps/web/src/components/home/DayTimeline.vue`  | **New.** The panel: header and day arrows, three lanes, Now line, details card with the actions, past-day record, live sync                                                    |
-| `apps/web/src/views/HomeView.vue`               | Shows `<DayTimeline>` under the hero                                                                                                                                           |
-| `apps/web/src/lib/family-feed.ts`               | **Added** `withoutUndone()`: hides a "took" + "stepped back" pair from the same member, same appointment day, within 5 minutes (`UNDO_WINDOW_MS`)                              |
-| `apps/web/src/lib/family-feed.test.ts`          | Tests for `withoutUndone()`                                                                                                                                                    |
-| `apps/web/src/composables/useFamilyActivity.ts` | The feed's `entries` go through `withoutUndone()`, so the Family updates panel and the timeline both use it                                                                    |
-| `apps/e2e/tests/day-timeline.spec.ts`           | **New.** Browser tests: take an appointment then "Can't go"; tick a task; an earlier day's record and the Today button                                                         |
+| File                                          | Change                                                                                                                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `client/src/lib/day-timeline.ts`              | **New.** Pure rules: clock times, Singapore day/minute of a timestamp, sorting, the drawn window (7 am–10 pm, widened), "now / next / latest", day summary and past-day record |
+| `client/src/lib/day-timeline.test.ts`         | **New.** Unit tests for the above                                                                                                                                              |
+| `client/src/components/home/DayTimeline.vue`  | **New.** The panel: header and day arrows, three lanes, Now line, details card with the actions, past-day record, live sync                                                    |
+| `client/src/views/HomeView.vue`               | Shows `<DayTimeline>` under the hero                                                                                                                                           |
+| `client/src/lib/family-feed.ts`               | **Added** `withoutUndone()`: hides a "took" + "stepped back" pair from the same member, same appointment day, within 5 minutes (`UNDO_WINDOW_MS`)                              |
+| `client/src/lib/family-feed.test.ts`          | Tests for `withoutUndone()`                                                                                                                                                    |
+| `client/src/composables/useFamilyActivity.ts` | The feed's `entries` go through `withoutUndone()`, so the Family updates panel and the timeline both use it                                                                    |
+| `e2e/tests/day-timeline.spec.ts`              | **New.** Browser tests: take an appointment then "Can't go"; tick a task; an earlier day's record and the Today button                                                         |
 
 ## Where the data comes from (all existing)
 
@@ -65,10 +65,10 @@ Inspired by Life360's day view and Caring Village's shared care calendar: one gl
 ## How to check it
 
 ```bash
-pnpm --dir apps/web typecheck
-pnpm --dir apps/web test
-pnpm --dir apps/web build
-pnpm exec playwright test apps/e2e/tests/day-timeline.spec.ts
+pnpm --dir client typecheck
+pnpm --dir client test
+pnpm --dir client build
+pnpm --dir e2e exec playwright test tests/day-timeline.spec.ts
 ```
 
 Then on Home (signed in as family): tap the doctor's appointment, press **I'll go**, see

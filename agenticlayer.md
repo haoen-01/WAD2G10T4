@@ -1,6 +1,6 @@
 # The Care+ Agentic Layer
 
-This document describes the outreach planning agent added in `apps/api/src/silverloop/agent/`:
+This document describes the outreach planning agent added in `server/src/silverloop/agent/`:
 what it is, what it does, and what it changes about the workflow.
 
 ---
@@ -10,7 +10,7 @@ what it is, what it does, and what it changes about the workflow.
 Care+'s core is a **deterministic policy**. Given a person's activity signal, it decides
 whether to reach out at all and which class of action is permitted — nothing, a gentle nudge, a
 programme suggestion, a human review case, or suppression. That logic is a readable `if/elif`
-ladder in [`policy.py`](apps/api/src/silverloop/policy.py), and it is deliberately not
+ladder in [`policy.py`](server/src/silverloop/policy.py), and it is deliberately not
 negotiable.
 
 The agentic layer is a **bounded LLM planning loop that sits above that policy and below the
@@ -69,7 +69,7 @@ one specific human being is a judgement, and that is where the model earns its p
 ```
 
 The planner is invoked from exactly one place —
-[`_create_intervention`](apps/api/src/silverloop/sql_repository.py) — at the moment a permitted
+[`_create_intervention`](server/src/silverloop/sql_repository.py) — at the moment a permitted
 action class needs a specific candidate. If the policy returned `no_action`, `suppress`, or
 `coordinator_review`, **no client is ever constructed and no request is ever made.** That is
 covered by a test.
@@ -110,7 +110,7 @@ window holds the decision, not the archive.
 ### Adapt
 
 `propose_outreach` does not send anything. It runs
-[`guardrails.validate_proposal`](apps/api/src/silverloop/agent/guardrails.py) — plain Python, no
+[`guardrails.validate_proposal`](server/src/silverloop/agent/guardrails.py) — plain Python, no
 model call — and returns the verdict _as the tool result_. A rejection lists every violation, and
 the planner revises and resubmits.
 
@@ -289,7 +289,7 @@ falling back. The `offline` runtime profile continues to require `LLM_ENABLED=fa
 
 **Model choice.** `claude-opus-5` on the first-party API, `anthropic.claude-opus-5` on Bedrock
 (Bedrock ids carry the prefix). Both are written out in full in
-[`constants.py`](apps/api/src/silverloop/agent/constants.py) and selected by
+[`constants.py`](server/src/silverloop/agent/constants.py) and selected by
 `default_model_id(provider)` — never assembled from string fragments, and never derived from one
 another by string surgery, so a provider switch cannot silently produce an invalid id. Adaptive thinking is enabled; effort defaults to `medium`, which suits a bounded
 selection task sitting behind a deterministic validator. Raise it if evaluation shows headroom.
@@ -319,7 +319,7 @@ decision path.
 
 ## 10. Testing, and what is not yet proven
 
-`apps/api/tests/test_agent_planner.py` (33 tests) and `test_agent_integration.py` (5 tests) run
+`server/tests/test_agent_planner.py` (33 tests) and `test_agent_integration.py` (5 tests) run
 against a **fake transport**, deterministically, offline, with no API key — because the behaviour
 that matters is the loop's own discipline. They cover: every guardrail rule; the allow-list
 refusing an escalation to another action class; a rejected message never surviving into the
@@ -471,5 +471,5 @@ engineered to make the model append
 asserted-action rules regardless of whether the note was fenced. What the fencing buys is a
 defence that does not depend on either of those rules existing in the first place: a model
 reading a clearly-labelled data block is less likely to treat it as an instruction at all.
-`apps/api/tests/test_prompt_injection.py` exercises all three loops against exactly these probes,
+`server/tests/test_prompt_injection.py` exercises all three loops against exactly these probes,
 plus the "a literal closing marker inside typed text cannot escape the fence" property directly.

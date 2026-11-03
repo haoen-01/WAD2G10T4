@@ -170,7 +170,7 @@ states this product decision; this ADR keeps it and gives it a name.
 ## Decision
 
 Adopt five named consent scopes, encoded as `ConsentScope` in
-`apps/api/src/silverloop/consent_scopes.py`, and a pure function `scope_permitted(scope, *,
+`server/src/silverloop/consent_scopes.py`, and a pure function `scope_permitted(scope, *,
 consent_active)` that states what the one stored boolean means for each of them **today**:
 
 | Scope                   | Gated by the stored boolean?                                                                   | What it covers                                                                                                                                                                                                                        |
@@ -207,7 +207,7 @@ this ADR: the two gated scopes are one boolean, so there is nothing to attribute
 yet. A future scope-scoped consent needs the audit event itself to name which scope changed —
 specified in the deferred migration below.
 
-**Implementation shipped now (no schema change):** `apps/api/src/silverloop/consent_scopes.py`
+**Implementation shipped now (no schema change):** `server/src/silverloop/consent_scopes.py`
 (the enum and `scope_permitted`), with four call sites routed through it: the two
 `PREFERENCE_LEARNING` reads that gate learning itself (`_apply_activity_decline`,
 `_apply_activity_enjoyment`), a third `PREFERENCE_LEARNING` read that only feeds an audit label

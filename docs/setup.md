@@ -16,17 +16,39 @@ account and LLM key are not required for tests or the emergency offline demo.
 ```bash
 git clone https://github.com/peachoolongtee/ismoggers.git
 cd ismoggers
-pnpm setup
+pnpm run setup
 # Replace the placeholder DATABASE_URL in .env with the server-side Session pooler URL.
 pnpm dev
 ```
 
 The setup script creates `.env` only when it does not already exist. The committed value is a
 credential-free Supabase placeholder: `pnpm dev` will reject it until it is replaced in the local
-file. The script also installs the frozen pnpm lockfile, pinned Chromium browser and frozen Python
-environment. It does not download private data or configure external adapters.
+file. The script also installs `client/` and `e2e/` from their frozen pnpm lockfiles, the pinned
+Chromium browser (through `e2e/`) and the frozen Python environment in `server/`, and points git at
+`.githooks/`. The root `package.json` has no dependencies; it only runs scripts. It does not download private data or configure external adapters.
 
 Open <http://127.0.0.1:3000> for the demo and <http://127.0.0.1:8000/docs> for API exploration.
+
+## Moving an existing checkout to the client/server layout
+
+If your checkout predates the `client/`, `server/` and `e2e/` split, first delete the folders and
+files the old layout left behind (they are ignored by git, so pulling does not remove them), then
+run setup again. A leftover root `pnpm-workspace.yaml` in particular makes the `e2e/` install
+report "Already up to date" without installing Playwright.
+
+PowerShell:
+
+```powershell
+Remove-Item -Recurse -Force node_modules, apps, libs, .nx, pnpm-lock.yaml, pnpm-workspace.yaml -ErrorAction SilentlyContinue
+pnpm run setup
+```
+
+Git Bash, macOS or Linux:
+
+```bash
+rm -rf node_modules apps libs .nx pnpm-lock.yaml pnpm-workspace.yaml
+pnpm run setup
+```
 
 ## Separate terminals
 

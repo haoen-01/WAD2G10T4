@@ -1,0 +1,14 @@
+# client/ is a standalone pnpm project (its own install and lockfile, not a workspace member);
+# pnpm reads its settings from this file.
+
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+
+# Bootstrap declares Popper as a peer for its JS plugins; this app uses Bootstrap's CSS only, so
+# stop pnpm installing it automatically.
+packageExtensions:
+  bootstrap:
+    peerDependenciesMeta:
+      '@popperjs/core':
+        optional: true

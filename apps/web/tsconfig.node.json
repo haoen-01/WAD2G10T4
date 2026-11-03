@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "incremental": false,
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["node"]
-  },
-  "include": ["vite.config.ts", "src/**/*.test.ts"]
-}
