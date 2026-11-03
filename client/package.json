@@ -16,22 +16,22 @@
     "test": "node --import ./scripts/resolve-ts.mjs --test src/lib/*.test.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.3",
-    "@vueuse/core": "14.4.0",
-    "axios": "1.12.2",
+    "@supabase/supabase-js": "^2.118.0",
+    "@vueuse/core": "15.0.0",
+    "axios": "1.21.0",
     "bootstrap": "5.3.8",
-    "maplibre-gl": "6.13.0",
-    "motion-v": "2.6.0",
-    "vue": "3.5.43",
-    "vue-router": "4.6.4"
+    "maplibre-gl": "6.16.0",
+    "motion-v": "2.9.0",
+    "vue": "3.5.44",
+    "vue-router": "5.4.0"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",
-    "@types/node": "26.2.0",
-    "@vitejs/plugin-vue": "6.0.9",
-    "prettier": "3.9.6",
-    "typescript": "5.9.3",
-    "vite": "8.3.0",
-    "vue-tsc": "3.3.11"
+    "@types/node": "26.6.6",
+    "@vitejs/plugin-vue": "6.0.10",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vue-tsc": "3.3.14"
   }
 }
