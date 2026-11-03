@@ -46,6 +46,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'walk', name: 'walk', component: () => import('@/views/WalkView.vue') },
       { path: 'calendar', name: 'calendar', component: () => import('@/views/CalendarView.vue') },
       { path: 'family', name: 'family', component: () => import('@/views/FamilyView.vue') },
+      // The senior's simulated watch in 3D, opened from the watch status on Home.
+      { path: 'watch', name: 'watch', component: () => import('@/views/WatchView.vue') },
       // The Care Team screens were removed. Old bookmarks and shared links land on the calendar.
       { path: 'care-team/:rest(.*)*', redirect: '/calendar' },
       {

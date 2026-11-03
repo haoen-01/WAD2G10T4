@@ -19,7 +19,7 @@ import {
   type ViewMode,
 } from './view-mode';
 
-export const PROTECTED_PREFIXES = ['/senior', '/walk', '/calendar', '/family'] as const;
+export const PROTECTED_PREFIXES = ['/senior', '/walk', '/calendar', '/family', '/watch'] as const;
 
 /**
  * Whether `pathname` is one of the protected sections or lives under one. Matches whole path

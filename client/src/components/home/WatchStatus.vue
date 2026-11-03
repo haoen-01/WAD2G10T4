@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { WearableStatus } from '@silverloop/api-client';
 import { computed } from 'vue';
+import { RouterLink } from 'vue-router';
 
+import Icon from '@/components/ui/Icon.vue';
 import { batteryLevel, describeBattery, syncedAgo } from '@/lib/wearable';
 
 /**
@@ -56,7 +58,11 @@ const synced = computed(() =>
           </span>
           <span><span class="visually-hidden">Watch battery </span>{{ words }}</span>
         </span>
-        <span class="watch-part sim">Simulated watch</span>
+        <!-- Opens the watch in 3D (/watch). -->
+        <RouterLink to="/watch" class="watch-part sim sim-link" data-testid="watch-open">
+          <Icon name="watch" /><span class="sim-words">Simulated watch</span
+          ><Icon name="chevron-right" />
+        </RouterLink>
       </template>
       <span v-else class="watch-part">
         <span class="dot" aria-hidden="true"></span>Checking the watch…
@@ -139,6 +145,26 @@ const synced = computed(() =>
 
 .sim {
   font-size: 0.85rem;
+}
+
+/* The way into the 3D watch. On the Home hero it is one of the ink chips (HomeHero styles every
+   `.watch-part`), so it keeps the chip's own words rather than a colour of its own; the watch icon
+   and the arrow say it opens something, and the words underline on hover and focus. */
+.sim-link {
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.2s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sim-link:hover {
+    transform: translateX(2px);
+  }
+}
+
+.sim-link:hover .sim-words,
+.sim-link:focus-visible .sim-words {
+  text-decoration: underline;
 }
 
 .remind {

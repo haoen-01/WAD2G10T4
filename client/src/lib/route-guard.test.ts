@@ -62,7 +62,13 @@ describe('isProtectedPath', () => {
   });
 
   it('lists exactly the sections the spec names', () => {
-    assert.deepEqual([...PROTECTED_PREFIXES].sort(), ['/calendar', '/family', '/senior', '/walk']);
+    assert.deepEqual([...PROTECTED_PREFIXES].sort(), [
+      '/calendar',
+      '/family',
+      '/senior',
+      '/walk',
+      '/watch',
+    ]);
   });
 });
 

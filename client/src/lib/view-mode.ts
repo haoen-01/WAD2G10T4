@@ -15,7 +15,7 @@ export const VIEW_MODES: readonly ViewMode[] = ['family', 'senior'];
 export const VIEW_PATHS: Record<ViewMode, readonly string[]> = {
   // `/groups/start` (or `/groups`): join or create a family group. Reached from the Family page;
   // the guard also sends a family member there until they are in a group.
-  family: ['/', '/walk', '/calendar', '/family', '/groups'],
+  family: ['/', '/walk', '/calendar', '/family', '/groups', '/watch'],
   senior: ['/senior'],
 };
 
