@@ -958,7 +958,7 @@ const RING = 2 * Math.PI * 22;
   width: 340px;
   height: calc(var(--stage-h) - 90px);
   margin-left: -170px;
-  cursor: grab;
+  cursor: var(--sl-cur-spin);
   touch-action: pan-y;
   user-select: none;
   outline: none;
@@ -970,7 +970,7 @@ const RING = 2 * Math.PI * 22;
 }
 
 .is-dragging .stage {
-  cursor: grabbing;
+  cursor: var(--sl-cur-grabbing);
 }
 
 .stage-zoom {

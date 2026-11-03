@@ -34,10 +34,37 @@
     U+A720-A7FF;
 }
 
+/* Bricolage Grotesque, for the big page headings only (body text stays Atkinson). Also served from
+   /public/fonts, under the same open font licence (OFL-bricolage-grotesque.txt). */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* The angle of the light running round a main button, and how far an outline button has filled
+   on hover. Registered so CSS can animate them (an ordinary custom property would jump). */
+@property --sl-spin {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@property --sl-fill {
+  syntax: '<length-percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
 :root {
   /* Palette */
   --sl-ink: #102a26;
-  --sl-ink-soft: #46605a;
+  --sl-ink-soft: #3f5953;
   --sl-mist: #edf2ef;
   --sl-surface: #ffffff;
   --sl-line: #d3ddd8;
@@ -118,6 +145,58 @@
   --sl-glass-filter: blur(16px) saturate(1.6);
 
   /*
+   * The living background (`LivingBackground.vue`): soft glows that drift behind every page, and
+   * one that follows the mouse. Each is a colour with its own strength.
+   */
+  --sl-bg-main: rgb(127 211 178 / 42%);
+  --sl-bg-bright: rgb(255 255 255 / 90%);
+  --sl-bg-deep: rgb(11 104 79 / 8%);
+  --sl-bg-warm: rgb(244 201 93 / 16%);
+  --sl-bg-follow: rgb(127 211 178 / 38%);
+  --sl-bg-vignette: rgb(16 42 38 / 2%);
+  --sl-bg-grain: 0.035;
+
+  /* The keyboard focus ring (mint in dark mode, so it stays 3:1 against the glows). */
+  --sl-focus: var(--sl-jade);
+
+  /*
+   * Panels are slightly see-through, so the background glows show at their edges, and their rim
+   * lights up near the mouse (`usePointerGlow.ts`). Text stays on a near-solid fill, so its
+   * contrast does not change.
+   */
+  --sl-panel-bg: rgb(255 255 255 / 84%);
+  --sl-panel-border: rgb(16 42 38 / 9%);
+  --sl-glow-default: var(--sl-jade);
+
+  /* The light that runs round a main button: white, then sun. */
+  --sl-shimmer-a: #ffffff;
+  --sl-shimmer-b: var(--sl-sun);
+
+  /* The menu's glass bubble and its rainbow rim. */
+  --sl-bubble-bg: rgb(255 255 255 / 92%);
+  --sl-bubble-shadow: 0 4px 14px rgb(16 42 38 / 14%), inset 0 1px 0 rgb(255 255 255 / 90%);
+  --sl-bubble-rim: conic-gradient(from 210deg, #3fae88, #5b8fe6, #c76fb5, #f4c95d, #3fae88);
+
+  /*
+   * Cursors. Each is a keyword unless the reader has Care+ cursors on (Display settings), when it
+   * becomes a picture from /public/cursors with the keyword as the fallback. See the end of this
+   * file for where each one is used.
+   */
+  --sl-cur-default: auto;
+  --sl-cur-link: pointer;
+  --sl-cur-press: pointer;
+  --sl-cur-text: text;
+  --sl-cur-tick: pointer;
+  --sl-cur-add: pointer;
+  --sl-cur-grab: grab;
+  --sl-cur-grabbing: grabbing;
+  --sl-cur-free: crosshair;
+  --sl-cur-busy: crosshair;
+  --sl-cur-spin: grab;
+  --sl-cur-locked: not-allowed;
+  --sl-cur-kaki: pointer;
+
+  /*
    * App shell. The phone tab bar is --sl-tabbar-core tall plus the device's bottom safe area, so it
    * grows with zoom and clears a home indicator; toasts sit above --sl-tabbar-height. Stacking:
    * header 1020, nav 1030, the BottomSheet's backdrop 1045 and panel 1046, toasts 1080.
@@ -168,11 +247,11 @@
  * outlines use a lighter mint so they read on the dark page.
  */
 :root[data-bs-theme='dark'] {
-  --sl-ink: #e3ece8;
-  --sl-ink-soft: #a7b8b2;
-  --sl-mist: #0e1715;
-  --sl-surface: #16221f;
-  --sl-line: #2c3d38;
+  --sl-ink: #e8f1ed;
+  --sl-ink-soft: #b2c6bf;
+  --sl-mist: #04110d;
+  --sl-surface: #0f201b;
+  --sl-line: #24392f;
   --sl-jade: #1d7a5e;
   --sl-jade-deep: #8fdcbf;
   --sl-jade-soft: #173a30;
@@ -208,12 +287,28 @@
   --sl-kind-task-on: #0e1715;
   --sl-float: 0 10px 30px rgb(0 0 0 / 45%), 0 2px 6px rgb(0 0 0 / 30%);
   --sl-elev-2: 0 6px 18px rgb(0 0 0 / 45%), 0 1px 4px rgb(0 0 0 / 30%);
-  --sl-glass-bg: rgb(22 34 31 / 78%);
+  --sl-glass-bg: rgb(9 26 21 / 72%);
   --sl-glass-border: rgb(255 255 255 / 12%);
 
+  /* The night version of the background: deep jade with a mint glow, as in the approved draft. */
+  --sl-bg-main: rgb(11 104 79 / 85%);
+  --sl-bg-bright: rgb(111 220 174 / 30%);
+  --sl-bg-deep: rgb(14 74 58 / 90%);
+  --sl-bg-warm: rgb(244 201 93 / 9%);
+  --sl-bg-follow: rgb(111 220 174 / 26%);
+  --sl-bg-vignette: rgb(2 8 6 / 70%);
+  --sl-bg-grain: 0.06;
+  --sl-focus: var(--sl-mint);
+  --sl-panel-bg: rgb(8 23 19 / 84%);
+  --sl-panel-border: rgb(255 255 255 / 9%);
+  --sl-glow-default: #6fdcae;
+  --sl-bubble-bg: rgb(255 255 255 / 15%);
+  --sl-bubble-shadow: 0 6px 18px rgb(0 0 0 / 35%), inset 0 1px 0 rgb(255 255 255 / 35%);
+  --sl-bubble-rim: conic-gradient(from 210deg, #6fdcae, #8cb4ff, #e39ad5, #f4c95d, #6fdcae);
+
   color-scheme: dark;
-  --bs-body-color-rgb: 227, 236, 232;
-  --bs-tertiary-bg: #1f2e2a;
+  --bs-body-color-rgb: 232, 241, 237;
+  --bs-tertiary-bg: #16302a;
   --bs-link-color: var(--sl-mint);
   --bs-link-color-rgb: 127, 211, 178;
   --bs-link-hover-color: #a9e6cd;
@@ -228,10 +323,11 @@
 }
 
 :root[data-bs-theme='dark'] .btn-outline-primary {
+  --sl-fill-c: var(--sl-mint);
   --bs-btn-color: var(--sl-mint);
   --bs-btn-border-color: var(--sl-mint);
   --bs-btn-hover-color: #0e1715;
-  --bs-btn-hover-bg: var(--sl-mint);
+  --bs-btn-hover-bg: transparent;
   --bs-btn-hover-border-color: var(--sl-mint);
   --bs-btn-active-color: #0e1715;
   --bs-btn-active-bg: var(--sl-mint);
@@ -299,6 +395,15 @@ h4,
   line-height: 1.2;
 }
 
+/* Page titles and section titles use the display face; everything else stays Atkinson. */
+h1,
+.h1,
+.sl-section-title {
+  font-family: 'Bricolage Grotesque', var(--bs-body-font-family);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
 /* Section heading outside a card (Home, Calendar, Family): one size and weight on every screen. */
 .sl-section-title {
   margin-bottom: 0.75rem;
@@ -332,6 +437,12 @@ h4,
   --bs-btn-font-size: 1.15rem;
 }
 
+/*
+ * Main buttons (`btn-primary`): a light runs round the edge. It is a `conic-gradient` ring cut out
+ * with a mask (only the 2px border shows), turned by animating `--sl-spin`. At rest the light
+ * waits in one place; pointing at the button or reaching it with Tab sets it running. Add
+ * `sl-cta` to the one main action on a page to keep it running.
+ */
 .btn-primary {
   --bs-btn-bg: var(--sl-jade);
   --bs-btn-border-color: var(--sl-jade);
@@ -341,13 +452,103 @@ h4,
   --bs-btn-active-border-color: var(--sl-jade-deep);
   --bs-btn-disabled-bg: var(--sl-jade);
   --bs-btn-disabled-border-color: var(--sl-jade);
+  position: relative;
+  isolation: isolate;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--sl-jade) 28%, transparent);
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--bs-btn-border-width));
+  padding: 2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--sl-spin),
+    transparent 0% 58%,
+    var(--sl-shimmer-a) 74%,
+    var(--sl-shimmer-b) 86%,
+    transparent 97%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+  animation: sl-spin 3.6s linear infinite paused;
+}
+
+.btn-primary:hover::before,
+.btn-primary:focus-visible::before,
+.btn-primary.sl-cta::before {
+  animation-play-state: running;
+}
+
+/* The main action turns three times when the page opens, then waits (nothing on the page moves
+   for ever on its own); pointing at it starts it again. */
+.btn-primary.sl-cta:not(:hover, :focus-visible)::before {
+  animation-iteration-count: 3;
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--sl-jade) 42%, transparent);
+}
+
+.btn-primary:disabled::before,
+.btn-primary.disabled::before {
+  opacity: 0.4;
+  animation: none;
+}
+
+@keyframes sl-spin {
+  to {
+    --sl-spin: 360deg;
+  }
+}
+
+/*
+ * Outline buttons fill from the left when pointed at: a circle grows from beside the first word
+ * (`--sl-fill`, a registered property, animates from 0% to 100% of the button). The words change
+ * colour a moment later, once the fill has reached them.
+ */
+.btn-outline-primary,
+.btn-outline-secondary {
+  background-image: radial-gradient(
+    circle at 1.1rem 50%,
+    var(--sl-fill-c) var(--sl-fill),
+    transparent calc(var(--sl-fill) + 0.5px)
+  );
+  /* Leaving: the fill shrinks quickly and the words change back once it has gone past them. */
+  transition:
+    --sl-fill 0.3s var(--sl-ease),
+    color 0.15s ease 0.15s,
+    border-color 0.25s ease,
+    background-color 0.15s ease;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus-visible,
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus-visible {
+  --sl-fill: 100%;
+  /* Arriving: the fill grows, and the words change colour as it reaches them. */
+  transition:
+    --sl-fill 0.5s var(--sl-ease),
+    color 0.2s ease 0.12s,
+    border-color 0.25s ease,
+    background-color 0.15s ease;
 }
 
 .btn-outline-primary {
+  --sl-fill-c: var(--sl-jade);
   --bs-btn-color: var(--sl-jade);
   --bs-btn-border-color: var(--sl-jade);
   --bs-btn-hover-color: #fff;
-  --bs-btn-hover-bg: var(--sl-jade);
+  --bs-btn-hover-bg: transparent;
   --bs-btn-hover-border-color: var(--sl-jade);
   --bs-btn-active-color: #fff;
   --bs-btn-active-bg: var(--sl-jade-deep);
@@ -357,10 +558,11 @@ h4,
 }
 
 .btn-outline-secondary {
+  --sl-fill-c: var(--bs-tertiary-bg);
   --bs-btn-color: var(--sl-ink-soft);
   --bs-btn-border-color: var(--sl-line);
   --bs-btn-hover-color: var(--sl-ink);
-  --bs-btn-hover-bg: var(--bs-tertiary-bg);
+  --bs-btn-hover-bg: transparent;
   --bs-btn-hover-border-color: var(--sl-ink-soft);
   --bs-btn-active-color: var(--sl-ink);
   --bs-btn-active-bg: var(--sl-line);
@@ -382,8 +584,8 @@ h4,
 }
 
 .card {
-  --bs-card-bg: var(--sl-surface);
-  --bs-card-border-color: var(--sl-line);
+  --bs-card-bg: var(--sl-panel-bg);
+  --bs-card-border-color: var(--sl-panel-border);
   --bs-card-border-radius: var(--sl-radius);
   --bs-card-inner-border-radius: calc(var(--sl-radius) - 1px);
   --bs-card-spacer-y: 1.25rem;
@@ -465,12 +667,60 @@ h4,
 
 /* ---------- Layout pieces shared by several screens ---------- */
 
-/* A white panel. Only the main things on a screen get one; supporting detail sits on the page. */
+/* A panel. Only the main things on a screen get one; supporting detail sits on the page. */
 .sl-panel {
-  background: var(--sl-surface);
-  border: 1px solid var(--sl-line);
+  position: relative;
+  background-color: var(--sl-panel-bg);
+  border: 1px solid var(--sl-panel-border);
   border-radius: var(--sl-radius);
   padding: 1.25rem;
+}
+
+/*
+ * Glowing edges. `usePointerGlow.ts` gives each panel near the mouse `--sl-x` / `--sl-y` (the
+ * mouse's position inside it) and `--sl-glow-on: 1`. The rim is a radial gradient at that point,
+ * masked to a 1.5px ring; a fainter wash of the same colour lights the inside. A panel's tone
+ * (`sl-tone-coral`, say) colours its glow, so each section keeps its colour.
+ */
+.sl-panel,
+.card,
+.sl-glow {
+  --sl-glow-c: var(--tone, var(--sl-glow-default));
+  background-image: radial-gradient(
+    26rem circle at var(--sl-x, -999px) var(--sl-y, -999px),
+    color-mix(in srgb, var(--sl-glow-c) calc(var(--sl-glow-on, 0) * 9%), transparent),
+    transparent 60%
+  );
+}
+
+.sl-glow {
+  position: relative;
+}
+
+.sl-panel::after,
+.card::after,
+.sl-glow::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: radial-gradient(
+    16rem circle at var(--sl-x, -999px) var(--sl-y, -999px),
+    var(--sl-glow-c),
+    transparent 70%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  opacity: var(--sl-glow-on, 0);
+  pointer-events: none;
+  transition: opacity 0.35s ease;
 }
 
 @media (min-width: 768px) {
@@ -782,6 +1032,82 @@ h4,
   transform: translateY(8px);
 }
 
+/* ---------- Cursors ---------- */
+/*
+ * With Care+ cursors on (`html.sl-cursors`, set by `useDisplay.ts`) and a mouse or trackpad
+ * (`pointer: fine`), each `--sl-cur-*` becomes a picture. `url(...) x y` names the picture and
+ * the point that clicks (its hotspot); the keyword after the comma is used if the picture cannot
+ * load. Phones and tablets never see them.
+ */
+@media (pointer: fine) {
+  :root.sl-cursors {
+    --sl-cur-default: url('/cursors/arrow.svg') 5 3, auto;
+    --sl-cur-link: url('/cursors/book.svg') 4 8, pointer;
+    --sl-cur-press: url('/cursors/hand.svg') 13 2, pointer;
+    --sl-cur-text: url('/cursors/ibeam.svg') 16 16, text;
+    --sl-cur-tick: url('/cursors/check.svg') 16 16, pointer;
+    --sl-cur-add: url('/cursors/plus.svg') 16 16, pointer;
+    --sl-cur-grab: url('/cursors/grab.svg') 16 16, grab;
+    --sl-cur-grabbing: url('/cursors/grabbing.svg') 16 16, grabbing;
+    --sl-cur-free: url('/cursors/brush-free.svg') 7 27, crosshair;
+    --sl-cur-busy: url('/cursors/brush-busy.svg') 7 27, crosshair;
+    --sl-cur-spin: url('/cursors/spin.svg') 16 16, grab;
+    --sl-cur-locked: url('/cursors/locked.svg') 16 16, not-allowed;
+    --sl-cur-kaki: url('/cursors/kaki.svg') 6 4, pointer;
+  }
+}
+
+/* Where each cursor shows. The selectors repeat Bootstrap's own, so these win (this file loads
+   after Bootstrap); a component can still choose another with `cursor: var(--sl-cur-…)`. */
+html {
+  cursor: var(--sl-cur-default);
+}
+
+a[href],
+[role='link'] {
+  cursor: var(--sl-cur-link);
+}
+
+[role='button'],
+button:not(:disabled),
+[type='button']:not(:disabled),
+[type='reset']:not(:disabled),
+[type='submit']:not(:disabled),
+summary,
+select {
+  cursor: var(--sl-cur-press);
+}
+
+input:not([type]),
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='search'],
+input[type='tel'],
+input[type='url'],
+input[type='number'],
+textarea,
+[contenteditable='true'] {
+  cursor: var(--sl-cur-text);
+}
+
+input[type='checkbox']:not(:disabled),
+input[type='radio']:not(:disabled),
+.form-check-input:not(:disabled) {
+  cursor: var(--sl-cur-tick);
+}
+
+button.sl-cur-add:not(:disabled),
+a.sl-cur-add {
+  cursor: var(--sl-cur-add);
+}
+
+/* Something that cannot be pressed yet. */
+button:disabled,
+[aria-disabled='true'] {
+  cursor: var(--sl-cur-locked);
+}
+
 /* ---------- Accessibility rules Bootstrap does not provide ---------- */
 
 /* Buttons and fields are at least 44px tall: an easy target for shaky or older hands. */
@@ -797,7 +1123,7 @@ h4,
 .form-control:focus,
 .form-select:focus,
 .form-check-input:focus {
-  outline: 3px solid var(--sl-jade);
+  outline: 3px solid var(--sl-focus);
   outline-offset: 3px;
   box-shadow: none;
 }
@@ -825,5 +1151,10 @@ main:focus {
     transition-duration: 0s !important;
     animation-duration: 0s !important;
     scroll-behavior: auto !important;
+  }
+
+  /* The light round a main button stays still rather than jumping round. */
+  .btn-primary::before {
+    animation: none;
   }
 }

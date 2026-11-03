@@ -196,10 +196,10 @@ const status = computed(() => {
 .is-claimed .tile-stage {
   /* A sideways drag spins the medal; up and down still scrolls the page. */
   touch-action: pan-y;
-  cursor: grab;
+  cursor: var(--sl-cur-spin);
 }
 .is-dragging .tile-stage {
-  cursor: grabbing;
+  cursor: var(--sl-cur-grabbing);
 }
 .is-away .tile-coin,
 .is-away .tile-halo {

@@ -2,9 +2,14 @@
 import Icon from '@/components/ui/Icon.vue';
 import { useDisplay } from '@/composables/useDisplay';
 
-/** The top bar's display settings: zoom by percentage, and light or dark. */
+/**
+ * The display settings: zoom by percentage, light or dark, and Care+ cursors on or off. The
+ * cursor button only shows with a mouse or trackpad; in the senior's top bar (`cursorToggle`
+ * `wide`, the default) it also waits for a wide screen, so the bar still fits on a phone.
+ */
+withDefaults(defineProps<{ cursorToggle?: 'wide' | 'always' }>(), { cursorToggle: 'wide' });
 const display = useDisplay();
-const { zoom, theme } = display;
+const { zoom, theme, cursors } = display;
 </script>
 
 <template>
@@ -51,6 +56,18 @@ const { zoom, theme } = display;
       @click="display.toggleTheme()"
     >
       <Icon :name="theme === 'dark' ? 'sun' : 'moon'" />
+    </button>
+    <button
+      type="button"
+      class="theme-btn cursor-btn"
+      :class="`cursor-btn--${cursorToggle}`"
+      aria-label="Care+ cursors"
+      :title="cursors ? 'Care+ cursors are on' : 'Care+ cursors are off'"
+      :aria-pressed="cursors"
+      data-testid="cursor-toggle"
+      @click="display.toggleCursors()"
+    >
+      <Icon name="pointer" />
     </button>
   </div>
 </template>
@@ -120,5 +137,31 @@ const { zoom, theme } = display;
   border: 2px solid var(--sl-line);
   background: var(--sl-surface);
   font-size: 1.15rem;
+}
+
+/* A full 44px target (the zoom and theme buttons sit in a tighter bar). */
+.cursor-btn {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+/* On: filled in jade, so its state shows by more than the label. */
+.cursor-btn[aria-pressed='true'] {
+  border-color: var(--sl-jade);
+  background: var(--sl-jade-soft);
+  color: var(--sl-jade-deep);
+}
+
+/* A finger has no cursor to change; and the senior's phone bar has no room to spare. */
+@media (pointer: coarse) {
+  .cursor-btn {
+    display: none;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .cursor-btn--wide {
+    display: none;
+  }
 }
 </style>
