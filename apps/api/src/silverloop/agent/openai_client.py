@@ -15,7 +15,8 @@ function calling, so no loop, tool, guardrail or fallback changes for this provi
 * `finish_reason` -> `stop_reason` (`tool_calls` -> `tool_use`, `length` -> `max_tokens`,
   a refusal or `content_filter` -> `refusal`), usage -> `input_tokens` / `output_tokens`.
 
-Anthropic-only request options (`thinking`, `output_config`, `cache_control`) are ignored.
+Anthropic-only request options (`thinking`, `cache_control`) are ignored; `output_config.effort`
+becomes `reasoning_effort` for reasoning models.
 
 It uses `httpx`, as the assistant's OpenAI call already does: no new dependency. The key comes
 from `OPENAI_API_KEY`, the team's existing setting, and is only ever put in the Authorization
@@ -222,7 +223,12 @@ class OpenAIChatClient:
             body["tools"] = to_openai_tools(tools)
             body["tool_choice"] = _tool_choice(kwargs.get("tool_choice"))
         if model.startswith(("gpt-5", "o")):
-            body["reasoning_effort"] = self._effort
+            # A loop may ask for its own effort (`output_config`, as the Anthropic surface spells
+            # it); otherwise the client's, from `LLM_EFFORT`.
+            asked = _field(kwargs.get("output_config"), "effort")
+            body["reasoning_effort"] = (
+                _EFFORT.get(str(asked), self._effort) if asked else self._effort
+            )
         return body
 
     def _create(self, **kwargs: Any) -> SimpleNamespace:

@@ -3507,6 +3507,142 @@
         }
       }
     },
+    "/v1/people/{person_id}/my-day/voice": {
+      "get": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Person My Day Voice",
+        "description": "Whether \"Read my day\" can speak with the Kokoro voice here (it loads the model the first\ntime, so the first reading does not wait). The same readers as `my-day`.",
+        "operationId": "person_my_day_voice_v1_people__person_id__my_day_voice_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Person Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechVoice"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{person_id}/my-day/speech": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Person My Day Speech",
+        "description": "One sentence of \"Read my day\", spoken by the Kokoro voice on this server's CPU (no\ncloud service). The same readers as `my-day`. 503 when Kokoro or its model files are not\ninstalled, or it failed: the browser then reads with its own voice.",
+        "operationId": "person_my_day_speech_v1_people__person_id__my_day_speech_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Person Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The sentence, spoken (WAV).",
+            "content": {
+              "audio/wav": {}
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "description": "The Kokoro voice is not installed or could not speak."
+          }
+        }
+      }
+    },
     "/v1/groups/{group_id}/tasks/{task_id}": {
       "put": {
         "tags": [
@@ -7447,6 +7583,60 @@
           "quality"
         ],
         "title": "SignalSummary"
+      },
+      "SpeechRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "SpeechRequest",
+        "description": "One sentence of a \"Read my day\" script to be spoken by the Kokoro voice. Never stored, never\nlogged; only a hash of it keys the in-memory audio cache."
+      },
+      "SpeechVoice": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "voice",
+          "label"
+        ],
+        "title": "SpeechVoice",
+        "description": "Whether \"Read my day\" can use the Kokoro voice here, and how to name it. When not, the\nbrowser reads with its own voice."
       },
       "StatedContextExplanation": {
         "properties": {

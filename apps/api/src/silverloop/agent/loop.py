@@ -7,21 +7,22 @@ assembled through permission-checked reads, then calls one terminal *submit* too
 outreach planner. The loop never raises for a provider problem and never touches the database --
 every way it can end is an `LoopOutcome.status` the caller turns into its own fallback.
 
-The client comes from the outreach planner's `_build_client`: the same providers (Anthropic,
-Bedrock), the same `recorded` replay transport, and the same refusal to build anything when a
-provider is not configured. Live providers stay off until the team's data-sharing review (issue
-#10); `llm_source` tells a reader which one wrote a result.
+The client comes from the outreach planner's `_build_client`: the same providers (OpenAI,
+Anthropic, Bedrock), the same `recorded` replay transport, and the same refusal to build anything
+when a provider is not configured. `llm_source` tells a reader which one wrote a result.
 """
 
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from silverloop.agent.constants import resolve_model
 from silverloop.config import Settings
+from silverloop.logging_config import agent_logger, request_id_var
 
 LoopStatus = Literal["submitted", "disabled", "error", "no_proposal"]
 LlmSource = Literal["live", "recorded"]
@@ -29,6 +30,16 @@ LlmSource = Literal["live", "recorded"]
 # `(payload_json, one_line_summary, ok)` for one read tool call.
 ReadTool = Callable[[str, dict[str, Any]], tuple[str, str, bool]]
 ClientFactory = Callable[[], tuple[Any, str | None]]
+
+# A person is waiting on every one of these loops (a card on Home, the "Read my day" button, the
+# "Fill in the form" button), so the whole run has a deadline: no new model turn starts after it,
+# and the result falls back. Kept well inside the browser's own wait (`AGENT_TIMEOUT_MS`, 60 s, in
+# `apps/web/src/services/careApi.ts`) so the person always gets an answer, never a timeout.
+DEADLINE_SECONDS = 40.0
+# Reading a few facts and writing a short, checked answer needs little reasoning; a deterministic
+# check approves every result. Low effort keeps each turn to a few seconds (measured with
+# gpt-5-mini: about 9-13 s for the four turns of a typed appointment, against 22-25 s at medium).
+DEFAULT_EFFORT = "low"
 
 
 @dataclass
@@ -77,6 +88,8 @@ def run_tool_loop(
     max_tokens: int = 1024,
     approved_summary: str = "Check approved it.",
     client_factory: ClientFactory | None = None,
+    effort: str = DEFAULT_EFFORT,
+    deadline_seconds: float = DEADLINE_SECONDS,
 ) -> LoopOutcome:
     """Run one bounded loop. Every exit that is not an approved submission says why."""
     if not settings.llm_enabled:
@@ -90,13 +103,43 @@ def run_tool_loop(
     messages: list[dict[str, Any]] = [{"role": "user", "content": brief}]
     steps: list[LoopStep] = []
     rejections: list[str] = []
+    started = time.monotonic()
+    # OpenAI reads the effort as `reasoning_effort` (`agent.openai_client`). The other providers
+    # are left exactly as they were: an older Anthropic model rejects `output_config` outright.
+    extras: dict[str, Any] = (
+        {"output_config": {"effort": effort}} if settings.llm_provider == "openai" else {}
+    )
 
-    def end(status: LoopStatus, reason: str) -> LoopOutcome:
+    def end(status: LoopStatus, reason: str | None = None, **kwargs: Any) -> LoopOutcome:
+        # One line per run for the operator: what happened and how long it took. Never the
+        # person's words, the model's output or a key.
+        agent_logger().info(
+            "agent_loop_finished",
+            extra={
+                "structured_fields": {
+                    "request_id": request_id_var.get(),
+                    "loop": submit_tool,
+                    "model": model,
+                    "status": status,
+                    "reason": reason,
+                    "steps": [step.tool_name for step in steps],
+                    "rejections": len(rejections),
+                    "duration_ms": round((time.monotonic() - started) * 1000),
+                }
+            },
+        )
         return LoopOutcome(
-            status=status, steps=steps, rejections=rejections, reason=reason, model=model
+            status=status,
+            steps=steps,
+            rejections=rejections,
+            reason=reason,
+            model=model,
+            **kwargs,
         )
 
     for iteration in range(1, max(1, settings.llm_max_iterations) + 1):
+        if iteration > 1 and time.monotonic() - started > deadline_seconds:
+            return end("error", "DeadlineExceeded")
         try:
             response = client.messages.create(
                 model=model,
@@ -104,6 +147,7 @@ def run_tool_loop(
                 system=[{"type": "text", "text": system}],
                 tools=tools,
                 messages=messages,
+                **extras,
             )
         except Exception as error:  # noqa: BLE001 - provider errors must degrade, never raise
             return end("error", type(error).__name__)
@@ -135,13 +179,7 @@ def run_tool_loop(
                     )
                 )
                 if not violations:
-                    return LoopOutcome(
-                        status="submitted",
-                        arguments=arguments,
-                        steps=steps,
-                        rejections=rejections,
-                        model=model,
-                    )
+                    return end("submitted", arguments=arguments)
                 rejections.extend(violations)
                 results.append(
                     {

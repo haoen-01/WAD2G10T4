@@ -1,53 +1,44 @@
 <script setup lang="ts">
 import type { MyDay } from '@silverloop/api-client';
-import { onBeforeUnmount, ref } from 'vue';
+import { computed, ref, useId } from 'vue';
 
 import Icon from '@/components/ui/Icon.vue';
+import { useReadAloud } from '@/composables/useReadAloud';
 import { stepLabel } from '@/lib/agent';
 import { myDaySource, readButtonLabel } from '@/lib/my-day';
-import { getMyDay } from '@/services/careApi';
+import { getMyDay, getMyDaySpeech, getMyDayVoice } from '@/services/careApi';
 
 /**
  * "Read my day": one big button that asks the API for a short run-through of today and reads it
- * aloud with the browser's own speech (nothing is recorded or sent anywhere for that). The words
- * stay on screen too, for anyone who would rather read, or whose browser cannot speak.
+ * aloud with the browser's own speech, in one warm voice, a sentence at a time (nothing is recorded
+ * or sent anywhere for that; see `useReadAloud`). While it reads, the big button stops it and a
+ * second button pauses and resumes. The words stay on screen too, for anyone who would rather
+ * read, or whose browser cannot speak.
  */
 const props = defineProps<{ personId: string }>();
 
-const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window;
+// The natural Kokoro voice on the Care+ server when it is there; the browser's own voice if not.
+const speech = useReadAloud({
+  status: () => getMyDayVoice(props.personId),
+  audio: (sentence) => getMyDaySpeech(props.personId, sentence),
+});
+const { canSpeak } = speech;
 const day = ref<MyDay | null>(null);
 const loading = ref(false);
 const failed = ref(false);
-const reading = ref(false);
-
-function stopReading() {
-  if (canSpeak) window.speechSynthesis.cancel();
-  reading.value = false;
-}
-
-function speak(script: string) {
-  if (!canSpeak) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(script);
-  utterance.rate = 0.9;
-  utterance.onend = () => {
-    reading.value = false;
-  };
-  utterance.onerror = () => {
-    reading.value = false;
-  };
-  reading.value = true;
-  window.speechSynthesis.speak(utterance);
-}
+const reading = computed(() => speech.state.value !== 'idle');
+const paused = computed(() => speech.state.value === 'paused');
 
 async function readMyDay() {
-  if (reading.value) return stopReading();
+  if (reading.value) return speech.stop();
+  // Straight from the press, before the day is fetched: lets the voice start when it arrives.
+  speech.prime();
   loading.value = true;
   failed.value = false;
   try {
     // Asked fresh each time: a reminder ticked a minute ago should not be read out as still to do.
     day.value = await getMyDay(props.personId);
-    speak(day.value.script);
+    void speech.speak(day.value.script);
   } catch {
     failed.value = true;
   } finally {
@@ -55,7 +46,15 @@ async function readMyDay() {
   }
 }
 
-onBeforeUnmount(stopReading);
+const voiceId = useId();
+function pickVoiceFrom(event: Event) {
+  speech.setVoiceChoice((event.target as HTMLSelectElement).value || null);
+}
+
+function togglePause() {
+  if (paused.value) speech.resume();
+  else speech.pause();
+}
 </script>
 
 <template>
@@ -76,6 +75,47 @@ onBeforeUnmount(stopReading);
         loading ? 'Getting your day…' : readButtonLabel(canSpeak, reading)
       }}
     </button>
+    <button
+      v-if="reading"
+      type="button"
+      class="btn btn-outline-primary btn-lg read-btn ms-2"
+      :aria-pressed="paused"
+      data-testid="read-my-day-pause"
+      @click="togglePause"
+    >
+      <Icon :name="paused ? 'play' : 'pause'" class="me-2" />{{ paused ? 'Resume' : 'Pause' }}
+    </button>
+    <div v-if="canSpeak && speech.voiceText.value" class="small text-body-secondary mt-2">
+      <p class="mb-0" :title="speech.voiceName.value ?? undefined" data-testid="my-day-voice">
+        Voice: {{ speech.voiceText.value }}
+      </p>
+      <p
+        v-if="speech.engine.value === 'browser' && speech.hint.value"
+        class="mb-0"
+        data-testid="my-day-voice-hint"
+      >
+        {{ speech.hint.value }}
+      </p>
+      <details
+        v-if="speech.engine.value === 'browser' && speech.voices.value.length > 1"
+        class="mt-1"
+      >
+        <summary>Choose a voice</summary>
+        <label :for="`${voiceId}-voice`" class="visually-hidden">Voice</label>
+        <select
+          :id="`${voiceId}-voice`"
+          class="form-select form-select-sm mt-1 voice-select"
+          :value="speech.chosenName.value ?? ''"
+          data-testid="my-day-voice-choice"
+          @change="pickVoiceFrom"
+        >
+          <option value="">Best available (automatic)</option>
+          <option v-for="item in speech.voices.value" :key="item.name" :value="item.name">
+            {{ item.label }}
+          </option>
+        </select>
+      </details>
+    </div>
     <p v-if="failed" class="mt-3 mb-0" role="status">
       Your day could not be fetched just now. Your calendar and reminders below are still up to
       date.
@@ -102,6 +142,9 @@ onBeforeUnmount(stopReading);
   min-height: 4rem;
   font-size: 1.25rem;
   font-weight: 700;
+}
+.voice-select {
+  max-width: 24rem;
 }
 .script {
   max-width: 40rem;

@@ -54,6 +54,8 @@ from silverloop.models import (
     OnboardRequest,
     PinResponse,
     SeniorNameRequest,
+    SpeechRequest,
+    SpeechVoice,
     Task,
     TaskDayRequest,
     TaskList,
@@ -62,6 +64,7 @@ from silverloop.models import (
 )
 from silverloop.senior_day import build_context as build_my_day_context
 from silverloop.senior_day import my_day
+from silverloop.tts import SpeechUnavailable, speak, unavailable_reason, voice_label
 from silverloop.wearable_status import simulated_wearable
 
 
@@ -754,6 +757,54 @@ def register_family_routes(application: FastAPI) -> None:
             )
         )
         return my_day(context, request.app.state.settings)
+
+    @application.get(
+        "/v1/people/{person_id}/my-day/voice",
+        response_model=SpeechVoice,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}},
+    )
+    def person_my_day_voice(
+        request: Request, person_id: str, current_user: PersonReader
+    ) -> SpeechVoice:
+        """Whether "Read my day" can speak with the Kokoro voice here (it loads the model the first
+        time, so the first reading does not wait). The same readers as `my-day`."""
+        check_reader(request, person_id, current_user)
+        settings = request.app.state.settings
+        if unavailable_reason(settings) is not None:
+            return SpeechVoice(available=False, voice=None, label=None)
+        return SpeechVoice(
+            available=True, voice=settings.tts_voice, label=voice_label(settings.tts_voice)
+        )
+
+    @application.post(
+        "/v1/people/{person_id}/my-day/speech",
+        response_class=Response,
+        tags=["family"],
+        responses={
+            200: {"content": {"audio/wav": {}}, "description": "The sentence, spoken (WAV)."},
+            401: {},
+            403: {},
+            404: {},
+            422: {},
+            503: {"description": "The Kokoro voice is not installed or could not speak."},
+        },
+    )
+    def person_my_day_speech(
+        request: Request, person_id: str, body: SpeechRequest, current_user: PersonReader
+    ) -> Response:
+        """One sentence of "Read my day", spoken by the Kokoro voice on this server's CPU (no
+        cloud service). The same readers as `my-day`. 503 when Kokoro or its model files are not
+        installed, or it failed: the browser then reads with its own voice."""
+        check_reader(request, person_id, current_user)
+        try:
+            audio = speak(body.text, request.app.state.settings)
+        except SpeechUnavailable as error:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
+        # Private: the audio is one person's day. The browser may keep it for this session.
+        return Response(
+            audio, media_type="audio/wav", headers={"Cache-Control": "private, max-age=3600"}
+        )
 
     @application.post(
         "/v1/groups/{group_id}/tasks",

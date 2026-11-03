@@ -261,3 +261,45 @@ def test_the_runtime_requires_the_key_and_the_offline_profile_refuses_openai() -
         )
     with pytest.raises(RuntimeConfigurationError, match="offline fallback requires"):
         validate_runtime(_settings(silverloop_runtime_profile="offline", adapter_mode="fixture"))
+
+
+# ── Speed: the effort the family agents ask for, and the deadline ────────────────────────────
+
+
+def test_the_family_agents_ask_openai_for_low_effort_and_the_planner_keeps_its_own() -> None:
+    fake = FakeOpenAI()
+    run_live_check(
+        _settings(llm_effort="medium"), client_factory=lambda: (_client_over(fake.handler), None)
+    )
+    efforts = {
+        request["tools"][-1]["function"]["name"]: request["reasoning_effort"]
+        for request in fake.requests
+    }
+    assert efforts["submit_catch_up"] == "low"
+    assert efforts["submit_my_day"] == "low"
+    assert efforts["submit_appointment_draft"] == "low"
+    assert efforts["propose_outreach"] == "medium"
+
+
+def test_a_run_past_its_deadline_stops_and_falls_back() -> None:
+    from silverloop.agent.loop import run_tool_loop
+
+    calls: list[str] = []
+
+    def read(name: str, _arguments: dict[str, Any]) -> tuple[str, str, bool]:
+        calls.append(name)
+        return "{}", "read", True
+
+    outcome = run_tool_loop(
+        settings=_settings(),
+        system="s",
+        tools=[{"name": "get_my_appointments_today", "input_schema": {"type": "object"}}],
+        brief="b",
+        submit_tool="submit_my_day",
+        read_tool=read,
+        validate=lambda _: [],
+        client_factory=lambda: (ScriptedStandIn(), None),
+        deadline_seconds=0,
+    )
+    assert (outcome.status, outcome.reason) == ("error", "DeadlineExceeded")
+    assert len(outcome.steps) <= 3  # the first turn ran; no second one started

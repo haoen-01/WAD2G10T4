@@ -27,6 +27,8 @@ export type {
   AgentStep,
   CatchUp,
   MyDay,
+  SpeechRequest,
+  SpeechVoice,
   ConsentRequest,
   ConsentResponse,
   ContextSignal,

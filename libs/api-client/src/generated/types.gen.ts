@@ -2097,6 +2097,40 @@ export type SignalSummary = {
 };
 
 /**
+ * SpeechRequest
+ *
+ * One sentence of a "Read my day" script to be spoken by the Kokoro voice. Never stored, never
+ * logged; only a hash of it keys the in-memory audio cache.
+ */
+export type SpeechRequest = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * SpeechVoice
+ *
+ * Whether "Read my day" can use the Kokoro voice here, and how to name it. When not, the
+ * browser reads with its own voice.
+ */
+export type SpeechVoice = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Voice
+     */
+    voice: string | null;
+    /**
+     * Label
+     */
+    label: string | null;
+};
+
+/**
  * StatedContextExplanation
  *
  * The person's own account of a quiet stretch, while it is still in force.
@@ -4690,6 +4724,102 @@ export type PersonMyDayV1PeoplePersonIdMyDayGetResponses = {
 };
 
 export type PersonMyDayV1PeoplePersonIdMyDayGetResponse = PersonMyDayV1PeoplePersonIdMyDayGetResponses[keyof PersonMyDayV1PeoplePersonIdMyDayGetResponses];
+
+export type PersonMyDayVoiceV1PeoplePersonIdMyDayVoiceGetData = {
+    body?: never;
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/v1/people/{person_id}/my-day/voice';
+};
+
+export type PersonMyDayVoiceV1PeoplePersonIdMyDayVoiceGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type PersonMyDayVoiceV1PeoplePersonIdMyDayVoiceGetError = PersonMyDayVoiceV1PeoplePersonIdMyDayVoiceGetErrors[keyof PersonMyDayVoiceV1PeoplePersonIdMyDayVoiceGetErrors];
+
+export type PersonMyDayVoiceV1PeoplePersonIdMyDayVoiceGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SpeechVoice;
+};
+
+export type PersonMyDayVoiceV1PeoplePersonIdMyDayVoiceGetResponse = PersonMyDayVoiceV1PeoplePersonIdMyDayVoiceGetResponses[keyof PersonMyDayVoiceV1PeoplePersonIdMyDayVoiceGetResponses];
+
+export type PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostData = {
+    body: SpeechRequest;
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/v1/people/{person_id}/my-day/speech';
+};
+
+export type PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+    /**
+     * The Kokoro voice is not installed or could not speak.
+     */
+    503: unknown;
+};
+
+export type PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostError = PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostErrors[keyof PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostErrors];
+
+export type PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostResponses = {
+    /**
+     * The sentence, spoken (WAV).
+     */
+    200: Blob | File;
+};
+
+export type PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostResponse = PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostResponses[keyof PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostResponses];
 
 export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutData = {
     body: TaskRequest;

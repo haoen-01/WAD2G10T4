@@ -2270,6 +2270,22 @@ class MyDay(BaseModel):
     steps: list[AgentStep]
 
 
+class SpeechRequest(BaseModel):
+    """One sentence of a "Read my day" script to be spoken by the Kokoro voice. Never stored, never
+    logged; only a hash of it keys the in-memory audio cache."""
+
+    text: str = Field(min_length=1, max_length=500)
+
+
+class SpeechVoice(BaseModel):
+    """Whether "Read my day" can use the Kokoro voice here, and how to name it. When not, the
+    browser reads with its own voice."""
+
+    available: bool
+    voice: str | None
+    label: str | None
+
+
 class AppointmentDraftRequest(BaseModel):
     """What a family member typed to describe an appointment ("Eye check-up next Tuesday 10:30 at
     Bedok Polyclinic"). Never stored and never logged."""

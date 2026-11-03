@@ -61,6 +61,9 @@ export default defineConfig({
         ADAPTER_MODE: 'fixture',
         DATABASE_URL: `sqlite+pysqlite:///${databasePath}`,
         LLM_ENABLED: 'false',
+        // The "Read my day" voice: off, so the run never depends on a downloaded model. The browser
+        // reads aloud instead; `read-my-day.spec.ts` stands in for the Kokoro routes itself.
+        TTS_ENABLED: 'false',
         AUTH_ENABLED: 'false',
         // The API's default CORS allow-list names port 3000 only; on an alternate web port the
         // browser would be refused every request and every API-backed spec would time out.

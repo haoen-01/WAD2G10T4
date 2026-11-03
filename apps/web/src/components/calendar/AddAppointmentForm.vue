@@ -4,7 +4,13 @@ import { ref, useId } from 'vue';
 
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import { stepLabel } from '@/lib/agent';
-import { draftNotes, draftSource } from '@/lib/appointment-draft';
+import {
+  applyDraft,
+  draftFailure,
+  draftNotes,
+  draftSource,
+  type DraftableField,
+} from '@/lib/appointment-draft';
 import { NEEDS_HELPER_SAVED, needsHelper } from '@/lib/coverage';
 import { checkWindow, KIND_LABELS, REPEAT_LABELS } from '@/lib/family';
 import type { Appointment, AppointmentKind, FamilyMember } from '@/lib/family';
@@ -52,24 +58,47 @@ const described = ref('');
 const filling = ref(false);
 const filled = ref<AppointmentDraft | null>(null);
 const fillError = ref<string | null>(null);
+/** The fields the last fill kept as the person had typed them, and the ones it filled in. */
+const keptFields = ref<DraftableField[]>([]);
+const filledFields = ref<DraftableField[]>([]);
+/** Fields the person has typed into themselves since the last fill: a fill never overwrites them. */
+const edited = new Set<DraftableField>();
+const touch = (field: DraftableField) => edited.add(field);
 
 async function fillFromText() {
   const text = described.value.trim();
-  if (!text || !props.groupId) return;
+  if (!text || !props.groupId || filling.value) return;
   filling.value = true;
   fillError.value = null;
   try {
     const draft = await draftAppointment(props.groupId, text);
-    if (draft.title) title.value = draft.title;
-    if (draft.kind) kind.value = draft.kind;
-    if (draft.date) date.value = draft.date;
-    if (draft.start) start.value = draft.start;
-    if (draft.end) end.value = draft.end;
-    if (draft.location) location.value = draft.location;
-    repeat.value = draft.repeat;
+    const current = {
+      title: title.value,
+      kind: kind.value,
+      date: date.value,
+      start: start.value,
+      end: end.value,
+      location: location.value,
+      repeat: repeat.value,
+    };
+    const result = applyDraft(current, draft, edited);
+    title.value = result.next.title;
+    kind.value = result.next.kind;
+    date.value = result.next.date;
+    start.value = result.next.start;
+    end.value = result.next.end;
+    location.value = result.next.location;
+    repeat.value = result.next.repeat;
+    for (const field of result.filled) edited.delete(field);
+    keptFields.value = result.kept;
+    filledFields.value = result.filled;
     filled.value = draft;
-  } catch {
-    fillError.value = 'That could not be read just now. Please fill in the form below.';
+  } catch (caught) {
+    // The form keeps everything already in it; only the message changes.
+    const failure = draftFailure(caught);
+    fillError.value = failure.message;
+    // For whoever is debugging: the kind of failure only, never what was typed.
+    console.warn('[Care+] Describe it failed:', failure.kind);
   } finally {
     filling.value = false;
   }
@@ -146,7 +175,9 @@ function submit() {
       >
         <p class="mb-1">{{ draftSource(filled) }}</p>
         <ul class="mb-0 ps-3">
-          <li v-for="line in draftNotes(filled)" :key="line">{{ line }}</li>
+          <li v-for="line in draftNotes(filled, keptFields, filledFields)" :key="line">
+            {{ line }}
+          </li>
         </ul>
         <details v-if="filled.steps.length" class="mt-1">
           <summary>How Care+ filled this in</summary>
@@ -165,6 +196,7 @@ function submit() {
         :id="`${id}-title`"
         v-model="title"
         class="form-control"
+        @input="touch('title')"
         maxlength="120"
         required
         data-testid="add-title"
@@ -179,7 +211,13 @@ function submit() {
           class="sl-chip kind-choice"
           :class="`kind-${value}`"
         >
-          <input v-model="kind" type="radio" class="visually-hidden" :value="value" />
+          <input
+            v-model="kind"
+            type="radio"
+            class="visually-hidden"
+            :value="value"
+            @change="touch('kind')"
+          />
           <span class="sl-chip-swatch" aria-hidden="true"></span>{{ label }}
         </label>
       </div>
@@ -187,16 +225,37 @@ function submit() {
     <div class="row g-3">
       <div class="col-12">
         <label :for="`${id}-date`" class="form-label">Date</label>
-        <input :id="`${id}-date`" v-model="date" class="form-control" type="date" required />
+        <input
+          :id="`${id}-date`"
+          v-model="date"
+          class="form-control"
+          type="date"
+          required
+          @input="touch('date')"
+        />
         <span class="sl-note d-block mt-1">or tap a day on the calendar</span>
       </div>
       <div class="col-6">
         <label :for="`${id}-start`" class="form-label">From</label>
-        <input :id="`${id}-start`" v-model="start" class="form-control" type="time" required />
+        <input
+          :id="`${id}-start`"
+          v-model="start"
+          class="form-control"
+          type="time"
+          required
+          @input="touch('start')"
+        />
       </div>
       <div class="col-6">
         <label :for="`${id}-end`" class="form-label">To</label>
-        <input :id="`${id}-end`" v-model="end" class="form-control" type="time" required />
+        <input
+          :id="`${id}-end`"
+          v-model="end"
+          class="form-control"
+          type="time"
+          required
+          @input="touch('end')"
+        />
       </div>
     </div>
 
@@ -232,7 +291,13 @@ function submit() {
     <div class="row g-3">
       <div class="col-sm-6">
         <label :for="`${id}-repeat`" class="form-label">Repeats</label>
-        <select :id="`${id}-repeat`" v-model="repeat" class="form-select" data-testid="add-repeat">
+        <select
+          :id="`${id}-repeat`"
+          v-model="repeat"
+          class="form-select"
+          data-testid="add-repeat"
+          @change="touch('repeat')"
+        >
           <option v-for="(label, value) in REPEAT_LABELS" :key="value" :value="value">
             {{ label }}
           </option>
@@ -244,7 +309,13 @@ function submit() {
       </div>
       <div class="col-sm-6">
         <label :for="`${id}-where`" class="form-label">Where (optional)</label>
-        <input :id="`${id}-where`" v-model="location" class="form-control" maxlength="160" />
+        <input
+          :id="`${id}-where`"
+          v-model="location"
+          class="form-control"
+          maxlength="160"
+          @input="touch('location')"
+        />
       </div>
       <div class="col-sm-6">
         <label :for="`${id}-notes`" class="form-label">Notes (optional)</label>

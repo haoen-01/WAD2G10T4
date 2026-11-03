@@ -156,6 +156,18 @@ class Settings(BaseSettings):
     # Questions one person may ask in 10 minutes, so a stuck key or a loop cannot run up a bill.
     assistant_rate_per_10_min: int = 30
 
+    # "Read my day" voice (silverloop.tts): Kokoro-82M on ONNX Runtime, on this server's CPU. No
+    # cloud service and no key: nothing leaves the machine. Optional -- it needs `uv sync --extra
+    # tts` and the model files (`uv run python -m silverloop.tts download`); without them the
+    # speech route answers 503 and the browser reads aloud with its own voice instead.
+    tts_enabled: bool = True
+    # Relative paths resolve against apps/api.
+    tts_model_dir: str = "models/kokoro"
+    tts_model_file: str = "kokoro-v1.0.onnx"
+    tts_voice: str = "af_heart"
+    # A little slower than Kokoro's default, as a calm companion would read.
+    tts_speed: float = 0.92
+
     auth_enabled: bool = True
     supabase_url: str = ""
     supabase_jwt_secret: str = ""  # only for explicitly configured legacy HS256 projects
