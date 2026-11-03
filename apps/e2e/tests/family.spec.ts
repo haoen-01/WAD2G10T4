@@ -11,7 +11,9 @@ test.beforeEach(async ({ request }) => {
 });
 
 // The sample title uses a typographic apostrophe, so match around it.
-const DOCTOR = /Doctor.s appointment/;
+// The appointment itself, not the ask controls named after it ("Ask someone to go … to Doctor’s
+// appointment", "Withdraw your ask … for …", "Yes, I’ll go to …", "Can’t go to …").
+const DOCTOR = /^(?!Ask someone|Withdraw|Yes, I’ll go|Can’t go).*Doctor.s appointment/;
 
 /** The day `offset` days from today, `YYYY-MM-DD`: the sample schedule is relative to today. */
 function isoDay(offset: number): string {

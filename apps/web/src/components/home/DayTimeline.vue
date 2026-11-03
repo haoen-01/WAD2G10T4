@@ -5,6 +5,10 @@ import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import { useFamily } from '@/composables/useFamily';
+import AskActions from '@/components/family/AskActions.vue';
+import AskedTag from '@/components/family/AskedTag.vue';
+import AskSomeone from '@/components/family/AskSomeone.vue';
+import { useAsks } from '@/composables/useAsks';
 import { useFamilyActivity } from '@/composables/useFamilyActivity';
 import { useNow } from '@/composables/useNow';
 import { useTasks } from '@/composables/useTasks';
@@ -27,6 +31,7 @@ import {
   sortMoments,
 } from '@/lib/day-timeline';
 import type { TimelineLane, TimelineMoment } from '@/lib/day-timeline';
+import { askTag, askTagLabel } from '@/lib/asks';
 import { feedLine } from '@/lib/family-feed';
 import { PRODUCT_TIME_ZONE, formatIsoDay } from '@/lib/format-date';
 import { minutesOf } from '@/lib/today';
@@ -47,6 +52,10 @@ const props = defineProps<{ elder: string }>();
 
 const family = useFamily();
 const { appointments, state } = family;
+const asks = useAsks();
+/** The open ask for an appointment moment, if anyone has been asked to go. */
+const askOf = (moment: TimelineMoment) =>
+  moment.open && moment.appointmentId ? asks.openAskOf(moment.appointmentId) : null;
 const tasks = useTasks();
 const activity = useFamilyActivity();
 const now = useNow();
@@ -248,7 +257,10 @@ function markerLabel(moment: TimelineMoment): string {
     moment.end !== undefined
       ? `${minutesToLabel(moment.start)} to ${minutesToLabel(moment.end)}`
       : minutesToLabel(moment.start);
-  return `${when}, ${moment.title}${moment.detail ? `, ${moment.detail}` : ''}. Show details.`;
+  const ask = askOf(moment);
+  // `askTagLabel` is a full sentence ending in a full stop, so it takes the place of ours.
+  const asked = ask ? `. ${askTagLabel(ask)}` : '.';
+  return `${when}, ${moment.title}${moment.detail ? `, ${moment.detail}` : ''}${asked} Show details.`;
 }
 
 // ---- Details: the tapped moment, else (today) what is on now or next ----
@@ -264,6 +276,12 @@ const focusWord = computed(() => {
   if (!moment || selectedId.value || !isToday.value) return '';
   if (isUnderway(moment, nowMinute.value)) return 'Now';
   return moment.start > nowMinute.value ? 'Next' : 'Latest';
+});
+
+/** The calendar's appointment behind the focused moment, for "Ask someone". */
+const focusedAppointment = computed(() => {
+  const id = focused.value?.appointmentId;
+  return id ? (appointments.find((appointment) => appointment.id === id) ?? null) : null;
 });
 
 function select(moment: TimelineMoment) {
@@ -305,7 +323,7 @@ const syncedLabel = computed(() =>
 let timer: ReturnType<typeof setInterval> | undefined;
 async function sync(onlyIfVisible = true) {
   if (onlyIfVisible && document.visibilityState !== 'visible') return;
-  await Promise.all([family.refresh(), tasks.refresh()]);
+  await Promise.all([family.refresh(), tasks.refresh(), asks.refresh()]);
   lastSynced.value = new Date();
 }
 function onVisible() {
@@ -336,7 +354,12 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
 </script>
 
 <template>
-  <section class="sl-panel timeline" aria-labelledby="timeline-heading" data-testid="day-timeline">
+  <section
+    data-ask-region
+    class="sl-panel timeline"
+    aria-labelledby="timeline-heading"
+    data-testid="day-timeline"
+  >
     <div class="timeline-head">
       <div>
         <h2 id="timeline-heading" class="sl-section-title d-flex align-items-center gap-2 mb-1">
@@ -471,7 +494,14 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
                 :colour="person.colour"
                 size="sm"
               />
-              <span v-if="moment.open" class="marker-need" title="Needs someone to go along"
+              <!-- Asked and waiting: an amber clock instead of the coral "!" (still needs someone). -->
+              <span
+                v-if="askOf(moment)"
+                class="marker-need marker-asked"
+                :title="askTag(askOf(moment)!)"
+                ><Icon name="clock"
+              /></span>
+              <span v-else-if="moment.open" class="marker-need" title="Needs someone to go along"
                 >!</span
               >
             </span>
@@ -493,7 +523,14 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
     </div>
 
     <!-- The tapped moment (or, today, what is on now or next), with what you can do about it. -->
-    <div v-if="focused" class="timeline-details" aria-live="polite" data-testid="timeline-details">
+    <div
+      v-if="focused"
+      data-ask-scope
+      tabindex="-1"
+      class="timeline-details"
+      aria-live="polite"
+      data-testid="timeline-details"
+    >
       <span class="timeline-details-icon" :class="focused.kind ? `kind-${focused.kind}` : ''">
         <Icon :name="iconOf(focused)" />
       </span>
@@ -510,6 +547,7 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
           <Icon name="pin" class="me-1" />{{ focused.place }}
         </span>
         <span v-if="focused.detail" class="timeline-details-sub d-block">{{ focused.detail }}</span>
+        <AskedTag v-if="askOf(focused)" :ask="askOf(focused)!" class="mt-1" />
       </span>
       <span class="timeline-actions">
         <template v-if="focused.lane === 'appointment' && canVolunteer">
@@ -527,15 +565,30 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
               <Icon name="user-x" class="me-1" />Can’t go
             </button>
           </template>
-          <button
-            v-else-if="focused.open"
-            type="button"
-            class="btn btn-primary btn-sm"
-            data-testid="timeline-go"
-            @click="goWith(focused)"
-          >
-            <Icon name="user-plus" class="me-1" />I’ll go
-          </button>
+          <!-- Still needs someone: "I'll go" (unless you are the one asked, who answers instead),
+               and either "Ask someone" or what the open ask lets you do. -->
+          <template v-else-if="focused.open">
+            <button
+              v-if="!askOf(focused)?.can_answer"
+              type="button"
+              class="btn btn-primary btn-sm"
+              data-testid="timeline-go"
+              @click="goWith(focused)"
+            >
+              <Icon name="user-plus" class="me-1" />I’ll go
+            </button>
+            <AskActions v-if="askOf(focused)" :ask="askOf(focused)!" :title="focused.title" small />
+            <AskSomeone
+              v-else-if="focusedAppointment"
+              :appointment="focusedAppointment"
+              :members="state.members"
+              :availability="state.availability"
+              :current-member-id="state.currentMemberId"
+              :helper-ids="[]"
+              :elder="elder"
+              small
+            />
+          </template>
           <!-- Already covered (or nobody needs to go): no one else is needed, but you can still join. -->
           <template v-else>
             <span v-if="focused.people?.length" class="timeline-covered">No one else needed</span>
@@ -901,6 +954,11 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
 }
 
 /* ---- Details ---- */
+/* Focus lands here after an ask changes what the details offer: it is not a control. */
+.timeline-details:focus {
+  outline: none;
+}
+
 .timeline-details {
   display: flex;
   align-items: center;
@@ -949,6 +1007,14 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
 .timeline-details-sub {
   color: var(--sl-ink-soft);
   font-size: 0.92rem;
+}
+
+/* Asked and waiting: amber, with a clock, so it differs from the coral "!" in shape too. */
+.marker-need.marker-asked {
+  border: 1px solid var(--sl-sun-deep);
+  background: var(--sl-sun-soft);
+  color: var(--sl-sun-deep);
+  font-size: 0.7rem;
 }
 
 .timeline-actions {

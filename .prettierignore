@@ -13,3 +13,6 @@ openapi/silverloop.json
 
 # Nested git worktree for a concurrent, isolated agent session; not part of this checkout
 .claude/worktrees
+
+# Claude Code per-user settings (local permissions); never shared
+**/.claude/settings.local.json

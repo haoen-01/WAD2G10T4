@@ -12,7 +12,9 @@ test.beforeEach(async ({ request }) => {
   await resetDemo(request);
 });
 
-const DOCTOR = /Doctor.s appointment/;
+// The appointment itself, not the ask controls named after it ("Ask someone to go … to Doctor’s
+// appointment", "Withdraw your ask … for …", "Yes, I’ll go to …", "Can’t go to …").
+const DOCTOR = /^(?!Ask someone|Withdraw|Yes, I’ll go|Can’t go).*Doctor.s appointment/;
 const dialog = (page: Page) => page.getByRole('dialog');
 const appContent = (page: Page) => page.locator('#app');
 
@@ -233,6 +235,8 @@ test('the sample note is there; Sarah adds a note and deletes it', async ({ page
 test('John sees Sarah’s note, and has no way to delete it', async ({ page }) => {
   await openDoctor(page);
   await dialog(page).getByRole('button', { name: 'Close details' }).click();
+  // The sheet slides away for a moment: let it go before looking for the card again.
+  await expect(dialog(page)).toHaveCount(0);
   await page.getByLabel('Viewing as').selectOption({ label: 'John' });
   await page.getByRole('button', { name: DOCTOR }).click();
 

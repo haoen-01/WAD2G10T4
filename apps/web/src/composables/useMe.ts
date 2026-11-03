@@ -1,7 +1,7 @@
 import type { MeResponse, MyGroup } from '@silverloop/api-client';
 import { computed, ref, shallowRef } from 'vue';
 
-import { getAccessToken } from '@/composables/useAuth';
+import { getAccessToken, useAuth } from '@/composables/useAuth';
 import { demoSub } from '@/composables/useViewMode';
 import { AUTH_ENABLED } from '@/lib/config';
 import { getMe } from '@/services/careApi';
@@ -18,6 +18,16 @@ let cached: { key: string; promise: Promise<MeResponse> } | null = null;
 /** Who the API sees: the access token, or the demo account when sign-in is off. */
 export async function identityKey(): Promise<string> {
   if (AUTH_ENABLED) return (await getAccessToken()) ?? 'signed-out';
+  return demoSub() ?? 'demo-default';
+}
+
+/**
+ * Who is looking right now, known at once (no request): the signed-in account, or the demo
+ * account. Reactive, so state kept per person (the bell, the asks) can refuse to show what it
+ * holds for someone else in the moment between a sign-out or a "Viewing as" switch and its re-read.
+ */
+export function viewerKey(): string {
+  if (AUTH_ENABLED) return useAuth().currentUser.value?.sub ?? 'signed-out';
   return demoSub() ?? 'demo-default';
 }
 

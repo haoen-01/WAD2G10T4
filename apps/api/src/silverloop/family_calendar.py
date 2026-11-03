@@ -11,6 +11,8 @@ Rules, mirrored from the browser's `lib/family.ts` so both sides agree:
 * "I'll help" takes the day and so also answers "available". "Step back" only takes them off.
 * Members only change their own availability and their own helping; anyone in the group can add,
   change or remove appointments.
+* A member can ask another to take a day (`family_asks`). "I'll help" ends that day's open ask,
+  and removing the day (an edit or a delete) withdraws it.
 
 Writes need an **active** member of the group; anyone else gets 404, as for the group itself.
 """
@@ -18,15 +20,17 @@ Writes need an **active** member of the group; anyone else gets 404, as for the 
 from __future__ import annotations
 
 import calendar as month_calendar
+import contextlib
 from collections.abc import Iterable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from silverloop import family_activity
+from silverloop import family_activity, family_asks
 from silverloop.db_models import (
     AccountRow,
     AppointmentNoteRow,
@@ -36,6 +40,7 @@ from silverloop.db_models import (
     FamilyActivityRow,
     FamilyPinRow,
     GroupMemberRow,
+    HelperAskRow,
     HelperAssignmentRow,
     PersonRow,
 )
@@ -59,8 +64,13 @@ from silverloop.models import (
     FamilyActivityKind,
     FamilyActivityPage,
     FamilyCalendar,
+    HelperAsk,
+    HelperAskList,
+    HelperAskRequest,
     HelperAssignment,
     MemberStatus,
+    NotificationPage,
+    NotificationReadRequest,
     RepeatRule,
 )
 
@@ -383,7 +393,10 @@ class FamilyCalendarStore:
     ) -> Appointment:
         with self.sessions.begin() as session:
             member = self._active_member(session, sub, group_id)
-            row = self._appointment(session, group_id, appointment_id)
+            row = self._appointment(session, group_id, appointment_id, lock=True)
+            # Asks whose day has started lapse first, at the time they had, before the edit could
+            # withdraw them instead.
+            family_asks.lapse_due(session, [group_id], self._occurs)
             before = _stored_fields(row)
             self._apply(row, body)
             # Saving the form unchanged is not news.
@@ -397,6 +410,11 @@ class FamilyCalendarStore:
                 ).all():
                     if not self._occurs(row, note.on_date):
                         session.delete(note)
+                # An open ask for a day the appointment no longer has is withdrawn. A time change
+                # on the same day keeps it open; it lapses at the new start.
+                family_asks.withdraw_for_appointment(
+                    session, row, member.member_id, occurs=self._occurs
+                )
                 record(
                     session,
                     group_id=group_id,
@@ -410,7 +428,9 @@ class FamilyCalendarStore:
     def delete_appointment(self, sub: str, group_id: str, appointment_id: str) -> None:
         with self.sessions.begin() as session:
             member = self._active_member(session, sub, group_id)
-            row = self._appointment(session, group_id, appointment_id)
+            row = self._appointment(session, group_id, appointment_id, lock=True)
+            # Asks whose day has started lapse, not withdraw: the asker hears it went unanswered.
+            family_asks.lapse_due(session, [group_id], self._occurs)
             # The entry keeps the title, since the appointment itself is about to go.
             record(
                 session,
@@ -420,6 +440,8 @@ class FamilyCalendarStore:
                 appointment=row,
                 day=_feed_day(row),
             )
+            # Its open asks end as withdrawn; the ask rows stay (no foreign key), with the title.
+            family_asks.withdraw_for_appointment(session, row, member.member_id)
             session.execute(
                 delete(AppointmentNoteRow).where(
                     AppointmentNoteRow.appointment_id == appointment_id
@@ -450,17 +472,24 @@ class FamilyCalendarStore:
         row.repeat_until = body.repeat_until if body.repeat != RepeatRule.NONE else None
 
     @staticmethod
-    def _appointment(session: Session, group_id: str, appointment_id: str) -> AppointmentRow:
-        row = session.get(AppointmentRow, appointment_id)
+    def _appointment(
+        session: Session, group_id: str, appointment_id: str, *, lock: bool = False
+    ) -> AppointmentRow:
+        """`lock` takes the appointment row for update (PostgreSQL; a no-op on SQLite). Asking,
+        "I'll go", editing and deleting take it before they read or end any ask, so they run one
+        at a time per appointment: an ask cannot open on a day someone just took or removed. The
+        lock comes before `lapse_due`, which updates asks, so every path locks in the same order.
+        """
+        row = session.get(AppointmentRow, appointment_id, with_for_update=lock or None)
         if row is None or row.group_id != group_id:
             raise FamilyGroupError(404, "Appointment not found")
         return row
 
     def _occurrence(
-        self, session: Session, group_id: str, value: str
+        self, session: Session, group_id: str, value: str, *, lock: bool = False
     ) -> tuple[AppointmentRow, date]:
         appointment_id, day = _parse_occurrence(value)
-        row = self._appointment(session, group_id, appointment_id)
+        row = self._appointment(session, group_id, appointment_id, lock=lock)
         if next(occurrence_dates(row, day, day), None) != day:
             raise FamilyGroupError(404, "Appointment not found")
         return row, day
@@ -574,7 +603,10 @@ class FamilyCalendarStore:
     def volunteer(self, sub: str, group_id: str, occurrence: str) -> None:
         with self.sessions.begin() as session:
             member = self._active_member(session, sub, group_id)
-            row, day = self._occurrence(session, group_id, occurrence)
+            # Locked so a concurrent ask for this day waits and then sees the new helper.
+            row, day = self._occurrence(session, group_id, occurrence, lock=True)
+            # "I'll go" ends an open ask for the day: accepted if it was the asked member.
+            family_asks.on_volunteer(session, member, row, day, self._occurs)
             if self._volunteer(session, member, row, day):
                 record(
                     session,
@@ -664,6 +696,125 @@ class FamilyCalendarStore:
             session.flush()
             [entry] = family_activity.entries_out(session, [row], sub, self._occurs)
             return entry
+
+    # ── Asks and notifications (rules in `family_asks`) ──────────────────────
+    #
+    # Each opens a write transaction, even to read, because open asks whose day has started lapse
+    # on access (ADR 0014). Asking, accepting, declining and withdrawing check membership, lock the
+    # appointment, and only then lapse due asks (see `_appointment` and `_ask_locked`); then the
+    # actor (403), then an ended ask (409), then the rest. Listing open asks lapses first: it locks
+    # no appointment.
+
+    def create_ask(self, sub: str, group_id: str, body: HelperAskRequest) -> HelperAsk:
+        try:
+            with self.sessions.begin() as session:
+                member = self._active_member(session, sub, group_id)
+                # The appointment is locked before lapsing, the same order as "I'll go" and
+                # editing, so the helper and day checks below cannot race them.
+                row, day = self._occurrence(session, group_id, body.occurrence_id, lock=True)
+                family_asks.lapse_due(session, [group_id], self._occurs)
+                ask = family_asks.create(
+                    session,
+                    asker=member,
+                    appointment=row,
+                    day=day,
+                    asked_member_id=body.asked_member_id,
+                )
+                session.flush()
+                return family_asks.ask_out(session, ask, member.member_id)
+        except IntegrityError as exc:
+            # Another ask for the same day was opened between the check and this insert.
+            raise FamilyGroupError(409, family_asks.ALREADY_OPEN) from exc
+
+    def open_asks(self, sub: str, group_id: str) -> HelperAskList:
+        """The group's open asks, for the "Asked Emily · waiting" tags. Active members only."""
+        with self.sessions.begin() as session:
+            family_asks.lapse_due(session, [group_id], self._occurs)
+            member = self._active_member(session, sub, group_id)
+            return HelperAskList(asks=family_asks.open_asks(session, group_id, member.member_id))
+
+    def _ask_locked(
+        self, session: Session, sub: str, group_id: str, ask_id: str
+    ) -> tuple[GroupMemberRow, HelperAskRow]:
+        """Membership, then the ask, in the lock order every path keeps (see `_appointment`): the
+        ask is read without a lock, its appointment is locked, and only then are due asks lapsed
+        and this ask re-read. Ending the ask first and adding the helper after would hold the ask
+        while waiting on the appointment, against "I'll go" or a delete that hold the appointment
+        while waiting on the ask: a deadlock on PostgreSQL."""
+        member = self._active_member(session, sub, group_id)
+        ask = family_asks.ask_in_group(session, group_id, ask_id)
+        # A missing appointment means its asks have already ended: the checks below answer 409.
+        with contextlib.suppress(FamilyGroupError):
+            self._appointment(session, group_id, ask.appointment_id, lock=True)
+        family_asks.lapse_due(session, [group_id], self._occurs)
+        session.refresh(ask)
+        return member, ask
+
+    def accept_ask(self, sub: str, group_id: str, ask_id: str) -> None:
+        """The asked member says yes and becomes the helper, exactly as "I'll go" (`helper_joined`
+        in the feed, with them as the actor)."""
+        with self.sessions.begin() as session:
+            member, ask = self._ask_locked(session, sub, group_id, ask_id)
+            family_asks.accept(session, ask, member)
+            # An open ask's day still exists: removing it withdraws the ask.
+            row = self._checked_occurrence(session, group_id, ask.appointment_id, ask.on_date)
+            if self._volunteer(session, member, row, ask.on_date):
+                record(
+                    session,
+                    group_id=group_id,
+                    actor_member_id=member.member_id,
+                    kind=FamilyActivityKind.HELPER_JOINED,
+                    appointment=row,
+                    day=ask.on_date,
+                )
+
+    def decline_ask(self, sub: str, group_id: str, ask_id: str) -> None:
+        with self.sessions.begin() as session:
+            member, ask = self._ask_locked(session, sub, group_id, ask_id)
+            # Checked before the day is checked, so an ended ask is 409 whatever became of it.
+            family_asks.check_can_answer(ask, member)
+            row = self._checked_occurrence(session, group_id, ask.appointment_id, ask.on_date)
+            family_asks.decline(session, ask, member, row)
+
+    def withdraw_ask(self, sub: str, group_id: str, ask_id: str) -> None:
+        with self.sessions.begin() as session:
+            member, ask = self._ask_locked(session, sub, group_id, ask_id)
+            family_asks.withdraw(session, ask, member)
+
+    @staticmethod
+    def _memberships(session: Session, sub: str) -> list[GroupMemberRow]:
+        return list(
+            session.scalars(
+                select(GroupMemberRow).where(
+                    GroupMemberRow.sub == sub,
+                    GroupMemberRow.status == MemberStatus.ACTIVE.value,
+                )
+            )
+        )
+
+    def notifications(self, sub: str, limit: int, before: str | None) -> NotificationPage:
+        """The caller's notifications across all their active memberships, newest first. Empty for
+        someone in no group."""
+        with self.sessions.begin() as session:
+            memberships = self._memberships(session, sub)
+            family_asks.lapse_due(
+                session, {member.group_id for member in memberships}, self._occurs
+            )
+            try:
+                return family_asks.notifications_page(
+                    session, memberships, limit=limit, before=before, occurs=self._occurs
+                )
+            except family_asks.UnknownCursorError as exc:
+                raise FamilyGroupError(422, "That page marker is not one of yours.") from exc
+
+    def mark_notifications_read(self, sub: str, body: NotificationReadRequest) -> None:
+        with self.sessions.begin() as session:
+            family_asks.mark_read(
+                session,
+                self._memberships(session, sub),
+                body.notification_ids,
+                everything=body.all,
+            )
 
     # ── Appointment notes (per day, for the group only) ──────────────────────
 
@@ -817,6 +968,7 @@ class FamilyCalendarStore:
         if unlinked:
             # Children first, in the same order as below, then the groups themselves.
             FamilyTaskStore.delete_for_groups(session, unlinked)
+            family_asks.delete_for_groups(session, unlinked)
             for table in (
                 AppointmentNoteRow,
                 FamilyActivityRow,
@@ -842,6 +994,7 @@ class FamilyCalendarStore:
                 )
             )
             if joined:
+                family_asks.delete_for_members(session, joined)
                 session.execute(
                     delete(FamilyActivityRow).where(
                         or_(
@@ -858,8 +1011,9 @@ class FamilyCalendarStore:
             return
         group_id = group.group_id
         FamilyTaskStore.delete_for_groups(session, [group_id])
-        # Notes and the feed first: their rows point at appointments and members, which are
-        # removed further down.
+        # Notifications and asks, then notes and the feed: their rows point at members (and notes
+        # at appointments), which are removed further down.
+        family_asks.delete_for_groups(session, [group_id])
         for table in (
             AppointmentNoteRow,
             FamilyActivityRow,

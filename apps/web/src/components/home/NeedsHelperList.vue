@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router';
 
+import AskActions from '@/components/family/AskActions.vue';
+import AskedTag from '@/components/family/AskedTag.vue';
+import AskSomeone from '@/components/family/AskSomeone.vue';
 import Icon from '@/components/ui/Icon.vue';
-import type { Appointment } from '@/lib/family';
+import { openAskOf } from '@/composables/useAsks';
+import type { Appointment, AvailabilityEntry, FamilyMember } from '@/lib/family';
 import { visitWhen } from '@/lib/today';
 
 /**
@@ -10,20 +14,43 @@ import { visitWhen } from '@/lib/today';
  * times. The title opens it in the calendar; "I'll go" takes it from here, without the calendar.
  * Home owns the change (`useFamily().volunteer`), so this only emits. When every visit has someone,
  * it says so instead of disappearing.
+ *
+ * A visit with someone asked stays on the list (it still needs a helper) with an amber "Asked
+ * Emily · waiting" tag. The asked member answers here instead of "I'll go"; the asker can withdraw;
+ * with nobody asked, "Ask someone" sits beside "I'll go".
  */
 defineProps<{
   appointments: Appointment[];
   elder: string;
   /** Whether the viewer is in the group and so can take a visit. If not, no button is shown. */
   canVolunteer: boolean;
+  /** For "Ask someone": the group, when each said they are free, and who is looking. */
+  members: readonly FamilyMember[];
+  availability: readonly AvailabilityEntry[];
+  currentMemberId: string | null;
 }>();
 
 defineEmits<{ volunteer: [appointment: Appointment] }>();
+
+// "12:00 pm" stays on one line: the time and its am/pm never split, now the buttons beside it leave
+// the line less room. Display only; screen readers read the same words.
+const whenText = (date: string, start: string, end?: string | null) =>
+  visitWhen(date, start, end).replace(/ (am|pm)\b/g, '\u00a0$1');
 </script>
 
 <template>
-  <section class="needs" :class="{ covered: !appointments.length }" aria-labelledby="needs-heading">
-    <h2 id="needs-heading" class="h4 d-flex align-items-center gap-2 mb-1">
+  <section
+    data-ask-region
+    class="needs"
+    :class="{ covered: !appointments.length }"
+    aria-labelledby="needs-heading"
+  >
+    <h2
+      id="needs-heading"
+      tabindex="-1"
+      data-ask-fallback
+      class="h4 d-flex align-items-center gap-2 mb-1"
+    >
       <Icon :name="appointments.length ? 'user-plus' : 'check-circle'" class="needs-icon" />
       Needs someone to go along
     </h2>
@@ -38,25 +65,48 @@ defineEmits<{ volunteer: [appointment: Appointment] }>();
         weeks
       </p>
       <ul class="needs-list">
-        <li v-for="item in appointments" :key="item.id" class="needs-item">
+        <li
+          v-for="item in appointments"
+          :key="item.id"
+          data-ask-scope
+          tabindex="-1"
+          class="needs-item"
+        >
           <RouterLink
             class="needs-link"
             :to="{ path: '/calendar', query: { appointment: item.id } }"
           >
             <span class="needs-title">{{ item.title }}</span>
             <span class="needs-when">
-              <Icon name="clock" class="me-1" />{{ visitWhen(item.date, item.start, item.end) }}
+              <Icon name="clock" class="me-1" />{{ whenText(item.date, item.start, item.end) }}
             </span>
+            <AskedTag
+              v-if="openAskOf(item.id)"
+              :ask="openAskOf(item.id)!"
+              class="needs-asked mt-1"
+            />
           </RouterLink>
-          <button
-            v-if="canVolunteer"
-            type="button"
-            class="btn btn-primary needs-go"
-            :aria-label="`I’ll go with ${elder} to ${item.title}, ${visitWhen(item.date, item.start, item.end)}`"
-            @click="$emit('volunteer', item)"
-          >
-            <Icon name="user-plus" class="me-1" />I’ll go
-          </button>
+          <div v-if="canVolunteer" class="needs-actions">
+            <button
+              v-if="!openAskOf(item.id)?.can_answer"
+              type="button"
+              class="btn btn-primary needs-go"
+              :aria-label="`I’ll go with ${elder} to ${item.title}, ${visitWhen(item.date, item.start, item.end)}`"
+              @click="$emit('volunteer', item)"
+            >
+              <Icon name="user-plus" class="me-1" />I’ll go
+            </button>
+            <AskActions v-if="openAskOf(item.id)" :ask="openAskOf(item.id)!" :title="item.title" />
+            <AskSomeone
+              v-else
+              :appointment="item"
+              :members="members"
+              :availability="availability"
+              :current-member-id="currentMemberId"
+              :helper-ids="[]"
+              :elder="elder"
+            />
+          </div>
         </li>
       </ul>
     </template>
@@ -133,18 +183,43 @@ defineEmits<{ volunteer: [appointment: Appointment] }>();
   font-weight: 700;
 }
 
+/* The tag keeps its own width rather than stretching across the card. */
+.needs-asked {
+  align-self: flex-start;
+}
+
+/* Focus lands on the heading (or a card) after an ask changes the list: no ring on non-controls. */
+#needs-heading:focus,
+.needs-item:focus {
+  outline: none;
+}
+
 .needs-when {
   display: inline-flex;
   align-items: center;
   font-size: 0.95rem;
 }
 
-.needs-go {
-  display: inline-flex;
-  flex: none;
+/* "I'll go" with "Ask someone" (or the answer to an ask) beside it; an open "Ask someone" list
+   takes a whole row under them. */
+.needs-actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
   align-self: center;
+  gap: 0.4rem;
+}
+
+.needs-actions :deep(.btn) {
+  display: inline-flex;
+  align-items: center;
   min-height: 2.75rem;
   font-weight: 700;
+}
+
+.needs-go {
+  flex: none;
 }
 </style>

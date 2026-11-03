@@ -84,6 +84,10 @@ The calendar and family screens run on sample data kept in the browser. No API i
    > "Everyone in the family group can see who has taken it."
 4. Change **Viewing as** to **John** and open the same appointment. He sees that Sarah is helping,
    and can press **I'll help** too: more than one person can help.
+   Asking instead: open **Eye check-up** (a week out, nobody going), press **Ask someone** and
+   **Ask** next to Emily. The day shows **Asked Emily · waiting**. Change **Viewing as** to
+   **Emily**: the bell in the header shows 1 unread; open it and press **Yes, I'll go**. Emily is
+   now going.
 5. Open **Family**. Under **Join the group**, add a new member (a name and how they are related).
    Under **When can you help?**, pick a date and **Afternoon**, and save. It appears under
    **Family availability**, and on the calendar that person shows as **Available** for any

@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
+import AskedTag from '@/components/family/AskedTag.vue';
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import Icon from '@/components/ui/Icon.vue';
+import { openAskOf } from '@/composables/useAsks';
 import { addDays } from '@/lib/calendar';
 import { needsHelper } from '@/lib/coverage';
 import { KIND_LABELS } from '@/lib/family';
@@ -21,6 +25,9 @@ const props = defineProps<{
   today?: string;
 }>();
 defineEmits<{ select: [] }>();
+
+// Someone asked to go and not answered yet: an amber tag instead of "Needs helper".
+const ask = computed(() => openAskOf(props.appointment.id));
 
 /** "Today", "Tomorrow", or the date itself: short, and never both. */
 function when(iso: string): string {
@@ -62,6 +69,8 @@ function when(iso: string): string {
           </span>
           <span class="fw-semibold">{{ helperNames.join(', ') }}</span>
         </template>
+        <!-- Someone asked and not answered: still needs a helper, shown amber with who. -->
+        <AskedTag v-else-if="needsHelper(appointment) && ask" :ask="ask" />
         <StatusBadge v-else-if="needsHelper(appointment)" label="Needs helper" tone="warning" />
         <span v-else class="text-body-secondary">No helper needed</span>
       </span>
