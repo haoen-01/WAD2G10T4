@@ -2314,6 +2314,490 @@
         }
       }
     },
+    "/v1/groups/{group_id}/asks": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Create Ask",
+        "description": "Ask an active member, by name, to take one day of an appointment that needs a helper.\nThey get a notification. 422 for yourself, someone not active in the group, a current\nhelper, a day that has started or no longer needs a helper; 409 when someone has already\nbeen asked for that day.",
+        "operationId": "create_ask_v1_groups__group_id__asks_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HelperAskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelperAsk"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "family"
+        ],
+        "summary": "List Asks",
+        "description": "The group's open asks (asks whose day has started lapse first). Active members only.",
+        "operationId": "list_asks_v1_groups__group_id__asks_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "const": "open",
+              "type": "string",
+              "default": "open",
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelperAskList"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/asks/{ask_id}/accept": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Accept Ask",
+        "description": "The asked member says yes and becomes the helper for that day; the asker is told.",
+        "operationId": "accept_ask_v1_groups__group_id__asks__ask_id__accept_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "ask_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ask Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/asks/{ask_id}/decline": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Decline Ask",
+        "description": "The asked member says no; the day needs a helper again and the asker is told.",
+        "operationId": "decline_ask_v1_groups__group_id__asks__ask_id__decline_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "ask_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ask Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/groups/{group_id}/asks/{ask_id}/withdraw": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Withdraw Ask",
+        "description": "The asker takes the ask back; the asked member is told.",
+        "operationId": "withdraw_ask_v1_groups__group_id__asks__ask_id__withdraw_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          },
+          {
+            "name": "ask_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ask Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/notifications": {
+      "get": {
+        "tags": [
+          "family"
+        ],
+        "summary": "My Notifications",
+        "description": "The caller's notifications across their family groups, newest first, with the unread\ncount. `before` is the `next_before` of the previous page. Never for the senior.",
+        "operationId": "my_notifications_v1_me_notifications_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPage"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/v1/me/notifications/read": {
+      "post": {
+        "tags": [
+          "family"
+        ],
+        "summary": "Read Notifications",
+        "description": "Mark your notifications read: the ones named, or `all`. Other ids are ignored.",
+        "operationId": "read_notifications_v1_me_notifications_read_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationReadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Classified server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/groups/{group_id}/appointments/{appointment_id}/notes": {
       "get": {
         "tags": [
@@ -4729,7 +5213,9 @@
           "check_in",
           "note_added",
           "senior_linked",
-          "senior_renamed"
+          "senior_renamed",
+          "helper_asked",
+          "helper_declined"
         ],
         "title": "FamilyActivityKind",
         "description": "What a feed entry records. Closed: the browser words each one itself."
@@ -4934,6 +5420,125 @@
           "llm_enabled"
         ],
         "title": "HealthResponse"
+      },
+      "HelperAsk": {
+        "properties": {
+          "ask_id": {
+            "type": "string",
+            "title": "Ask Id"
+          },
+          "occurrence_id": {
+            "type": "string",
+            "title": "Occurrence Id"
+          },
+          "appointment_id": {
+            "type": "string",
+            "title": "Appointment Id"
+          },
+          "on_date": {
+            "type": "string",
+            "format": "date",
+            "title": "On Date"
+          },
+          "asker_member_id": {
+            "type": "string",
+            "title": "Asker Member Id"
+          },
+          "asker_name": {
+            "type": "string",
+            "title": "Asker Name"
+          },
+          "asked_member_id": {
+            "type": "string",
+            "title": "Asked Member Id"
+          },
+          "asked_name": {
+            "type": "string",
+            "title": "Asked Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "state": {
+            "$ref": "#/components/schemas/HelperAskState"
+          },
+          "can_answer": {
+            "type": "boolean",
+            "title": "Can Answer"
+          },
+          "can_withdraw": {
+            "type": "boolean",
+            "title": "Can Withdraw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ask_id",
+          "occurrence_id",
+          "appointment_id",
+          "on_date",
+          "asker_member_id",
+          "asker_name",
+          "asked_member_id",
+          "asked_name",
+          "created_at",
+          "state",
+          "can_answer",
+          "can_withdraw"
+        ],
+        "title": "HelperAsk"
+      },
+      "HelperAskList": {
+        "properties": {
+          "asks": {
+            "items": {
+              "$ref": "#/components/schemas/HelperAsk"
+            },
+            "type": "array",
+            "title": "Asks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asks"
+        ],
+        "title": "HelperAskList"
+      },
+      "HelperAskRequest": {
+        "properties": {
+          "occurrence_id": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Occurrence Id"
+          },
+          "asked_member_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Asked Member Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "occurrence_id",
+          "asked_member_id"
+        ],
+        "title": "HelperAskRequest",
+        "description": "Ask an active member of the group to take one day of an appointment."
+      },
+      "HelperAskState": {
+        "type": "string",
+        "enum": [
+          "open",
+          "accepted",
+          "declined",
+          "withdrawn",
+          "lapsed",
+          "closed"
+        ],
+        "title": "HelperAskState",
+        "description": "An ask is `open` until it ends in exactly one of the other states; it never reopens."
       },
       "HelperAssignment": {
         "properties": {
@@ -5205,6 +5810,10 @@
           "last_opened": {
             "type": "boolean",
             "title": "Last Opened"
+          },
+          "unread_count": {
+            "type": "integer",
+            "title": "Unread Count"
           }
         },
         "type": "object",
@@ -5215,9 +5824,188 @@
           "my_role",
           "my_status",
           "member_count",
-          "last_opened"
+          "last_opened",
+          "unread_count"
         ],
         "title": "MyGroup"
+      },
+      "NotificationItem": {
+        "properties": {
+          "notification_id": {
+            "type": "string",
+            "title": "Notification Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NotificationKind"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "read": {
+            "type": "boolean",
+            "title": "Read"
+          },
+          "group_id": {
+            "type": "string",
+            "title": "Group Id"
+          },
+          "group_label": {
+            "type": "string",
+            "title": "Group Label"
+          },
+          "ask_id": {
+            "type": "string",
+            "title": "Ask Id"
+          },
+          "ask_state": {
+            "$ref": "#/components/schemas/HelperAskState"
+          },
+          "occurrence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurrence Id"
+          },
+          "appointment_title": {
+            "type": "string",
+            "title": "Appointment Title"
+          },
+          "on_date": {
+            "type": "string",
+            "format": "date",
+            "title": "On Date"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "asker_name": {
+            "type": "string",
+            "title": "Asker Name"
+          },
+          "asked_name": {
+            "type": "string",
+            "title": "Asked Name"
+          },
+          "ended_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended By Name"
+          },
+          "is_open_for_me": {
+            "type": "boolean",
+            "title": "Is Open For Me"
+          }
+        },
+        "type": "object",
+        "required": [
+          "notification_id",
+          "kind",
+          "created_at",
+          "read",
+          "group_id",
+          "group_label",
+          "ask_id",
+          "ask_state",
+          "occurrence_id",
+          "appointment_title",
+          "on_date",
+          "start",
+          "asker_name",
+          "asked_name",
+          "ended_by_name",
+          "is_open_for_me"
+        ],
+        "title": "NotificationItem",
+        "description": "One notification for the signed-in member, with what the bell needs to show it."
+      },
+      "NotificationKind": {
+        "type": "string",
+        "enum": [
+          "ask_received",
+          "ask_accepted",
+          "ask_declined",
+          "ask_withdrawn",
+          "ask_lapsed",
+          "ask_closed"
+        ],
+        "title": "NotificationKind",
+        "description": "What a notification tells its one recipient. Closed: the browser words each one itself."
+      },
+      "NotificationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "unread_count": {
+            "type": "integer",
+            "title": "Unread Count"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "unread_count",
+          "next_before"
+        ],
+        "title": "NotificationPage",
+        "description": "Newest first, across all the member's family groups. Pass `next_before` as `before` for the\nnext page; None at the end. `unread_count` counts every unread notification, not just this\npage's."
+      },
+      "NotificationReadRequest": {
+        "properties": {
+          "notification_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Notification Ids"
+          },
+          "all": {
+            "type": "boolean",
+            "title": "All",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "NotificationReadRequest",
+        "description": "Mark some of your notifications read (`notification_ids`), or all of them (`all`)."
       },
       "OccurrenceAnswerRequest": {
         "properties": {

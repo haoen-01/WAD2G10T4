@@ -166,6 +166,13 @@ the senior's care group. **member** means an active member of that group.
 | POST   | `/v1/groups/{group_id}/helpers/step-back`                    | member    | Stop helping with one day; the availability answer is kept     |
 | GET    | `/v1/groups/{group_id}/activity`                             | member    | The family feed, newest first (`limit`, `before` cursor)       |
 | POST   | `/v1/groups/{group_id}/check-ins`                            | member    | Tell the group you called, visited or messaged the senior      |
+| POST   | `/v1/groups/{group_id}/asks`                                 | member    | Ask a member to take one appointment day                       |
+| GET    | `/v1/groups/{group_id}/asks`                                 | member    | The group's open asks (`state=open`)                           |
+| POST   | `/v1/groups/{group_id}/asks/{ask_id}/accept`                 | member    | The asked member says yes and becomes the helper               |
+| POST   | `/v1/groups/{group_id}/asks/{ask_id}/decline`                | member    | The asked member says no                                       |
+| POST   | `/v1/groups/{group_id}/asks/{ask_id}/withdraw`               | member    | The asker takes the ask back                                   |
+| GET    | `/v1/me/notifications`                                       | family    | Your notifications, newest first, with the unread count        |
+| POST   | `/v1/me/notifications/read`                                  | family    | Mark your notifications read (`notification_ids` or `all`)     |
 | GET    | `/v1/groups/{group_id}/appointments/{appointment_id}/notes`  | member    | The family's notes on one day of an appointment (`date`)       |
 | POST   | `/v1/groups/{group_id}/appointments/{appointment_id}/notes`  | member    | Add a note to one day of an appointment                        |
 | POST   | `/v1/groups/{group_id}/notes/{note_id}/delete`               | member    | Remove one of your own notes                                   |
@@ -199,6 +206,11 @@ unknown group all get 404, and it adds no feed entry. Creating a group (by name 
 it current. Joining, being approved, linking a senior and renaming do not. With `AUTH_ENABLED=false`,
 the demo reset clears it for the demo group's members.
 
+Each `MyGroup` also carries `unread_count`: the caller's unread notifications in that group (the
+bell's `unread_count` split by group), counted in one grouped query. It is 0 for a pending membership
+and for a group with no unread notifications. The groups page shows it as a badge on each group card;
+marking notifications read shows on the next `GET /v1/me`.
+
 A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN entry. PINs are stored
 as SHA-256 hashes. With `AUTH_ENABLED=false`, `POST /v1/demo/reset` (for Mdm Lim) puts Mdm Lim's demo
 family and schedule back to their starting state, relative to today, and API startup does the same
@@ -216,8 +228,9 @@ group, is 404); the senior never does.
 Entries carry structured fields only, the browser writes the sentence: `kind` (`group_created`,
 `member_approved`, `member_declined`, `appointment_added`, `appointment_changed`,
 `appointment_removed`, `helper_joined`, `helper_stepped_back`, `availability_updated`, `check_in`,
-`note_added`, `senior_linked`, `senior_renamed`),
-`actor_name`, `is_me`, `subject_name` (`member_approved` only), the appointment's title and kind as
+`note_added`, `senior_linked`, `senior_renamed`, `helper_asked`, `helper_declined`),
+`actor_name`, `is_me`, `subject_name` (`member_approved`: who was let in; `helper_asked`: who was
+asked), the appointment's title and kind as
 they were at the time, `on_date`, and `occurrence_id`. `occurrence_id` is worked out on read and is
 null once the appointment is gone or no longer has that day. Appointment entries (added, changed,
 removed) carry the appointment's `on_date` only for a one-off; for a repeating appointment the entry
@@ -237,6 +250,61 @@ and needs a PostgreSQL test.
 `POST /v1/groups/{group_id}/check-ins` takes `{kind: called|visited|messaged, note?}` (note: at most
 200 characters, trimmed, blank is none) and returns the new entry with 201. The note is shown to the
 group only: nothing is sent to the senior, and it is never logged, audited or given to the agent.
+
+### Asks and notifications
+
+An ask is one member asking another, by name, to take one day of an appointment that needs a helper
+(`silverloop.family_asks`, issue #16). "Needs a helper" means no active member is going; a day with
+an open ask still needs one. A group has at most one open ask per appointment day.
+
+| From | Event                                    | To          | Notified                          | Feed              |
+| ---- | ---------------------------------------- | ----------- | --------------------------------- | ----------------- |
+| —    | A member asks a named member             | `open`      | the asked member, `ask_received`  | `helper_asked`    |
+| open | The asked member says yes (or "I'll go") | `accepted`  | the asker, `ask_accepted`         | `helper_joined`   |
+| open | The asked member says no                 | `declined`  | the asker, `ask_declined`         | `helper_declined` |
+| open | The asker withdraws                      | `withdrawn` | the asked member, `ask_withdrawn` | none              |
+| open | The appointment day is removed           | `withdrawn` | the asked member, `ask_withdrawn` | none              |
+| open | The appointment's start time passes      | `lapsed`    | the asker, `ask_lapsed`           | none              |
+| open | Anyone else presses "I'll go"            | `closed`    | asker and asked, `ask_closed`     | `helper_joined`   |
+
+Nobody is notified of their own action (the asker's own "I'll go" tells only the asked member), the
+senior never is, and an ended ask never reopens. Nothing else moves an ask: answering
+"unavailable", stepping back or changing an appointment's details or its time on the same day leave
+it open. Deleting an appointment, or an edit that leaves it without the ask's day, withdraws it.
+Asks lapse when read or written, not on a schedule (ADR 0014): every ask route, `POST .../helpers`,
+editing or deleting an appointment and `GET /v1/me/notifications` first end open asks whose start
+(Singapore time, from the appointment's current start time) has passed. So deleting an appointment
+after its start, or an edit that removes a day that has started, lapses the ask (the asker is told)
+rather than withdrawing it. Asking, accepting, declining, withdrawing, `POST .../helpers`, editing
+and deleting lock the appointment row first (`SELECT ... FOR UPDATE` on PostgreSQL), so an ask cannot open on a day someone has just
+taken or removed.
+
+`POST /v1/groups/{group_id}/asks` takes `{occurrence_id, asked_member_id}` and returns the
+`HelperAsk` with 201: `{ask_id, occurrence_id, appointment_id, on_date, asker_member_id,
+asker_name, asked_member_id, asked_name, created_at, state, can_answer, can_withdraw}` (the last
+two are for the caller: the asked member answers, the asker withdraws, while open). It is 422 for
+yourself, someone who is not an active member of this group (the senior never is), someone already
+going that day, a day that has started, or a day that no longer needs a helper; 409 "Someone has
+already been asked for this day" while an ask is open (two racing requests also end in 409); 404 for
+an occurrence the group's appointment does not have. `GET /v1/groups/{group_id}/asks?state=open`
+returns `{asks}`, the group's open asks oldest first (`state` accepts only `open`). `accept`,
+`decline` and `withdraw` return 204; the wrong member gets 403, an ask that has already ended 409
+"This ask has already ended", an ask of another group 404. All ask routes are for active members
+only (a senior gets 403, anyone else 404). Asks are not part of `FamilyCalendar`, which the senior
+reads.
+
+`GET /v1/me/notifications?limit&before` returns `{items, unread_count, next_before}` across the
+caller's active memberships, newest first (keyset on `created_at`, `notification_id`). `limit` is
+1-50 (default 20); a `before` that is not one of the caller's notifications is 422. `unread_count`
+counts every unread notification, not just the page. Each item is `{notification_id, kind,
+created_at, read, group_id, group_label (the senior's name), ask_id, ask_state (now), occurrence_id
+(null once the appointment or day is gone), appointment_title (now, else as asked), on_date, start
+(null once gone), asker_name, asked_name, ended_by_name (null while open and for a lapse),
+is_open_for_me (the caller is the asked member and the ask is still open)}`. Someone in no group
+gets an empty page. `POST /v1/me/notifications/read` takes `{notification_ids}` (at most 100) or
+`{all: true}`, exactly one (else 422), and returns 204; ids that are not the caller's are ignored.
+Both are for family accounts (a signed-in senior gets 403). With `AUTH_ENABLED=false` the demo
+reset clears every ask and notification of the demo family.
 
 ### Appointment notes
 

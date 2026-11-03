@@ -23,6 +23,8 @@ const props = defineProps<{
   appointmentsByDay: Record<string, Appointment[]>;
   /** How many of each day's appointments nobody has taken yet. */
   uncoveredByDay: Record<string, number>;
+  /** Of those, how many have someone asked and waiting for an answer. */
+  askedByDay?: Record<string, number>;
   holidaysByDay?: Record<string, string>;
   /** The day the open appointment form has chosen. */
   pickedDay?: string | null;
@@ -58,6 +60,11 @@ watch(
   },
 );
 
+const askedOn = (iso: string) => props.askedByDay?.[iso] ?? 0;
+/** Every appointment still needing a helper that day has someone asked: amber, not coral. */
+const allAsked = (iso: string) =>
+  (props.uncoveredByDay[iso] ?? 0) > 0 && askedOn(iso) >= (props.uncoveredByDay[iso] ?? 0);
+
 function labelFor(iso: string): string {
   const appointments = props.appointmentsByDay[iso]?.length ?? 0;
   const open = props.uncoveredByDay[iso] ?? 0;
@@ -72,6 +79,7 @@ function labelFor(iso: string): string {
     holiday ? `, public holiday: ${holiday}` : '',
     `: ${planned}`,
     open ? `, ${open} ${open === 1 ? 'needs' : 'need'} a helper` : '',
+    open && askedOn(iso) ? `, ${askedOn(iso)} with someone asked and waiting` : '',
   ].join('');
 }
 
@@ -151,7 +159,14 @@ function onTouchEnd(event: TouchEvent) {
                 class="week-dot"
                 :class="`kind-${appointment.kind}`"
               ></span>
-              <span v-if="uncoveredByDay[iso]" class="week-open" title="Needs a helper"></span>
+              <span
+                v-if="uncoveredByDay[iso]"
+                class="week-open"
+                :class="{ asked: allAsked(iso) }"
+                :title="
+                  allAsked(iso) ? 'Needs a helper · someone asked, waiting' : 'Needs a helper'
+                "
+              ></span>
             </span>
           </button>
         </div>
@@ -279,6 +294,12 @@ function onTouchEnd(event: TouchEvent) {
   border: 2px solid var(--sl-coral-deep);
   border-radius: 50%;
   background: var(--sl-surface);
+}
+
+/* Someone asked and waiting: an amber ring, half filled, so it differs in shape as well. */
+.week-open.asked {
+  border-color: var(--sl-sun-deep);
+  background: linear-gradient(var(--sl-surface) 50%, var(--sl-sun) 50%);
 }
 
 .slide-forward-enter-active,

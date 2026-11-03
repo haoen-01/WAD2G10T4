@@ -7,7 +7,9 @@ import { demoOccurrence, openSettings, resetDemo } from './support';
 // family calendar is seeded by the API and a demo reset puts it back, so each test starts from the
 // same sample (Mdm Lim's schedule with Sarah, John and Emily, Sarah as the viewer).
 
-const DOCTOR = /Doctor.s appointment/;
+// The appointment itself, not the ask controls named after it ("Ask someone to go … to Doctor’s
+// appointment", "Withdraw your ask … for …", "Yes, I’ll go to …", "Can’t go to …").
+const DOCTOR = /^(?!Ask someone|Withdraw|Yes, I’ll go|Can’t go).*Doctor.s appointment/;
 const PHYSIO = /Physiotherapy session/;
 
 test.beforeEach(async ({ request }) => {

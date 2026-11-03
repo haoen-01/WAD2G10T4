@@ -16,6 +16,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -1202,10 +1203,11 @@ class FamilyActivityRow(Base):
     entry outlives the appointment it mentions. A check-in's `note` is group-only text: it is never
     logged, audited, sent to the agent, or shown to the senior.
 
-    Members are referenced by foreign key, so a member who has an entry here must never be
-    hard-deleted. A future "leave" or "remove member" feature has to change `status` instead, and
-    needs a PostgreSQL test (SQLite does not enforce foreign keys). Only a pending request that was
-    declined is deleted, and it has no entries. The demo reset clears the feed before the members.
+    Members are referenced by foreign key, here and in `helper_asks` and `notifications`, so a
+    member who has an entry, an ask or a notification must never be hard-deleted. A future "leave"
+    or "remove member" feature has to change `status` instead, and needs a PostgreSQL test (SQLite
+    does not enforce foreign keys). Only a pending request that was declined is deleted, and it has
+    none of these. The demo reset clears notifications, asks and the feed before the members.
     """
 
     __tablename__ = "family_activity"
@@ -1222,7 +1224,7 @@ class FamilyActivityRow(Base):
     group_id: Mapped[str] = mapped_column(ForeignKey("care_groups.group_id"))
     kind: Mapped[str] = mapped_column(String(32))
     actor_member_id: Mapped[str] = mapped_column(ForeignKey("group_members.member_id"), index=True)
-    # Only `member_approved`: the member who was let in.
+    # `member_approved`: the member who was let in. `helper_asked`: the member who was asked.
     subject_member_id: Mapped[str | None] = mapped_column(
         ForeignKey("group_members.member_id"), nullable=True
     )
@@ -1234,3 +1236,70 @@ class FamilyActivityRow(Base):
     note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     origin: Mapped[str] = mapped_column(String(16), default="live")  # live | demo_seed
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+# ── Asks and notifications ───────────────────────────────────────────────────
+# Owned by `silverloop.family_asks`. An ask is one member asking another to take one day of an
+# appointment; a notification is one in-app message about an ask, for one member.
+
+
+class HelperAskRow(Base):
+    """One ask. `state` moves from `open` exactly once, by a compare-and-set on `state = 'open'`,
+    and never back. At most one ask per appointment day is open (the partial unique index).
+
+    Like the feed, `appointment_id` has no foreign key and `appointment_title` is a snapshot, so an
+    ask (and its notifications) outlives the appointment it was about."""
+
+    __tablename__ = "helper_asks"
+    __table_args__ = (
+        CheckConstraint("asker_member_id <> asked_member_id", name="ck_helper_asks_not_self"),
+        Index(
+            "uq_helper_asks_open_day",
+            "appointment_id",
+            "on_date",
+            unique=True,
+            sqlite_where=text("state = 'open'"),
+            postgresql_where=text("state = 'open'"),
+        ),
+        Index("ix_helper_asks_group_state", "group_id", "state"),
+    )
+
+    ask_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("care_groups.group_id"))
+    appointment_id: Mapped[str] = mapped_column(String(64))
+    appointment_title: Mapped[str] = mapped_column(String(120))
+    on_date: Mapped[date] = mapped_column(Date)
+    asker_member_id: Mapped[str] = mapped_column(ForeignKey("group_members.member_id"))
+    asked_member_id: Mapped[str] = mapped_column(ForeignKey("group_members.member_id"))
+    # open | accepted | declined | withdrawn | lapsed | closed (`models.HelperAskState`)
+    state: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The member who ended it; None while open and for a lapse.
+    ended_by_member_id: Mapped[str | None] = mapped_column(
+        ForeignKey("group_members.member_id"), nullable=True
+    )
+
+
+class NotificationRow(Base):
+    """One notification for one family member, about one ask. Never for the senior. Only
+    `read_at` ever changes; the demo reset deletes rows before the asks they point at."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        Index(
+            "ix_notifications_recipient_created",
+            "recipient_member_id",
+            "created_at",
+            "notification_id",
+        ),
+    )
+
+    notification_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("care_groups.group_id"))
+    recipient_member_id: Mapped[str] = mapped_column(ForeignKey("group_members.member_id"))
+    # ask_received | ask_accepted | ask_declined | ask_withdrawn | ask_lapsed | ask_closed
+    kind: Mapped[str] = mapped_column(String(24))
+    ask_id: Mapped[str] = mapped_column(ForeignKey("helper_asks.ask_id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

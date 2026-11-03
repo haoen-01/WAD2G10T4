@@ -200,6 +200,14 @@ mirror file itself was not replayed there. It is idempotent, so replaying it now
 On any other project, apply it only **after** `202610300026`; it moves the marker to `a7d4c2e9f1b3`
 only from exactly `c1e5a8f2d640`.
 
+`202611020028_helper_asks.sql` (Alembic `e6b2d9a4c718`) creates `helper_asks` (one member asking
+another to take an appointment day) and `notifications` (the in-app notifications about asks), the
+same way (`if not exists`, RLS on, guarded `deny_browser_access` policies), with the partial unique
+index `uq_helper_asks_open_day` (`where state = 'open'`) that allows one open ask per appointment
+day. Both are listed in `infra/supabase/rls_posture_apply.sql`. **It has not been applied to the
+live project.** Apply it only **after** `202610300027`; it moves the marker to `e6b2d9a4c718` only
+from exactly `a7d4c2e9f1b3`.
+
 ## Schema ownership
 
 Three things can define this schema, and they have drifted from each other three times. The split is:

@@ -64,11 +64,21 @@ enters it waits as _pending_ until an active member approves them.
 **Helper.** A family member who has taken an appointment. An appointment with nobody taking it
 _needs a helper_.
 
+**Ask.** One family member asking another, by name, to take one day of an appointment that needs a
+helper. A family group has at most one _open_ ask per appointment day. An open ask ends in exactly
+one way: _accepted_ (the asked member said yes and became the helper), _declined_ (they said no; the
+day needs a helper again), _withdrawn_ (the asker took it back), _lapsed_ (the appointment started
+with no answer) or _closed_ (someone pressed "I'll go" instead). An ended ask never reopens; a new
+ask can follow.
+_Avoid_: request, invite
+
 **Asked helper.** A family member another member has asked to take an appointment, who has not yet
-said yes or no. They become the helper only by saying yes.
+said yes or no. They become the helper only by saying yes. Until then the day still _needs a
+helper_.
 
 **Notification.** A message inside Care+ for one family member: they have been asked to help, or
-someone has answered their ask. The senior never gets one, and none leaves the app.
+someone has answered their ask. The senior never gets one, and none leaves the app. It is _unread_
+until its recipient opens the bell.
 
 **Activity feed.** What family members did in the family group, newest first: appointments added or
 changed, who took one, free times shared, check-ins. Only active group members see it; the senior

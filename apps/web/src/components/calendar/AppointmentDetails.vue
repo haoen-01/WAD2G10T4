@@ -5,11 +5,21 @@ import { RouterLink } from 'vue-router';
 import AppointmentNotes from '@/components/calendar/AppointmentNotes.vue';
 import AssignmentList from '@/components/calendar/AssignmentList.vue';
 import KindBadge from '@/components/calendar/KindBadge.vue';
+import AskActions from '@/components/family/AskActions.vue';
+import AskedTag from '@/components/family/AskedTag.vue';
+import AskSomeone from '@/components/family/AskSomeone.vue';
 import Icon from '@/components/ui/Icon.vue';
+import { openAskOf } from '@/composables/useAsks';
 import { showToast } from '@/composables/useToast';
 import { needsHelper } from '@/lib/coverage';
 import { REPEAT_LABELS } from '@/lib/family';
-import type { Appointment, AvailabilityStatus, FamilyMember, MemberStatus } from '@/lib/family';
+import type {
+  Appointment,
+  AvailabilityEntry,
+  AvailabilityStatus,
+  FamilyMember,
+  MemberStatus,
+} from '@/lib/family';
 import { formatClockTime, formatIsoDay } from '@/lib/format-date';
 import { appointmentToIcs, icsFileName, shareText } from '@/lib/ics';
 import { relativeDay } from '@/lib/today';
@@ -27,7 +37,13 @@ const props = defineProps<{
   groupId?: string | null;
   /** Inside the phone's bottom sheet: the sheet has its own close button, and no card frame. */
   sheet?: boolean;
+  /** When each member said they are free, for "Ask someone". */
+  availability?: AvailabilityEntry[];
 }>();
+
+// The open ask for this day, if someone has been asked and not answered. It only counts while
+// nobody is going (the API closes it when someone says "I'll go").
+const ask = computed(() => (props.helperIds.length === 0 ? openAskOf(props.appointment.id) : null));
 defineEmits<{
   back: [];
   volunteer: [];
@@ -57,6 +73,9 @@ const helperNames = computed(() =>
 const coverage = computed(() => {
   const names = helperNames.value;
   if (names.length === 0 && !needsHelper(props.appointment)) return 'No one needs to go along.';
+  if (names.length === 0 && ask.value?.can_answer)
+    return 'Nobody is going yet. You have been asked.';
+  if (names.length === 0 && ask.value) return 'Nobody is going yet. Someone has been asked.';
   if (names.length === 0) return 'Nobody has said they will go yet.';
   if (names.length === 1) return `${names[0]} is going with ${props.elderName}.`;
   return `${names.slice(0, -1).join(', ')} and ${names.at(-1)} are going with ${props.elderName}.`;
@@ -107,6 +126,8 @@ async function share() {
 <template>
   <article
     class="details"
+    data-ask-scope
+    data-ask-region
     :class="[`kind-${appointment.kind}`, { 'in-sheet': sheet }]"
     aria-labelledby="details-heading"
   >
@@ -160,14 +181,27 @@ async function share() {
     <hr class="my-4" />
 
     <h3 class="h5 mb-1">Who is helping?</h3>
-    <p class="coverage" :class="{ open: helperNames.length === 0 && needsHelper(appointment) }">
+    <!-- Focus comes here after an ask control replaces itself and nothing else takes its place. -->
+    <p
+      class="coverage"
+      :class="{
+        open: helperNames.length === 0 && needsHelper(appointment) && !ask,
+        asked: !!ask,
+      }"
+      tabindex="-1"
+      data-ask-fallback
+    >
       <Icon :name="helperNames.length ? 'check-circle' : 'user-plus'" class="me-2" />{{ coverage }}
+    </p>
+    <p v-if="ask" class="mb-3">
+      <AskedTag :ask="ask" />
     </p>
     <AssignmentList
       :members="members"
       :helper-ids="helperIds"
       :statuses="statuses"
       :current-member-id="currentMember?.id ?? null"
+      :asked-member-id="ask?.asked_member_id ?? null"
     />
 
     <div v-if="currentMember" class="mt-4">
@@ -183,9 +217,35 @@ async function share() {
         </button>
       </template>
       <template v-else>
-        <button type="button" class="btn btn-primary btn-lg w-100" @click="$emit('volunteer')">
+        <!-- Asked by name: answer the ask (a yes makes you the helper) instead of "I'll help". -->
+        <div v-if="ask?.can_answer" class="ask-answer">
+          <AskActions :ask="ask" :title="appointment.title" />
+        </div>
+        <button
+          v-else
+          type="button"
+          class="btn btn-primary btn-lg w-100"
+          @click="$emit('volunteer')"
+        >
           <Icon name="user-plus" class="me-2" />I’ll help
         </button>
+        <!-- Nobody asked yet: ask one person by name. You asked: you can take it back. -->
+        <div v-if="ask?.can_withdraw" class="ask-more">
+          <AskActions :ask="ask" :title="appointment.title" />
+        </div>
+        <div
+          v-else-if="!ask && helperNames.length === 0 && needsHelper(appointment)"
+          class="ask-more"
+        >
+          <AskSomeone
+            :appointment="appointment"
+            :members="members"
+            :availability="availability ?? []"
+            :current-member-id="currentMember.id"
+            :helper-ids="helperIds"
+            :elder="elderName"
+          />
+        </div>
         <p class="mt-3 mb-2 text-body-secondary">Not sure yet? Let the family know:</p>
         <div class="answer" role="group" aria-label="Your availability for this appointment">
           <button
@@ -344,6 +404,37 @@ async function share() {
 
 .coverage.open {
   color: var(--sl-coral-deep);
+}
+
+/* Asked and waiting: amber like the tag under it, not the coral of "nobody yet". */
+.coverage.asked {
+  color: var(--sl-sun-deep);
+}
+
+.coverage:focus {
+  outline: none;
+}
+
+/* The asked member's two answers, side by side and as big as "I'll help". */
+.ask-answer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem;
+}
+
+.ask-answer :deep(.btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  font-weight: 700;
+}
+
+.ask-more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 .answer {

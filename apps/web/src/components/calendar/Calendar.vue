@@ -21,6 +21,8 @@ const props = defineProps<{
   appointmentsByDay: Record<string, Appointment[]>;
   /** How many of each day's appointments nobody has taken yet. */
   uncoveredByDay: Record<string, number>;
+  /** Of those, how many have someone asked and waiting for an answer. */
+  askedByDay?: Record<string, number>;
   /** Public holiday names by date (from `PublicHolidays.vue`); empty until they have loaded. */
   holidaysByDay?: Record<string, string>;
   /** Tasks from the Tasks panel by date. */
@@ -261,6 +263,7 @@ function onTouchEnd(event: TouchEvent) {
                 :tabbable="cell.iso === tabbable"
                 :appointments="appointmentsByDay[cell.iso] ?? []"
                 :uncovered="uncoveredByDay[cell.iso] ?? 0"
+                :asked="askedByDay?.[cell.iso] ?? 0"
                 :holiday="holidaysByDay?.[cell.iso] ?? null"
                 :tasks="tasksByDay?.[cell.iso] ?? []"
                 :past="cell.iso < today"
