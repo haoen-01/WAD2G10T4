@@ -4,9 +4,12 @@ import { describe, it } from 'node:test';
 import type { AvailabilityEntry, FamilyMember } from './family';
 import {
   PAINT_SLOTS,
+  activeDayParts,
   freeMembers,
   heatFor,
+  ownWindowsOn,
   paintChanges,
+  quickPickChanges,
   slotStatuses,
   windowsFromSlots,
 } from './planner';
@@ -96,6 +99,92 @@ describe('saving a painted day', () => {
   it('removes everything when the day is erased', () => {
     const change = paintChanges([entry({})], 'sarah', DAY, slots(''));
     assert.deepEqual(change, { remove: ['w1'], add: [] });
+  });
+});
+
+describe('painting next to whole-day windows', () => {
+  const allDay = entry({ id: 'all', start: '00:00', end: '23:59' });
+
+  it('leaves an unchanged All day window alone', () => {
+    assert.deepEqual(paintChanges([allDay], 'sarah', DAY, slots('FFFFFFFFFFFFF')), {
+      remove: [],
+      add: [],
+    });
+  });
+
+  it('keeps the early and late edges of All day when one hour turns busy', () => {
+    const change = paintChanges([allDay], 'sarah', DAY, slots('FFFFFFBFFFFFF'));
+    assert.deepEqual(change.remove, ['all']);
+    assert.deepEqual(
+      change.add.map((w) => [w.start, w.end, w.status]),
+      [
+        ['00:00', '08:00', 'available'],
+        ['21:00', '23:59', 'available'],
+        ['08:00', '14:00', 'available'],
+        ['14:00', '15:00', 'unavailable'],
+        ['15:00', '21:00', 'available'],
+      ],
+    );
+  });
+
+  it('never touches a window wholly outside the painted hours', () => {
+    const early = entry({ id: 'early', start: '06:00', end: '07:30' });
+    const late = entry({ id: 'late', start: '21:00', end: '23:00', status: 'unavailable' });
+    const change = paintChanges([early, late, entry({})], 'sarah', DAY, slots('FF'));
+    assert.deepEqual(change.remove, ['w1']);
+    assert.ok(change.add.every((w) => w.start >= '08:00' && w.end <= '21:00'));
+  });
+
+  it('never touches an answer to an appointment', () => {
+    const answer = entry({ id: 'answer', appointmentId: 'demo-doctor@2026-10-17' });
+    const change = paintChanges([answer], 'sarah', DAY, slots('BB'));
+    assert.deepEqual(change.remove, []);
+    assert.deepEqual(ownWindowsOn([answer], 'sarah', DAY), []);
+  });
+});
+
+describe('quick picks', () => {
+  it('adds a part, and turns it off again on an exact match', () => {
+    const on = quickPickChanges([], 'sarah', DAY, 'morning');
+    assert.deepEqual(on, {
+      remove: [],
+      add: [{ date: DAY, start: '08:00', end: '12:00', status: 'available' }],
+    });
+    const morning = entry({ id: 'm', start: '08:00', end: '12:00' });
+    assert.deepEqual(quickPickChanges([morning], 'sarah', DAY, 'morning'), {
+      remove: ['m'],
+      add: [],
+    });
+  });
+
+  it('shows a part as on only for an exact match', () => {
+    const saved = [
+      entry({ id: 'm', start: '08:00', end: '12:00' }),
+      entry({ id: 'x', start: '12:00', end: '16:00' }),
+      entry({ id: 'b', start: '17:00', end: '21:00', status: 'unavailable' }),
+    ];
+    assert.deepEqual([...activeDayParts(saved, 'sarah', DAY)], ['morning']);
+  });
+
+  it('All day replaces her other free windows but keeps busy ones and answers', () => {
+    const saved = [
+      entry({ id: 'm', start: '08:00', end: '12:00' }),
+      entry({ id: 'b', start: '14:00', end: '15:00', status: 'unavailable' }),
+      entry({ id: 'answer', appointmentId: 'demo-doctor@2026-10-17' }),
+      entry({ id: 'john', memberId: 'john', start: '08:00', end: '12:00' }),
+    ];
+    assert.deepEqual(quickPickChanges(saved, 'sarah', DAY, 'all-day'), {
+      remove: ['m'],
+      add: [{ date: DAY, start: '00:00', end: '23:59', status: 'available' }],
+    });
+  });
+
+  it('turns All day off when it is on', () => {
+    const allDay = entry({ id: 'all', start: '00:00', end: '23:59' });
+    assert.deepEqual(quickPickChanges([allDay], 'sarah', DAY, 'all-day'), {
+      remove: ['all'],
+      add: [],
+    });
   });
 });
 

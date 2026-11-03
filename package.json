@@ -32,6 +32,7 @@
     "demo:smoke": "nx run api:demo-smoke",
     "demo:supabase-smoke": "nx run api:supabase-smoke",
     "demo:offline": "node scripts/demo-offline.mjs",
+    "demo:agent": "node scripts/demo-offline.mjs --agent",
     "affected": "nx affected -t lint,typecheck,test",
     "verify": "bash scripts/verify.sh"
   },

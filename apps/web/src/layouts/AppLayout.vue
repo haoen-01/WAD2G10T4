@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 
 import AssistantDock from '@/components/assistant/AssistantDock.vue';
+import ConnectionProblem from '@/components/layout/ConnectionProblem.vue';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import DisplayControls from '@/components/ui/DisplayControls.vue';
@@ -10,13 +11,14 @@ import MainNav from '@/components/ui/MainNav.vue';
 import SettingsMenu from '@/components/ui/SettingsMenu.vue';
 import CheckInBanner from '@/components/walk/CheckInBanner.vue';
 import { useAuth } from '@/composables/useAuth';
+import { useConnection } from '@/composables/useConnection';
 import { useMe } from '@/composables/useMe';
 import { useViewMode } from '@/composables/useViewMode';
 import { useWalk } from '@/composables/useWalk';
 import { AUTH_ENABLED } from '@/lib/config';
-import { homeFor, isLoginPath, isPathInView } from '@/lib/view-mode';
+import { homeFor, isLoginPath, isPathInView, isSignInScreen } from '@/lib/view-mode';
 
-const { loading, currentUser, signOut } = useAuth();
+const { loading, session, currentUser, signOut } = useAuth();
 const { mode, leaveDemoView } = useViewMode();
 // A family member caring for more than one senior picks whose care the screens show.
 const { activeGroups, currentGroup, selectGroup } = useMe();
@@ -25,6 +27,8 @@ function pickSenior(event: Event) {
 }
 const router = useRouter();
 const route = useRoute();
+// Care+ could not be reached: the connection panel replaces the page and the menu links.
+const { problem } = useConnection();
 
 // The walk check-in: a banner on the family's screens (not the Walk page, which shows it itself),
 // and a dot on the Walk link while one is waiting. A notification click opens the Walk page.
@@ -50,6 +54,8 @@ const ALL_LINKS: { to: string; label: string; exact: boolean; icon: IconName }[]
 // the calendar and family screens, which hold sample data in the browser and have no API behind
 // them.
 const links = computed(() => {
+  // No menu on the sign-in, sign-up and welcome pages, whether sign-in is on or off.
+  if (problem.value || isSignInScreen(route.path)) return [];
   const current = mode.value;
   if (current) return ALL_LINKS.filter((link) => isPathInView(current, link.to));
   return AUTH_ENABLED ? [] : ALL_LINKS;
@@ -64,10 +70,19 @@ async function leaveDemo() {
   await router.replace({ name: 'login' });
 }
 
-const signedIn = computed(() => (AUTH_ENABLED ? !!currentUser.value : !!mode.value));
+// While the connection panel shows, the account read itself may be what failed, so a session is
+// enough to offer Sign out (never "Sign in" to someone who is signed in).
+const signedIn = computed(() => {
+  if (!AUTH_ENABLED) return !!mode.value;
+  return problem.value ? !!session.value : !!currentUser.value;
+});
+// No Sign in, Sign out or role chip on the sign-in, sign-up and welcome pages themselves.
+const showSession = computed(() => !isSignInScreen(route.path));
 // Kaki, the Care+ assistant: on every screen once someone is in (senior or family), never on the
 // sign-in screens.
-const showAssistant = computed(() => signedIn.value && !!mode.value && !isLoginPath(route.path));
+const showAssistant = computed(
+  () => signedIn.value && !!mode.value && !isLoginPath(route.path) && !problem.value,
+);
 const ready = computed(() => !AUTH_ENABLED || !loading.value);
 
 /*
@@ -81,6 +96,11 @@ const ready = computed(() => !AUTH_ENABLED || !loading.value);
  * `--sl-pinned-height` (what stays on screen) lets in-page jump links stop below the bar.
  */
 const showTabs = computed(() => mode.value !== 'senior' && links.value.length > 0);
+// The senior's own screen has its section tabs as a bottom bar on a phone (`SeniorView`), so the
+// top bar stops being pinned there: never two pinned bars.
+const seniorTabs = computed(
+  () => mode.value === 'senior' && route.path.toLowerCase() === '/senior' && !problem.value,
+);
 const header = ref<HTMLElement | null>(null);
 const nav = ref<{ $el: HTMLElement } | null>(null);
 const PHONE = '(max-width: 767.98px)';
@@ -127,7 +147,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="shell d-flex flex-column min-vh-100" :class="{ 'shell--tabs': showTabs }">
+  <div
+    class="shell d-flex flex-column min-vh-100"
+    :class="{ 'shell--tabs': showTabs, 'shell--senior-tabs': seniorTabs }"
+  >
     <a class="visually-hidden-focusable" href="#main">Skip to content</a>
 
     <header ref="header" class="topbar">
@@ -151,12 +174,22 @@ onBeforeUnmount(() => {
         </RouterLink>
 
         <!-- The senior's one link stays in the top bar; the family's pill is in the same row. -->
-        <MainNav v-if="mode === 'senior'" ref="nav" variant="bar" :links="links" :dots="navDots" />
+        <MainNav
+          v-if="mode === 'senior' && links.length"
+          ref="nav"
+          variant="bar"
+          :links="links"
+          :dots="navDots"
+        />
         <MainNav v-else-if="showTabs && wide" variant="pill" :links="links" :dots="navDots" />
 
         <div class="topbar-tools">
           <template v-if="showTabs">
-            <RouterLink v-if="ready && !signedIn" class="btn btn-outline-primary" to="/login">
+            <RouterLink
+              v-if="ready && !signedIn && showSession"
+              class="btn btn-outline-primary"
+              to="/login"
+            >
               Sign in
             </RouterLink>
             <SettingsMenu v-slot="{ close }">
@@ -191,7 +224,7 @@ onBeforeUnmount(() => {
           </template>
           <template v-else>
             <DisplayControls />
-            <template v-if="ready">
+            <template v-if="ready && showSession">
               <RouterLink v-if="!signedIn" class="btn btn-outline-primary" to="/login">
                 Sign in
               </RouterLink>
@@ -215,12 +248,15 @@ onBeforeUnmount(() => {
     <MainNav v-if="showTabs && !wide" variant="tabs" :links="links" :dots="navDots" />
 
     <main id="main" tabindex="-1" class="container flex-grow-1">
-      <CheckInBanner v-if="showCheckIn" />
-      <RouterView v-slot="{ Component, route: shown }">
-        <Transition name="page">
-          <component :is="Component" :key="shown.path" />
-        </Transition>
-      </RouterView>
+      <ConnectionProblem v-if="problem" />
+      <template v-else>
+        <CheckInBanner v-if="showCheckIn" />
+        <RouterView v-slot="{ Component, route: shown }">
+          <Transition name="page">
+            <component :is="Component" :key="shown.path" />
+          </Transition>
+        </RouterView>
+      </template>
     </main>
 
     <AssistantDock v-if="showAssistant" />
@@ -300,6 +336,27 @@ main {
 @media (max-width: 767.98px) {
   .shell--tabs {
     padding-bottom: var(--sl-tabbar-height);
+  }
+
+  /* The senior's bar is taller: 56px tabs for older hands. */
+  .shell--senior-tabs {
+    padding-bottom: calc(var(--sl-tabbar-height) + 0.75rem);
+  }
+
+  /* The senior's section tabs are pinned at the bottom; the top bar scrolls away with the page. */
+  .shell--senior-tabs .topbar {
+    position: static;
+  }
+
+  /* One menu on the senior's phone: the bottom tabs. Their "My day" link (the only page they
+     have, and the brand already goes there) stays for screen readers and appears on focus. */
+  .shell--senior-tabs .topbar :deep(.mainnav--bar:not(:focus-within)) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }
 

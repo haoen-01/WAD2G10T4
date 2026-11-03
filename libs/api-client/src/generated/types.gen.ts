@@ -50,6 +50,26 @@ export type AdvanceResponse = {
 };
 
 /**
+ * AgentStep
+ *
+ * One step a family-facing agent took: a tool it read, or its submission and the verdict.
+ */
+export type AgentStep = {
+    /**
+     * Tool Name
+     */
+    tool_name: string;
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Summary
+     */
+    summary: string;
+};
+
+/**
  * Appointment
  */
 export type Appointment = {
@@ -87,6 +107,87 @@ export type Appointment = {
      * Appointment Id
      */
     appointment_id: string;
+};
+
+/**
+ * AppointmentDraft
+ *
+ * The appointment form, filled in from what was typed. Nothing is saved: the family member
+ * checks the form and saves it with the ordinary `POST /appointments`.
+ *
+ * Each field is null when it was not recognised; `missing` names those, `assumed` names the ones
+ * filled in without being said (an end an hour after the start, a best-guess kind), and
+ * `clashes` the titles of the group's appointments that overlap the slot. `mode`, `source`,
+ * `model` and `steps` as on `CatchUp`; notes are never filled in.
+ */
+export type AppointmentDraft = {
+    /**
+     * Mode
+     */
+    mode: 'agent' | 'fallback_disabled' | 'fallback_error' | 'fallback_no_proposal';
+    /**
+     * Source
+     */
+    source: 'live' | 'recorded' | null;
+    /**
+     * Title
+     */
+    title: string | null;
+    kind: AppointmentKind | null;
+    /**
+     * Date
+     */
+    date: string | null;
+    /**
+     * Start
+     */
+    start: string | null;
+    /**
+     * End
+     */
+    end: string | null;
+    /**
+     * Location
+     */
+    location: string | null;
+    repeat: RepeatRule;
+    /**
+     * Missing
+     */
+    missing: Array<string>;
+    /**
+     * Assumed
+     */
+    assumed: Array<string>;
+    /**
+     * Clashes
+     */
+    clashes: Array<string>;
+    /**
+     * Generated At
+     */
+    generated_at: string;
+    /**
+     * Model
+     */
+    model: string | null;
+    /**
+     * Steps
+     */
+    steps: Array<AgentStep>;
+};
+
+/**
+ * AppointmentDraftRequest
+ *
+ * What a family member typed to describe an appointment ("Eye check-up next Tuesday 10:30 at
+ * Bedok Polyclinic"). Never stored and never logged.
+ */
+export type AppointmentDraftRequest = {
+    /**
+     * Text
+     */
+    text: string;
 };
 
 /**
@@ -520,6 +621,68 @@ export type CaseResolution = 'recovered' | 'consent_withdrawn' | 'coordinator_de
  * CaseStatus
  */
 export type CaseStatus = 'open' | 'acknowledged' | 'resolved';
+
+/**
+ * CatchUp
+ *
+ * "Since you last visited": a short catch-up for a family member opening Home.
+ *
+ * `mode` is `agent` when the catch-up agent wrote it and the deterministic check approved it;
+ * any `fallback_*` mode means Care+ assembled the same facts without a model (the flag is off,
+ * the provider failed, or nothing passed the check). `source` says which model wrote an `agent`
+ * result: `live` (a real provider) or `recorded` (a replayed recording); it is null otherwise.
+ * `steps` is what the agent did, in order.
+ */
+export type CatchUp = {
+    /**
+     * Mode
+     */
+    mode: 'agent' | 'fallback_disabled' | 'fallback_error' | 'fallback_no_proposal';
+    /**
+     * Source
+     */
+    source: 'live' | 'recorded' | null;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Highlights
+     */
+    highlights: Array<string>;
+    /**
+     * Since
+     */
+    since: string | null;
+    /**
+     * Generated At
+     */
+    generated_at: string;
+    /**
+     * Model
+     */
+    model: string | null;
+    /**
+     * New Updates
+     */
+    new_updates: number;
+    /**
+     * Visits Needing Someone
+     */
+    visits_needing_someone: number;
+    /**
+     * Tasks Done
+     */
+    tasks_done: number;
+    /**
+     * Tasks Total
+     */
+    tasks_total: number;
+    /**
+     * Steps
+     */
+    steps: Array<AgentStep>;
+};
 
 /**
  * CheckInKind
@@ -1174,6 +1337,55 @@ export type MeResponse = {
  * MemberStatus
  */
 export type MemberStatus = 'active' | 'pending';
+
+/**
+ * MyDay
+ *
+ * "Read my day": a short spoken run-through of the senior's own day, for the browser to read
+ * aloud with its built-in speech. `mode`, `source`, `model` and `steps` as on `CatchUp`.
+ */
+export type MyDay = {
+    /**
+     * Mode
+     */
+    mode: 'agent' | 'fallback_disabled' | 'fallback_error' | 'fallback_no_proposal';
+    /**
+     * Source
+     */
+    source: 'live' | 'recorded' | null;
+    /**
+     * Script
+     */
+    script: string;
+    /**
+     * Day
+     */
+    day: string;
+    /**
+     * Generated At
+     */
+    generated_at: string;
+    /**
+     * Model
+     */
+    model: string | null;
+    /**
+     * Appointments Today
+     */
+    appointments_today: number;
+    /**
+     * Reminders Done
+     */
+    reminders_done: number;
+    /**
+     * Reminders Total
+     */
+    reminders_total: number;
+    /**
+     * Steps
+     */
+    steps: Array<AgentStep>;
+};
 
 /**
  * MyGroup
@@ -2993,6 +3205,52 @@ export type GroupCalendarV1GroupsGroupIdCalendarGetResponses = {
 
 export type GroupCalendarV1GroupsGroupIdCalendarGetResponse = GroupCalendarV1GroupsGroupIdCalendarGetResponses[keyof GroupCalendarV1GroupsGroupIdCalendarGetResponses];
 
+export type DraftGroupAppointmentV1GroupsGroupIdAppointmentsDraftPostData = {
+    body: AppointmentDraftRequest;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: never;
+    url: '/v1/groups/{group_id}/appointments/draft';
+};
+
+export type DraftGroupAppointmentV1GroupsGroupIdAppointmentsDraftPostErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type DraftGroupAppointmentV1GroupsGroupIdAppointmentsDraftPostError = DraftGroupAppointmentV1GroupsGroupIdAppointmentsDraftPostErrors[keyof DraftGroupAppointmentV1GroupsGroupIdAppointmentsDraftPostErrors];
+
+export type DraftGroupAppointmentV1GroupsGroupIdAppointmentsDraftPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AppointmentDraft;
+};
+
+export type DraftGroupAppointmentV1GroupsGroupIdAppointmentsDraftPostResponse = DraftGroupAppointmentV1GroupsGroupIdAppointmentsDraftPostResponses[keyof DraftGroupAppointmentV1GroupsGroupIdAppointmentsDraftPostResponses];
+
 export type CreateAppointmentV1GroupsGroupIdAppointmentsPostData = {
     body: AppointmentRequest;
     path: {
@@ -3428,6 +3686,57 @@ export type GroupActivityV1GroupsGroupIdActivityGetResponses = {
 
 export type GroupActivityV1GroupsGroupIdActivityGetResponse = GroupActivityV1GroupsGroupIdActivityGetResponses[keyof GroupActivityV1GroupsGroupIdActivityGetResponses];
 
+export type GroupCatchUpV1GroupsGroupIdCatchUpGetData = {
+    body?: never;
+    path: {
+        /**
+         * Group Id
+         */
+        group_id: string;
+    };
+    query?: {
+        /**
+         * Since
+         */
+        since?: string | null;
+    };
+    url: '/v1/groups/{group_id}/catch-up';
+};
+
+export type GroupCatchUpV1GroupsGroupIdCatchUpGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Unprocessable Content
+     */
+    422: unknown;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type GroupCatchUpV1GroupsGroupIdCatchUpGetError = GroupCatchUpV1GroupsGroupIdCatchUpGetErrors[keyof GroupCatchUpV1GroupsGroupIdCatchUpGetErrors];
+
+export type GroupCatchUpV1GroupsGroupIdCatchUpGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CatchUp;
+};
+
+export type GroupCatchUpV1GroupsGroupIdCatchUpGetResponse = GroupCatchUpV1GroupsGroupIdCatchUpGetResponses[keyof GroupCatchUpV1GroupsGroupIdCatchUpGetResponses];
+
 export type CreateCheckInV1GroupsGroupIdCheckInsPostData = {
     body: CheckInRequest;
     path: {
@@ -3790,6 +4099,52 @@ export type PersonTasksV1PeoplePersonIdTasksGetResponses = {
 };
 
 export type PersonTasksV1PeoplePersonIdTasksGetResponse = PersonTasksV1PeoplePersonIdTasksGetResponses[keyof PersonTasksV1PeoplePersonIdTasksGetResponses];
+
+export type PersonMyDayV1PeoplePersonIdMyDayGetData = {
+    body?: never;
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/v1/people/{person_id}/my-day';
+};
+
+export type PersonMyDayV1PeoplePersonIdMyDayGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+    /**
+     * Classified server error
+     */
+    500: ServerErrorBody;
+};
+
+export type PersonMyDayV1PeoplePersonIdMyDayGetError = PersonMyDayV1PeoplePersonIdMyDayGetErrors[keyof PersonMyDayV1PeoplePersonIdMyDayGetErrors];
+
+export type PersonMyDayV1PeoplePersonIdMyDayGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MyDay;
+};
+
+export type PersonMyDayV1PeoplePersonIdMyDayGetResponse = PersonMyDayV1PeoplePersonIdMyDayGetResponses[keyof PersonMyDayV1PeoplePersonIdMyDayGetResponses];
 
 export type UpdateTaskV1GroupsGroupIdTasksTaskIdPutData = {
     body: TaskRequest;

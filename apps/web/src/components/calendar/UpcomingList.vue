@@ -63,17 +63,17 @@ export default defineComponent({
 <style scoped>
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
   gap: 0.75rem;
 }
 
 /* Each card on its own, not joined like a list. */
 .cards :deep(.appointment) {
   height: 100%;
-  border: 1px solid var(--sl-line);
-  border-left: 4px solid var(--kind);
-  border-radius: var(--sl-radius-sm);
+  border: 0;
+  border-radius: var(--sl-radius);
   background: var(--sl-surface);
+  box-shadow: var(--sl-rest);
 }
 
 .empty {

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { demoOccurrence, openSettings, resetDemo } from './support';
+import { demoOccurrence, openSettings, resetDemo, showMoreOnHome } from './support';
 
 // The interaction layer added in the interface redesign: text size, calendar filters and keyboard
 // moves, undo, taking an appointment away as a calendar file, and Home's links and chart. The
@@ -191,19 +191,34 @@ test('“I’ll go” on Home takes a visit without opening the calendar, and ca
 }) => {
   await page.goto('/');
   const needs = needsSection(page);
+  // The week ahead is one click away, under "See more about this week".
+  const more = page.getByTestId('home-more-toggle');
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#home-week')).toHaveCount(0);
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
   // Nobody is going yet, so the week ahead says so in words, not colour alone.
   await expect(page.locator('#home-week').getByText('No one going').first()).toBeVisible();
 
-  await needs.getByRole('button', { name: /I’ll go with .* to Doctor.s appointment/ }).click();
+  const doctorGo = needs.getByRole('button', { name: /I’ll go with .* to Doctor.s appointment/ });
+  await doctorGo.focus();
+  await page.keyboard.press('Enter');
+  // For a moment the button shows the helper's face and "You're going", then the row leaves.
+  await expect(needs.getByTestId('needs-going')).toContainText('You’re going');
   await expect(page.getByText(/You’re going to Doctor.s appointment/)).toBeVisible();
   await expect(needs.getByRole('link', { name: DOCTOR })).toHaveCount(0);
   await expect(page).toHaveURL('/');
+  // Focus moves on to the next "I'll go" instead of falling to the page.
+  await expect(needs.locator('.needs-go').first()).toBeFocused();
 
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(needs.getByRole('link', { name: DOCTOR })).toBeVisible();
+  // And comes back to the visit that returned.
+  await expect(doctorGo).toBeFocused();
 });
 
 test('Home’s fortnight chart reads out the day that is chosen', async ({ page }) => {
+  await showMoreOnHome(page);
   await page.goto('/');
   const chart = page.getByRole('group', { name: /Steps on each of the last days/ });
   const bars = chart.getByRole('button');

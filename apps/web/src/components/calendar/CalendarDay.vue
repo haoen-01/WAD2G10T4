@@ -205,13 +205,13 @@ const label = computed(() => {
 
 /* ---- Pointing at a day: it lifts, takes a soft green tint and a shadow, and its number lights up.
    Mouse and trackpad only: on a touch screen a tap just selects the day. ---- */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .cal-day {
     transition:
       background-color 0.18s ease,
       border-color 0.18s ease,
       box-shadow 0.18s ease,
-      transform 0.18s var(--sl-ease);
+      transform var(--sl-dur-hover) var(--sl-ease-out);
   }
 
   .cal-day:hover {
@@ -219,7 +219,7 @@ const label = computed(() => {
     box-shadow:
       0 8px 20px rgb(16 42 38 / 14%),
       0 0 0 1px var(--sl-jade);
-    transform: translateY(-3px);
+    transform: translateY(-2px);
   }
 
   .cal-day.past:hover,

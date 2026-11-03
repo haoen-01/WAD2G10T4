@@ -103,8 +103,10 @@ export default defineComponent({
       />
     </div>
     <p v-else-if="!tasks.length" class="empty">
-      <template v-if="filtersOn">Nothing matches the filters.</template>
-      <template v-else>Nothing planned.</template>
+      <template v-if="filtersOn"
+        >Nothing on this day matches the filters. Show all to see everything.</template
+      >
+      <template v-else>Nothing planned for this day yet.</template>
     </p>
 
     <div v-if="tasks.length" class="mt-3" data-testid="day-tasks">
@@ -156,23 +158,28 @@ export default defineComponent({
 
 <style scoped>
 /* A full-width row: appointments and tasks sit side by side, as many as fit. */
-.cards,
-.task-cards {
+/* Appointments sit side by side, as many as fit; a column may shrink to the screen's width (at
+   390 px and 150% zoom it is narrower than 18rem). */
+.cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
   gap: 0.75rem;
 }
 
 .cards :deep(.appointment) {
   height: 100%;
-  border: 1px solid var(--sl-line);
-  border-left: 4px solid var(--kind);
-  border-radius: var(--sl-radius-sm);
+  border: 0;
+  border-radius: var(--sl-radius);
   background: var(--sl-surface);
+  box-shadow: var(--sl-rest);
 }
 
-.task-cards .day-task {
-  margin-bottom: 0;
+/* Tasks: one white list, rows split by a rule, like Home's task list. */
+.task-cards {
+  padding: 0.25rem 1rem;
+  border-radius: var(--sl-radius);
+  background: var(--sl-surface);
+  box-shadow: var(--sl-rest);
 }
 
 .day-heading {
@@ -189,7 +196,7 @@ export default defineComponent({
   padding: 0.1rem 0.55rem;
   border-radius: 999px;
   background: var(--sl-jade);
-  color: #fff;
+  color: var(--sl-jade-on);
   font-size: 0.75em;
   vertical-align: 0.15em;
 }
@@ -201,12 +208,13 @@ export default defineComponent({
 }
 
 .day-task {
-  padding: 0.6rem 0.75rem;
-  border-left: 3px dashed var(--kind, #46605a);
-  border-radius: 0.3rem;
-  background: var(--sl-surface);
-  margin-bottom: 0.4rem;
-  overflow-wrap: anywhere;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--sl-line);
+  overflow-wrap: break-word;
+}
+
+.day-task:first-child {
+  border-top: 0;
 }
 
 .day-task label {

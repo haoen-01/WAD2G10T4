@@ -4,11 +4,11 @@ import { defineComponent, type PropType } from 'vue';
 
 import ActivityChart from '@/components/home/ActivityChart.vue';
 import BasePanel from '@/components/ui/BasePanel.vue';
-import { isSampleSource } from '@/lib/reading-days';
 
 /**
  * "The last two weeks": the step chart, or what to show while it loads, when it failed (with a
- * Try again that asks Home to fetch it again) and when there is nothing yet.
+ * Try again that asks Home to fetch it again) and when there is nothing yet. Sample readings are
+ * labelled once for the whole screen, by the notice in Home's hero.
  */
 export default defineComponent({
   name: 'FortnightPanel',
@@ -25,21 +25,11 @@ export default defineComponent({
   },
 
   emits: ['retry'],
-
-  computed: {
-    /** Sample readings say so: their days are simulated, not real dates. */
-    sample(): boolean {
-      return (this.history ?? []).some((day) => isSampleSource(day.source));
-    },
-  },
 });
 </script>
 
 <template>
-  <BasePanel title="The last two weeks">
-    <template v-if="sample" #actions>
-      <span class="badge text-bg-secondary" data-testid="fortnight-sample">Sample</span>
-    </template>
+  <BasePanel title="The last two weeks" heading-tag="h3">
     <ActivityChart v-if="history && history.length" :days="history" :usual="usual" />
     <p v-else-if="failed" class="text-body-secondary mb-0">
       Her recent days could not be loaded.
@@ -48,9 +38,12 @@ export default defineComponent({
       </button>
     </p>
     <p v-else-if="history" class="text-body-secondary mb-0">No daily readings yet.</p>
-    <div v-else-if="hasPerson" class="placeholder-glow" aria-hidden="true">
-      <span class="placeholder col-12" style="height: 11rem"></span>
+    <div v-else-if="hasPerson" role="status">
+      <span class="visually-hidden">Loading her recent days…</span>
+      <span class="sl-skeleton" style="height: 11rem" aria-hidden="true"></span>
     </div>
-    <p v-else class="text-body-secondary mb-0">No metrics yet.</p>
+    <p v-else class="text-body-secondary mb-0">
+      No daily readings yet. Her steps show here once her watch has sent a few days.
+    </p>
   </BasePanel>
 </template>

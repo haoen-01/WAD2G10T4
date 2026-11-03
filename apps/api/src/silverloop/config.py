@@ -69,7 +69,10 @@ class Settings(BaseSettings):
     # SDK, and exists so agent behaviour can be measured offline. It is a measurement surface,
     # never a deployment one: a request with no recorded answer degrades to the deterministic
     # ranker exactly like a provider outage.
-    llm_provider: Literal["anthropic", "bedrock", "recorded"] = "anthropic"
+    #
+    # `openai` is OpenAI's Chat Completions, behind the same surface (`agent.openai_client`). It
+    # reuses the assistant's `OPENAI_API_KEY`, `OPENAI_MODEL` and `OPENAI_BASE_URL` below.
+    llm_provider: Literal["anthropic", "bedrock", "openai", "recorded"] = "anthropic"
     llm_api_key: str = ""
     # `recorded` only. A recording file, or a directory of them. Relative paths resolve against
     # the process working directory.

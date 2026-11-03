@@ -3,6 +3,8 @@ import { describe, it } from 'node:test';
 
 import {
   addDays,
+  opensAddForm,
+  dayClick,
   monthGrid,
   monthOf,
   shiftMonth,
@@ -103,5 +105,47 @@ describe('clock times', () => {
     assert.equal(spansOverlap(morning, { start: '11:00', end: '12:00' }), false);
     assert.equal(spansOverlap(morning, { start: '07:00', end: '09:00' }), false);
     assert.equal(spansOverlap(morning, { start: '13:00', end: '14:00' }), false);
+  });
+});
+
+describe('opensAddForm', () => {
+  it('opens the add form on an empty day from today on', () => {
+    assert.equal(opensAddForm('2026-11-02', '2026-11-02', true, 0), true);
+    assert.equal(opensAddForm('2026-11-20', '2026-11-02', true, 0), true);
+  });
+
+  it('does not open it for a past day, a booked day, or someone who cannot add', () => {
+    assert.equal(opensAddForm('2026-11-01', '2026-11-02', true, 0), false);
+    assert.equal(opensAddForm('2026-11-03', '2026-11-02', true, 1), false);
+    assert.equal(opensAddForm('2026-11-03', '2026-11-02', false, 0), false);
+  });
+});
+
+describe('dayClick', () => {
+  const base = {
+    today: '2026-11-02',
+    canAdd: true,
+    appointmentsThatDay: 0,
+    formOpen: false,
+    formIsAuto: false,
+  };
+
+  it('opens the form for an empty day and only shows a booked one', () => {
+    assert.equal(dayClick({ ...base, day: '2026-11-05' }), 'select-and-add');
+    assert.equal(dayClick({ ...base, day: '2026-11-05', appointmentsThatDay: 2 }), 'select');
+  });
+
+  it('moves the date of a form the person opened or started filling in', () => {
+    assert.equal(dayClick({ ...base, day: '2026-11-05', formOpen: true }), 'form-date');
+    assert.equal(
+      dayClick({ ...base, day: '2026-10-30', formOpen: true, appointmentsThatDay: 1 }),
+      'select',
+    );
+  });
+
+  it('never lets an untouched form that opened by itself take over a later click', () => {
+    const auto = { ...base, formOpen: true, formIsAuto: true };
+    assert.equal(dayClick({ ...auto, day: '2026-11-06', appointmentsThatDay: 1 }), 'select');
+    assert.equal(dayClick({ ...auto, day: '2026-11-07' }), 'select-and-add');
   });
 });

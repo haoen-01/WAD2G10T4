@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { resetDemo } from './support';
+import { resetDemo, showMoreOnHome } from './support';
 
 // Words and geometry around daily readings: what a bar's height says against the Usual day line,
 // when the screens may say "today", and the Now label staying on the page at any hour.
@@ -12,6 +12,8 @@ test.beforeEach(async ({ request }) => {
 async function openSeniorToday(page: Page) {
   await page.goto('/senior');
   await page.getByRole('tab', { name: 'Today', exact: true }).click();
+  // The week's chart is behind "See my week".
+  await page.getByTestId('see-my-week').click();
   await expect(page.locator('.week-chart .bar-btn')).toHaveCount(7);
 }
 
@@ -83,12 +85,20 @@ test.describe('the senior chart', () => {
 test.describe('saying today', () => {
   test('Home names the day of an older reading and never says today for it', async ({ page }) => {
     await page.clock.setFixedTime(new Date(2026, 10, 1, 12, 0));
+    await showMoreOnHome(page);
     await page.goto('/');
-    await expect(page.getByTestId('today-sample')).toBeVisible();
-    await expect(page.locator('#today-heading')).toHaveText('Mdm Lim on Tue, 18 Aug');
-    await expect(page.getByTestId('hero-steps-label')).toHaveText('Steps on Tue, 18 Aug');
-    await expect(page.locator('.hero-lede')).toContainText(/She walked .* on Tue, 18 Aug,/);
+    await expect(page.getByTestId('home-sample')).toBeVisible();
+    // Today's date comes first; the steps carry their own day.
+    await expect(page.locator('.hero-date')).toHaveText('Sunday, 1 November');
+    await expect(page.getByTestId('hero-steps-label')).toHaveText('Steps from Tue, 18 Aug');
+    await expect(page.locator('.hero-lede')).toContainText(/\d[\d,]* steps/);
     await expect(page.locator('.hero')).not.toContainText(/today|so far/i);
+    // No jargon up front: the policy's own reason waits behind "Why?".
+    await expect(page.locator('.hero')).not.toContainText(/Stable|No action needed/);
+    const why = page.getByTestId('status-why');
+    await expect(why.locator('.why-line')).toBeHidden();
+    await why.getByText('Why?').click();
+    await expect(why.locator('.why-line')).toBeVisible();
     await expect(page.getByTestId('counted-back')).toHaveText(
       'Days are counted back from the latest reading, Tue, 18 Aug.',
     );
@@ -96,21 +106,21 @@ test.describe('saying today', () => {
 
   test('Home says today when the reading is from today', async ({ page }) => {
     await page.clock.setFixedTime(new Date(2026, 7, 18, 12, 0));
+    await showMoreOnHome(page);
     await page.goto('/');
-    await expect(page.locator('#today-heading')).toHaveText('Today with Mdm Lim');
-    await expect(page.getByTestId('hero-steps-label')).toHaveText('Today so far');
-    await expect(page.getByTestId('fortnight-sample')).toBeVisible();
+    await expect(page.getByTestId('hero-steps-label')).toHaveText('Steps so far today');
+    await expect(page.getByTestId('home-sample')).toBeVisible();
     await expect(page.getByTestId('counted-back')).toHaveCount(0);
   });
 
   test('the senior is told the numbers are samples, and from when', async ({ page }) => {
     await page.clock.setFixedTime(new Date(2026, 10, 1, 12, 0));
     await openSeniorToday(page);
-    await expect(page.getByTestId('steps-sample')).toHaveText('Sample numbers');
-    await expect(page.getByTestId('steps-from')).toHaveText('These steps are from Tue, 18 Aug.');
-    await expect(page.getByTestId('steps-sample-note')).toHaveText(
-      'These are sample numbers, not your own steps.',
+    // One sample notice on the screen, saying what it means.
+    await expect(page.getByTestId('steps-sample')).toHaveText(
+      'Sample numbers. These are not your own steps.',
     );
+    await expect(page.getByTestId('steps-from')).toHaveText('These steps are from Tue, 18 Aug.');
     await expect(page.getByTestId('week-counted-back')).toHaveText(
       '“Days ago” means days before Tue, 18 Aug.',
     );
@@ -137,6 +147,7 @@ test.describe('saying today', () => {
   });
 
   test('the Home axis says what the first bar says', async ({ page }) => {
+    await showMoreOnHome(page);
     await page.goto('/');
     const chart = page.getByRole('group', { name: /Steps on each of the last days/ });
     const first = (await chart.getByRole('button').first().getAttribute('aria-label'))!;
@@ -159,6 +170,8 @@ function marksTouchingNow(page: Page) {
 }
 
 test.describe('the Now label and the hour marks', () => {
+  test.beforeEach(async ({ page }) => showMoreOnHome(page));
+
   test('stay apart when the window or the zoom changes on an open page', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 812 });
     await page.clock.setFixedTime(new Date(2026, 10, 1, 12, 45));
@@ -201,6 +214,7 @@ test.describe('the Now label and the hour marks', () => {
 
 test.describe('Home at 375 px', () => {
   test.use({ viewport: { width: 375, height: 812 } });
+  test.beforeEach(async ({ page }) => showMoreOnHome(page));
 
   test('the day buttons fit at 150% zoom, today and on an earlier day', async ({ page }) => {
     await page.addInitScript(() => window.localStorage.setItem('careplus.zoom.v1', '150'));

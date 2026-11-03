@@ -339,12 +339,12 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   <section class="sl-panel timeline" aria-labelledby="timeline-heading" data-testid="day-timeline">
     <div class="timeline-head">
       <div>
-        <h2 id="timeline-heading" class="sl-section-title d-flex align-items-center gap-2 mb-1">
+        <h3 id="timeline-heading" class="sl-section-title d-flex align-items-center gap-2 mb-1">
           <Icon name="clock" />{{ elder }}’s day
           <span v-if="isToday" class="timeline-live" title="Updates on its own">
             <span class="timeline-live-dot" aria-hidden="true"></span>Live
           </span>
-        </h2>
+        </h3>
         <p class="timeline-chips mb-0" aria-live="polite">
           <span class="timeline-chip"
             ><Icon name="calendar" />{{ summary.appointments }}
@@ -635,30 +635,18 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   gap: 0.35rem;
   padding: 0.1rem 0.55rem;
   border-radius: 999px;
-  background: var(--sl-coral-soft);
-  color: var(--sl-coral-deep);
+  background: var(--sl-raised);
+  color: var(--sl-ink);
   font-size: 0.75rem;
   font-weight: 800;
 }
 
+/* "Live" is a still jade dot: coral is kept for "needs someone", and nothing pulses forever. */
 .timeline-live-dot {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
-  background: var(--sl-coral);
-  animation: live 1.6s ease-in-out infinite;
-}
-
-@keyframes live {
-  50% {
-    opacity: 0.3;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .timeline-live-dot {
-    animation: none;
-  }
+  background: var(--sl-jade);
 }
 
 .timeline-chips {
@@ -846,7 +834,7 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   height: 1.1rem;
   border-radius: 50%;
   background: var(--sl-coral);
-  color: #fff;
+  color: var(--sl-coral-on);
   font-size: 0.75rem;
   font-weight: 900;
 }
@@ -883,7 +871,7 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   bottom: -0.25rem;
   z-index: 3;
   width: 0;
-  border-left: 2px solid var(--sl-coral);
+  border-left: 2px solid var(--sl-ink);
   pointer-events: none;
 }
 
@@ -893,8 +881,8 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   left: 0;
   padding: 0.05rem 0.45rem;
   border-radius: 999px;
-  background: var(--sl-coral);
-  color: #fff;
+  background: var(--sl-ink);
+  color: var(--sl-on-ink);
   font-size: 0.72rem;
   font-weight: 800;
   white-space: nowrap;

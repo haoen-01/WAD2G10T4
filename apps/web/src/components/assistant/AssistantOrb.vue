@@ -9,13 +9,18 @@ import { ease, nextBlinkMs, pupilOffset, type Point } from '@/lib/assistant-geom
  * follow the pointer. The eyes are moved straight on their elements each frame (no re-render), and
  * the frames stop once they have settled. Mood changes the look: thinking glances up and the rim
  * hurries; responding gives a small happy hop; an error tilts the eyes in concern; listening
- * widens them. With reduced motion the eyes stay centred and nothing bounces or swirls.
+ * widens them. With reduced motion the eyes stay centred and nothing bounces or swirls. `still`
+ * (the senior's screen) is the same calm face for everyone: no endless swirl, breathing or blinking.
  */
-const props = withDefaults(defineProps<{ size?: number; mood?: Mood; lifted?: boolean }>(), {
-  size: 64,
-  mood: 'idle',
-  lifted: false,
-});
+const props = withDefaults(
+  defineProps<{ size?: number; mood?: Mood; lifted?: boolean; still?: boolean }>(),
+  {
+    size: 64,
+    mood: 'idle',
+    lifted: false,
+    still: false,
+  },
+);
 
 const face = ref<HTMLElement | null>(null);
 const eyes = ref<HTMLElement[]>([]);
@@ -59,7 +64,7 @@ function tick() {
 }
 
 function wake() {
-  if (reduced || frame) return;
+  if (reduced || props.still || frame) return;
   frame = requestAnimationFrame(tick);
 }
 
@@ -77,7 +82,7 @@ function scheduleBlink() {
 let stopWatching: () => void = () => {};
 onMounted(() => {
   reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-  if (reduced) return;
+  if (reduced || props.still) return;
   stopWatching = onLookChange(wake);
   scheduleBlink();
   wake();
@@ -101,7 +106,7 @@ onBeforeUnmount(() => {
   <span
     ref="face"
     class="orb"
-    :class="[`is-${mood}`, { 'is-lifted': lifted, 'is-blinking': blinking }]"
+    :class="[`is-${mood}`, { 'is-lifted': lifted, 'is-blinking': blinking, 'is-still': still }]"
     :style="{ '--orb': `${size}px` }"
     aria-hidden="true"
   >
@@ -304,5 +309,11 @@ onBeforeUnmount(() => {
   .orb-rim-2 {
     animation: none;
   }
+}
+.orb.is-still,
+.is-still .orb-glow,
+.is-still .orb-rim,
+.is-still .orb-rim-2 {
+  animation: none;
 }
 </style>

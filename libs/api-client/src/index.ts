@@ -24,6 +24,9 @@ export type {
   BaselineSummary,
   CaseResolution,
   CaseStatus,
+  AgentStep,
+  CatchUp,
+  MyDay,
   ConsentRequest,
   ConsentResponse,
   ContextSignal,
@@ -44,6 +47,8 @@ export type {
   SeniorNameRequest,
   // Family calendar
   Appointment as CalendarAppointment,
+  AppointmentDraft,
+  AppointmentDraftRequest,
   AppointmentKind,
   AppointmentNote,
   AppointmentNoteRequest,

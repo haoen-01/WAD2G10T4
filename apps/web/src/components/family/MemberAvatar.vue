@@ -1,33 +1,61 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 
+import { avatarAlt, avatarPhoto, initialsOf } from '@/lib/avatar';
 import { AVATAR_COLOURS } from '@/lib/family';
 
+/**
+ * A person's round avatar: their photo, or their initials on one of six colours.
+ *
+ * `photo` is optional and nothing passes one yet: the API has no photo field. When it gains one
+ * (a future `photo_url` on members and seniors), pass that URL here. A photo that fails to load
+ * falls back to the initials. `colour` set to `'senior'` uses the senior's own warm colour.
+ */
 const props = withDefaults(
-  defineProps<{ name: string; colour: number; size?: 'sm' | 'md' | 'lg'; current?: boolean }>(),
-  { size: 'md', current: false },
+  defineProps<{
+    name: string;
+    colour: number | 'senior';
+    size?: 'sm' | 'md' | 'lg' | 'xl';
+    current?: boolean;
+    photo?: string | null;
+    /** True when the name is not written beside the avatar, so the avatar itself names the person. */
+    labelled?: boolean;
+  }>(),
+  { size: 'md', current: false, photo: null, labelled: false },
 );
 
-const initials = computed(
-  () =>
-    props.name
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join('')
-      .toUpperCase() || '?',
+const failed = ref(false);
+watch(
+  () => props.photo,
+  () => (failed.value = false),
+);
+
+const initials = computed(() => initialsOf(props.name));
+const src = computed(() => avatarPhoto(props.photo, failed.value));
+const colourClass = computed(() =>
+  props.colour === 'senior' ? 'avatar-senior' : `avatar-${props.colour % AVATAR_COLOURS}`,
 );
 </script>
 
 <template>
-  <!-- Decoration only: the person's name is always written next to it. -->
+  <!-- Decoration unless `labelled`: the person's name is normally written next to it. -->
   <span
     class="avatar"
-    :class="[`avatar-${colour % AVATAR_COLOURS}`, `avatar-${size}`, { 'avatar-current': current }]"
-    aria-hidden="true"
+    :class="[colourClass, `avatar-${size}`, { 'avatar-current': current, 'avatar-photo': src }]"
+    :role="labelled && !src ? 'img' : undefined"
+    :aria-label="labelled && !src ? name : undefined"
+    :aria-hidden="labelled ? undefined : 'true'"
+    data-testid="member-avatar"
   >
-    {{ initials }}
+    <img
+      v-if="src"
+      class="avatar-img"
+      :src="src"
+      :alt="labelled ? avatarAlt(name) : ''"
+      data-testid="avatar-photo"
+      @error="failed = true"
+    />
+    <template v-else>{{ initials }}</template>
   </span>
 </template>
 
@@ -39,8 +67,9 @@ const initials = computed(
   justify-content: center;
   width: 2.5rem;
   height: 2.5rem;
+  overflow: hidden;
   border-radius: 50%;
-  color: #fff;
+  color: var(--sl-avatar-on);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -57,6 +86,19 @@ const initials = computed(
   font-size: 1.2rem;
 }
 
+/* The hero: big enough to read as a person, not an icon. */
+.avatar-xl {
+  width: 5.5rem;
+  height: 5.5rem;
+  font-size: 1.9rem;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* The person using the screen wears a ring: they are "in the loop". */
 .avatar-current {
   box-shadow:
@@ -64,28 +106,39 @@ const initials = computed(
     0 0 0 5px var(--sl-sun);
 }
 
-/* Six colours, each with white text that passes AA. */
 .avatar-0 {
-  background: #0b684f;
+  background: var(--sl-avatar-0);
 }
 
 .avatar-1 {
-  background: #1f5f8b;
+  background: var(--sl-avatar-1);
 }
 
 .avatar-2 {
-  background: #7a4b94;
+  background: var(--sl-avatar-2);
 }
 
 .avatar-3 {
-  background: #8a5a00;
+  background: var(--sl-avatar-3);
 }
 
 .avatar-4 {
-  background: #a1324a;
+  background: var(--sl-avatar-4);
 }
 
 .avatar-5 {
-  background: #3f5f6f;
+  background: var(--sl-avatar-5);
+}
+
+/* The senior: the hero's own avatar (jade with white initials in light, ink with sun initials in
+   dark) and a light ring that sets it off the sun field (no family member's colour). */
+.avatar-senior {
+  background: var(--sl-avatar-senior);
+  color: var(--sl-avatar-senior-on);
+  box-shadow: 0 0 0 4px var(--sl-hero-avatar-ring);
+}
+
+.avatar-photo {
+  background: var(--sl-skeleton);
 }
 </style>

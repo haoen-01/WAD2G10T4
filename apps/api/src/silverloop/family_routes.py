@@ -12,12 +12,18 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from silverloop.auth import Family, PersonReader, Senior, SignedIn
 from silverloop.config import Settings
 from silverloop.family_calendar import FamilyCalendarStore
+from silverloop.family_catchup import build_context as build_catch_up_context
+from silverloop.family_catchup import catch_up
+from silverloop.family_drafts import build_context as build_draft_context
+from silverloop.family_drafts import draft as draft_appointment
 from silverloop.family_groups import DEMO_FAMILY, FamilyGroupError, FamilyGroups
 from silverloop.family_tasks import FamilyTaskStore
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.local_time import local_date
 from silverloop.models import (
     Appointment,
+    AppointmentDraft,
+    AppointmentDraftRequest,
     AppointmentNote,
     AppointmentNoteRequest,
     AppointmentRequest,
@@ -25,6 +31,7 @@ from silverloop.models import (
     AvailabilityEntryOut,
     AvailabilityRequest,
     CareGroup,
+    CatchUp,
     CheckInRequest,
     CreateGroupRequest,
     CurrentUser,
@@ -34,6 +41,7 @@ from silverloop.models import (
     JoinGroupRequest,
     LinkSeniorRequest,
     MeResponse,
+    MyDay,
     MyGroup,
     OccurrenceAnswerRequest,
     OccurrenceRequest,
@@ -46,6 +54,8 @@ from silverloop.models import (
     TaskRequest,
     WearableStatus,
 )
+from silverloop.senior_day import build_context as build_my_day_context
+from silverloop.senior_day import my_day
 from silverloop.wearable_status import simulated_wearable
 
 
@@ -323,6 +333,26 @@ def register_family_routes(application: FastAPI) -> None:
         return _call(lambda: store.group_calendar(current_user.sub, group_id, lo, hi))
 
     @application.post(
+        "/v1/groups/{group_id}/appointments/draft",
+        response_model=AppointmentDraft,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def draft_group_appointment(
+        request: Request, group_id: str, body: AppointmentDraftRequest, current_user: Family
+    ) -> AppointmentDraft:
+        """Fill in the appointment form from what the member typed. Saves nothing: the member
+        checks the form and adds it with `POST /appointments`. Written by the typed-appointment
+        agent when it is on and approved by a deterministic check, else by a plain parser. Active
+        members only."""
+        context = _call(
+            lambda: build_draft_context(
+                _calendar(request), current_user.sub, group_id, body.text, _today()
+            )
+        )
+        return draft_appointment(context, request.app.state.settings)
+
+    @application.post(
         "/v1/groups/{group_id}/appointments",
         response_model=Appointment,
         status_code=status.HTTP_201_CREATED,
@@ -459,6 +489,29 @@ def register_family_routes(application: FastAPI) -> None:
         store = _calendar(request)
         return _call(lambda: store.activity(current_user.sub, group_id, limit, before))
 
+    @application.get(
+        "/v1/groups/{group_id}/catch-up",
+        response_model=CatchUp,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def group_catch_up(
+        request: Request,
+        group_id: str,
+        current_user: Family,
+        since: Annotated[datetime | None, Query()] = None,
+    ) -> CatchUp:
+        """ "Since you last visited": what changed in the group after `since`, what still needs
+        someone, and today's tasks, written by the catch-up agent when it is on and approved by a
+        deterministic check, else assembled without a model. Reads only what the feed, calendar
+        and task list already show this member. Active members only; the senior never reads it."""
+        context = _call(
+            lambda: build_catch_up_context(
+                _calendar(request), _tasks(request), current_user.sub, group_id, since, _today()
+            )
+        )
+        return catch_up(context, request.app.state.settings)
+
     @application.post(
         "/v1/groups/{group_id}/check-ins",
         response_model=FamilyActivityEntry,
@@ -571,6 +624,26 @@ def register_family_routes(application: FastAPI) -> None:
         hi = to_date or today + timedelta(days=183)
         store = _tasks(request)
         return _call(lambda: store.person_tasks(person_id, lo, hi))
+
+    @application.get(
+        "/v1/people/{person_id}/my-day",
+        response_model=MyDay,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}},
+    )
+    def person_my_day(request: Request, person_id: str, current_user: PersonReader) -> MyDay:
+        """ "Read my day": a short script of today's appointments and reminders and tomorrow's
+        first appointment, for the browser to read aloud. Written by the "Read my day" agent when
+        it is on and approved by a deterministic check, else assembled without a model. Reads only
+        what the senior's calendar and task list already show; the same readers as those."""
+        check_reader(request, person_id, current_user)
+        now = datetime.now(UTC)
+        context = _call(
+            lambda: build_my_day_context(
+                _calendar(request), _tasks(request), person_id, current_user.sub, _today(), now
+            )
+        )
+        return my_day(context, request.app.state.settings)
 
     @application.post(
         "/v1/groups/{group_id}/tasks",

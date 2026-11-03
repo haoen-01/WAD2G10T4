@@ -291,7 +291,7 @@ fieldset {
 }
 
 .role-input:focus-visible + .role-card {
-  outline: 3px solid var(--sl-jade);
+  outline: 3px solid var(--sl-focus);
   outline-offset: 2px;
 }
 

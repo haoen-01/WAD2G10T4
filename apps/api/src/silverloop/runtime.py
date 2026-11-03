@@ -5,7 +5,7 @@ import sys
 
 from sqlalchemy.engine import make_url
 
-from silverloop.agent.constants import ITERATION_HARD_CEILING, default_model_id
+from silverloop.agent.constants import ITERATION_HARD_CEILING, resolve_model
 from silverloop.config import Settings
 from silverloop.sql_repository import _sync_database_url
 
@@ -71,6 +71,17 @@ def validate_runtime(settings: Settings) -> None:
                     "Set the region, or run with LLM_ENABLED=false to use the deterministic "
                     "ranker."
                 )
+        elif settings.llm_provider == "openai":
+            # The team's existing OpenAI settings (also the assistant's); no SDK is needed.
+            if not settings.openai_api_key.strip():
+                raise RuntimeConfigurationError(
+                    "LLM_PROVIDER=openai requires OPENAI_API_KEY to be set. Set the key, or run "
+                    "with LLM_ENABLED=false to use the deterministic ranker."
+                )
+            if not settings.openai_model.strip() and not settings.llm_model.strip():
+                raise RuntimeConfigurationError(
+                    "LLM_PROVIDER=openai requires OPENAI_MODEL (or LLM_MODEL) to be set."
+                )
         elif not settings.llm_api_key.strip() and not os.environ.get("ANTHROPIC_API_KEY"):
             raise RuntimeConfigurationError(
                 "LLM_ENABLED=true requires LLM_API_KEY (or ANTHROPIC_API_KEY) to be set. "
@@ -81,7 +92,7 @@ def validate_runtime(settings: Settings) -> None:
                 f"LLM_MAX_ITERATIONS={settings.llm_max_iterations} exceeds the hard ceiling of "
                 f"{ITERATION_HARD_CEILING}. Every planner loop must stay bounded."
             )
-        if settings.llm_provider != "recorded":
+        if settings.llm_provider not in {"recorded", "openai"}:
             try:
                 import anthropic  # noqa: F401
             except ImportError as exc:
@@ -112,7 +123,7 @@ def main() -> None:
     if settings.llm_enabled:
         from silverloop.agent.planner import describe_tool_surface
 
-        model = settings.llm_model.strip() or default_model_id(settings.llm_provider)
+        model = resolve_model(settings)
         print(
             f"Outreach planner: enabled (provider={settings.llm_provider}, model={model}, "
             f"max_iterations={settings.llm_max_iterations}, effort={settings.llm_effort})"

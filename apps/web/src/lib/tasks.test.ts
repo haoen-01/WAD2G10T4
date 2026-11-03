@@ -3,6 +3,10 @@ import { describe, it } from 'node:test';
 
 import {
   addTask,
+  isRepeating,
+  oneOffTasksByDay,
+  parseShowRepeating,
+  repeatingCountByDay,
   checkTask,
   deleteTask,
   emptyStore,
@@ -173,5 +177,43 @@ describe("reading the API's list", () => {
       repeat_until: null,
       notes: '',
     });
+  });
+});
+
+describe('repeating tasks on the month grid', () => {
+  type Row = { repeat: 'none' | 'daily' | 'weekly'; title: string };
+  const daily: Row = { repeat: 'daily', title: 'Tablet' };
+  const weekly: Row = { repeat: 'weekly', title: 'Shop' };
+  const once: Row = { repeat: 'none', title: 'Call' };
+
+  it('leaves out daily and weekly tasks, and days left with nothing', () => {
+    assert.deepEqual(
+      oneOffTasksByDay({ '2026-11-02': [daily, once], '2026-11-03': [weekly, daily] }),
+      { '2026-11-02': [once] },
+    );
+  });
+
+  it('keeps one-off tasks as they are', () => {
+    assert.deepEqual(oneOffTasksByDay({ '2026-11-02': [once] }), { '2026-11-02': [once] });
+    assert.equal(isRepeating(once), false);
+    assert.equal(isRepeating(daily), true);
+  });
+
+  it('counts the repeating tasks left out of each day', () => {
+    assert.deepEqual(
+      repeatingCountByDay({
+        '2026-11-02': [daily, once],
+        '2026-11-03': [weekly, daily],
+        '2026-11-04': [once],
+      }),
+      { '2026-11-02': 1, '2026-11-03': 2 },
+    );
+  });
+
+  it('remembers "show them" only when it was saved as on', () => {
+    assert.equal(parseShowRepeating('on'), true);
+    assert.equal(parseShowRepeating('off'), false);
+    assert.equal(parseShowRepeating(null), false);
+    assert.equal(parseShowRepeating('true'), false);
   });
 });

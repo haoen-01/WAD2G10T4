@@ -60,17 +60,17 @@ const unavailable = computed(() => Boolean(props.family.error.value) && !props.f
     <template #title><Icon name="calendar" />Next up</template>
     <p v-if="firstLoad" class="fs-5" role="status">Loading your plans...</p>
     <p v-else-if="unavailable" class="fs-5">Your plans can't be shown right now.</p>
-    <p v-else-if="!events.length" class="fs-5 my-4">Nothing planned this week</p>
-    <ul v-else class="list-unstyled d-grid gap-3 my-4" data-testid="upcoming-events">
-      <li
-        v-for="event in events"
-        :key="event.id"
-        class="event-box border rounded-3 p-3 d-flex align-items-start gap-3"
-      >
+    <p v-else-if="!events.length" class="fs-5 my-4">
+      Nothing planned this week. When your family adds a visit, it shows here.
+    </p>
+    <ul v-else class="list-unstyled my-3" data-testid="upcoming-events">
+      <li v-for="event in events" :key="event.id" class="event-box d-flex align-items-start gap-3">
+        <!-- The kind's colour strip; the kind is also written out under the title. -->
+        <span class="sl-kind-strip" :class="`kind-${event.kind}`" aria-hidden="true"></span>
         <time
           :datetime="event.date"
           :aria-label="event.fullDate"
-          class="date-block rounded-3 text-center p-2"
+          class="date-block rounded-3 text-center"
         >
           <span class="d-block fw-bold date-weekday" aria-hidden="true">{{ event.weekday }}</span>
           <span class="d-block fs-3 fw-bold lh-1 mt-1" aria-hidden="true">{{
@@ -84,11 +84,8 @@ const unavailable = computed(() => Boolean(props.family.error.value) && !props.f
             ><span>{{ event.endLabel }}</span>
           </p>
           <h3 class="fs-5 mb-2">{{ event.title }}</h3>
-          <p
-            class="event-place d-flex align-items-center gap-1 text-body-secondary mb-2"
-            :title="event.place"
-          >
-            <Icon :name="event.kind" /><span class="text-truncate">{{ event.place }}</span>
+          <p class="event-place d-flex align-items-start gap-1 text-body-secondary mb-2">
+            <Icon :name="event.kind" class="mt-1" /><span>{{ event.place }}</span>
           </p>
           <span
             v-if="event.companion"
@@ -117,22 +114,33 @@ const unavailable = computed(() => Boolean(props.family.error.value) && !props.f
 </template>
 
 <style scoped>
+/* Rows split by a rule, not boxed, so the words keep the panel's full width. */
 .event-box {
-  background: var(--sl-surface);
   min-width: 0;
+  padding: 1rem 0;
+  border-top: 1px solid var(--sl-line);
 }
+.event-box:first-child {
+  border-top: 0;
+  padding-top: 0.25rem;
+}
+/* The date chip fits its widest weekday ("WED") and never breaks it. */
 .date-block {
-  flex: 0 0 3.25rem;
+  flex: none;
+  min-width: 3.5rem;
+  padding: 0.5rem 0.6rem;
   background: var(--sl-blue-soft);
   color: var(--sl-blue-deep);
+  white-space: nowrap;
 }
 .date-weekday {
   font-size: 0.85rem;
+  letter-spacing: 0.02em;
 }
 .event-content {
   flex: 1;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .event-time,
 .event-place,
@@ -159,13 +167,14 @@ const unavailable = computed(() => Boolean(props.family.error.value) && !props.f
 .calendar-button {
   min-height: 48px;
 }
+/* Narrow (a phone at 150% zoom): the words drop under the date chip rather than squeeze. */
 @media (max-width: 575.98px) {
   .event-box {
-    gap: 0.5rem !important;
-    padding: 0.75rem !important;
+    flex-wrap: wrap;
+    gap: 0.6rem !important;
   }
-  .date-block {
-    flex-basis: 2.75rem;
+  .event-content {
+    flex: 1 1 12rem;
   }
 }
 </style>

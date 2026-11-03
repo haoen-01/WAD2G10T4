@@ -125,7 +125,7 @@ watch(
             <li v-for="member in active" :key="member.member_id" class="chip">
               <strong>{{ member.display_name }}</strong>
               <span class="text-body-secondary">{{ member.relationship }}</span>
-              <span v-if="member.is_me" class="badge text-bg-light">You</span>
+              <span v-if="member.is_me" class="sl-tag">You</span>
               <span v-if="member.role === 'owner'" class="visually-hidden"
                 >, started the group</span
               >

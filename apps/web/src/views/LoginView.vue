@@ -157,14 +157,15 @@ async function handleSubmit(): Promise<void> {
 
 <template>
   <div class="login">
-    <aside class="login-side" aria-hidden="true">
+    <aside class="login-side sl-hero-field" aria-hidden="true">
+      <span class="login-blob"></span>
       <svg class="login-loop" viewBox="0 0 200 200">
         <circle
           cx="100"
           cy="100"
           r="78"
           fill="none"
-          stroke="rgb(255 255 255 / 18%)"
+          stroke="var(--sl-hero-line)"
           stroke-width="22"
         />
         <circle
@@ -172,7 +173,7 @@ async function handleSubmit(): Promise<void> {
           cy="100"
           r="78"
           fill="none"
-          stroke="var(--sl-sun)"
+          stroke="var(--sl-hero-ring)"
           stroke-width="22"
           stroke-linecap="round"
           stroke-dasharray="360 490"
@@ -290,11 +291,26 @@ async function handleSubmit(): Promise<void> {
     flex-direction: column;
     justify-content: space-between;
     min-height: 26rem;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     padding: 2.5rem;
-    border-radius: var(--sl-radius);
-    background: var(--sl-jade);
-    color: #fff;
+    border-radius: var(--sl-radius-lg);
+    background: var(--sl-hero);
+    color: var(--sl-hero-ink);
   }
+}
+
+/* The sun field's flat, paler circle (decoration only). */
+.login-blob {
+  position: absolute;
+  z-index: -1;
+  top: -5rem;
+  right: -5rem;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 50%;
+  background: var(--sl-hero-blob);
 }
 
 .login-loop {

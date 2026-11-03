@@ -55,6 +55,27 @@ export function stepWords(steps: number, usual: number): string {
   return 'A bit less than usual';
 }
 
+/**
+ * The senior's one sentence about their steps, compared only with their own usual day, and the
+ * friendly icon beside it. Never a judgement about health; "a little less" at most.
+ */
+export function seniorActivity(
+  steps: number,
+  usual: number,
+  readable = true,
+): { sentence: string; icon: 'thumbs-up' | 'walk' | 'watch' } {
+  if (!readable) {
+    return { sentence: 'Your watch was not worn long enough to count your steps.', icon: 'watch' };
+  }
+  const percent = percentOfUsual(steps, usual);
+  if (percent === null) {
+    return { sentence: 'Not enough steps yet to compare with your usual day.', icon: 'walk' };
+  }
+  if (percent >= 110) return { sentence: 'You walked more than usual.', icon: 'thumbs-up' };
+  if (percent >= 90) return { sentence: 'You walked about as much as usual.', icon: 'thumbs-up' };
+  return { sentence: 'You walked a little less than usual.', icon: 'walk' };
+}
+
 /** The seven days up to `latest`, oldest first, each with its reading or null. */
 export function sevenDays<T extends { day: string }>(
   readings: readonly T[],
@@ -84,4 +105,48 @@ export function nextSeniorTask(tasks: readonly SeniorTask[], clock: string): str
   return (
     sortSeniorTasks(tasks).find((task) => !task.completed && task.time >= clock)?.task_id ?? null
   );
+}
+
+/** Where the senior screen remembers the last day it cheered "all done", so it cheers once a day. */
+export const CHEERED_KEY = 'careplus.seniorAllDone.v1';
+
+export interface TaskCount {
+  done: number;
+  total: number;
+}
+
+/** True only when this tick finished the day: some were left before, and now every one is done. */
+export function finishedTheDay(before: TaskCount, after: TaskCount): boolean {
+  return after.total > 0 && after.done === after.total && before.done < before.total;
+}
+
+/**
+ * Whether to throw the small "all done" confetti: the day was just finished, it has not been
+ * cheered yet today, and the senior has not asked their device for less motion. (The words "All
+ * done for today" still show with reduced motion; only the confetti is skipped.)
+ */
+export function shouldCheer(input: {
+  finished: boolean;
+  today: string;
+  lastCheered: string | null;
+  reducedMotion: boolean;
+}): boolean {
+  return input.finished && !input.reducedMotion && input.lastCheered !== input.today;
+}
+
+/** The last day cheered, or null when storage is unavailable or empty. */
+export function readCheered(storage: Pick<Storage, 'getItem'>): string | null {
+  try {
+    return storage.getItem(CHEERED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function saveCheered(storage: Pick<Storage, 'setItem'>, day: string): void {
+  try {
+    storage.setItem(CHEERED_KEY, day);
+  } catch {
+    // Private mode or full storage: at worst it cheers again on the same day.
+  }
 }

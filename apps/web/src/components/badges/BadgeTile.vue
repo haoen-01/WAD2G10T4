@@ -184,7 +184,7 @@ const status = computed(() => {
   position: absolute;
   inset: -8%;
   border-radius: 50%;
-  outline: 3px solid var(--sl-blue-deep);
+  outline: 3px solid var(--sl-focus);
   outline-offset: 2px;
 }
 .tile-stage {
@@ -324,7 +324,7 @@ const status = computed(() => {
   filter: brightness(1.06);
 }
 .tile-claim:focus-visible {
-  outline: 3px solid var(--sl-blue-deep);
+  outline: 3px solid var(--sl-focus);
   outline-offset: 2px;
 }
 

@@ -1,7 +1,9 @@
+import type { CurrentUser } from '@silverloop/api-client';
 import { computed, ref } from 'vue';
 
 import { useAuth } from '@/composables/useAuth';
 import { AUTH_ENABLED } from '@/lib/config';
+import { attempt, type Attempt } from '@/lib/route-guard';
 import { parseViewMode, viewForRole, type ViewMode } from '@/lib/view-mode';
 
 /**
@@ -79,14 +81,27 @@ export function demoSub(): string | null {
   return demoMember.value ?? (demoView.value === 'family' ? 'demo-family' : null);
 }
 
-/** For the router guard: the view once sign-in has settled, or `null` when nobody is in. */
-export async function resolveViewMode(): Promise<ViewMode | null> {
-  if (!AUTH_ENABLED) return demoView.value;
+/** For the router guard: the demo view chosen in this browser (sign-in off only). */
+export function demoViewMode(): ViewMode | null {
+  return AUTH_ENABLED ? null : demoView.value;
+}
+
+/**
+ * For the router guard, sign-in on: whether there is a session and, if so, the account behind it
+ * (`GET /v1/auth/me`) or why it could not be read. `useAuth` records a successful read.
+ */
+export async function resolveAccount(): Promise<{
+  hasSession: boolean;
+  currentUser: Attempt<CurrentUser> | null;
+}> {
+  if (!AUTH_ENABLED) return { hasSession: false, currentUser: null };
   const { ready, session, currentUser, loadCurrentUser } = useAuth();
   await ready;
-  if (!session.value) return null;
-  const user = currentUser.value ?? (await loadCurrentUser().catch(() => null));
-  return viewForRole(user?.role);
+  if (!session.value) return { hasSession: false, currentUser: null };
+  if (currentUser.value) {
+    return { hasSession: true, currentUser: { ok: true, value: currentUser.value } };
+  }
+  return { hasSession: true, currentUser: await attempt(() => loadCurrentUser()) };
 }
 
 export function useViewMode() {

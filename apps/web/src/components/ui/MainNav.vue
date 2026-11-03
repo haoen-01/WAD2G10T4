@@ -137,8 +137,8 @@ watch(
 }
 
 .mainnav--bar .mainnav-link.active {
-  background: var(--sl-ink);
-  color: var(--sl-on-ink);
+  background: var(--sl-jade);
+  color: var(--sl-jade-on);
 }
 
 .mainnav--bar .mainnav-icon {
@@ -186,11 +186,11 @@ watch(
     height: 1.4rem;
   }
 
-  /* Shown by shape as well as colour: a tint plus a bar underneath. */
+  /* Shown by shape as well as colour: a pale jade tint plus a jade bar underneath. */
   .mainnav--bar .mainnav-link.active {
     background: var(--sl-jade-soft);
-    color: var(--sl-jade-deep);
-    box-shadow: inset 0 -3px 0 var(--sl-jade-deep);
+    color: var(--sl-ink);
+    box-shadow: inset 0 -3px 0 var(--sl-jade);
   }
 }
 
@@ -254,7 +254,12 @@ watch(
 }
 
 .mainnav--tabs .mainnav-link.active {
-  color: var(--sl-jade-deep);
+  color: var(--sl-ink);
+}
+
+/* The current tab's icon sits on the jade pill. */
+.mainnav--tabs .mainnav-link.active .mainnav-icon {
+  color: var(--sl-jade-on);
 }
 
 .mainnav--tabs .mainnav-link.active .mainnav-label {
@@ -288,11 +293,12 @@ watch(
   top: 0.35rem;
   width: 4rem;
   height: 2rem;
-  background: var(--sl-jade-soft);
+  background: var(--sl-jade);
   transform: translateX(calc(var(--ind-x, 0px) + (var(--ind-w, 4rem) - 4rem) / 2));
 }
 
-/* Wide screens: a pill in the header row. The current link is a solid jade pill with white text. */
+/* Wide screens: a pill in the header row. The current link is a solid jade pill (white words in
+   light mode, near-black in dark); sky blue stays for each screen's main action. */
 .mainnav--pill {
   flex: 0 0 auto;
 }

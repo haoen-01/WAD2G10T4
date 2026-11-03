@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import type { AppointmentRequest, RepeatRule } from '@silverloop/api-client';
+import type { AppointmentDraft, AppointmentRequest, RepeatRule } from '@silverloop/api-client';
 import { ref, useId } from 'vue';
 
 import MemberAvatar from '@/components/family/MemberAvatar.vue';
+import { stepLabel } from '@/lib/agent';
+import { draftNotes, draftSource } from '@/lib/appointment-draft';
 import { NEEDS_HELPER_SAVED, needsHelper } from '@/lib/coverage';
 import { checkWindow, KIND_LABELS, REPEAT_LABELS } from '@/lib/family';
 import type { Appointment, AppointmentKind, FamilyMember } from '@/lib/family';
 import { formatIsoDay } from '@/lib/format-date';
+import { draftAppointment } from '@/services/careApi';
 
 /**
  * Adding an appointment, or editing a one-off one. The day and times are models the calendar
@@ -22,6 +25,8 @@ const props = defineProps<{
   free: FamilyMember[];
   /** How many are in the family. */
   familySize: number;
+  /** The family group, for "Describe it"; without it the box is not shown. */
+  groupId?: string | null;
 }>();
 /** What the API takes, plus `needs_helper` once the backend has it (see `NEEDS_HELPER_SAVED`). */
 type SaveRequest = AppointmentRequest & { needs_helper?: boolean };
@@ -41,6 +46,34 @@ const until = ref('');
 // "Not every event needs a helper". Shown only once the API saves it (`NEEDS_HELPER_SAVED`).
 const helperNeeded = ref(editing ? needsHelper(editing) : true);
 const error = ref<string | null>(null);
+
+// "Describe it": the API fills in the form from a sentence; nothing is saved until Add.
+const described = ref('');
+const filling = ref(false);
+const filled = ref<AppointmentDraft | null>(null);
+const fillError = ref<string | null>(null);
+
+async function fillFromText() {
+  const text = described.value.trim();
+  if (!text || !props.groupId) return;
+  filling.value = true;
+  fillError.value = null;
+  try {
+    const draft = await draftAppointment(props.groupId, text);
+    if (draft.title) title.value = draft.title;
+    if (draft.kind) kind.value = draft.kind;
+    if (draft.date) date.value = draft.date;
+    if (draft.start) start.value = draft.start;
+    if (draft.end) end.value = draft.end;
+    if (draft.location) location.value = draft.location;
+    repeat.value = draft.repeat;
+    filled.value = draft;
+  } catch {
+    fillError.value = 'That could not be read just now. Please fill in the form below.';
+  } finally {
+    filling.value = false;
+  }
+}
 
 function submit() {
   error.value = null;
@@ -81,6 +114,51 @@ function submit() {
     @submit.prevent="submit"
   >
     <h2 id="add-title" class="h5 mb-0">{{ editing ? 'Edit' : 'New appointment' }}</h2>
+    <div v-if="!editing && groupId" class="describe" data-testid="describe-appointment">
+      <label :for="`${id}-describe`" class="form-label">Describe it (optional)</label>
+      <div class="d-flex flex-wrap gap-2">
+        <input
+          :id="`${id}-describe`"
+          v-model="described"
+          class="form-control flex-grow-1 describe-input"
+          maxlength="300"
+          placeholder="e.g. Eye check-up next Tuesday 10:30 to 11:30 at Bedok Polyclinic"
+          data-testid="describe-text"
+          @keydown.enter.prevent="fillFromText"
+        />
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          :disabled="filling || !described.trim()"
+          data-testid="describe-fill"
+          @click="fillFromText"
+        >
+          {{ filling ? 'Filling in…' : 'Fill in the form' }}
+        </button>
+      </div>
+      <p v-if="fillError" class="text-danger small mt-2 mb-0" role="alert">{{ fillError }}</p>
+      <div
+        v-if="filled"
+        class="small mt-2"
+        role="status"
+        :data-mode="filled.mode"
+        data-testid="describe-result"
+      >
+        <p class="mb-1">{{ draftSource(filled) }}</p>
+        <ul class="mb-0 ps-3">
+          <li v-for="line in draftNotes(filled)" :key="line">{{ line }}</li>
+        </ul>
+        <details v-if="filled.steps.length" class="mt-1">
+          <summary>How Care+ filled this in</summary>
+          <ol class="mb-0 mt-1 ps-3">
+            <li v-for="(step, index) in filled.steps" :key="index">
+              {{ stepLabel(step.tool_name)
+              }}<span v-if="!step.ok"> (not accepted, tried again)</span>
+            </li>
+          </ol>
+        </details>
+      </div>
+    </div>
     <div>
       <label :for="`${id}-title`" class="form-label">What</label>
       <input
@@ -186,6 +264,17 @@ function submit() {
 </template>
 
 <style scoped>
+.describe {
+  padding: 0.75rem;
+  border-radius: var(--sl-radius-sm);
+  background: var(--sl-raised);
+}
+
+.describe-input {
+  min-width: min(100%, 16rem);
+  width: auto;
+}
+
 .kinds {
   display: flex;
   flex-wrap: wrap;
@@ -210,7 +299,7 @@ function submit() {
 }
 
 .kind-choice:has(input:focus-visible) {
-  outline: 3px solid var(--sl-jade);
+  outline: 3px solid var(--sl-focus);
   outline-offset: 2px;
 }
 
@@ -220,7 +309,7 @@ function submit() {
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: var(--sl-radius-sm);
-  background: var(--sl-jade-soft);
+  background: var(--sl-raised);
 }
 
 .free-avatars {
@@ -229,6 +318,6 @@ function submit() {
 
 .free-avatars > * + * {
   margin-left: -0.4rem;
-  box-shadow: 0 0 0 2px var(--sl-jade-soft);
+  box-shadow: 0 0 0 2px var(--sl-raised);
 }
 </style>

@@ -13,3 +13,6 @@ openapi/silverloop.json
 
 # Nested git worktree for a concurrent, isolated agent session; not part of this checkout
 .claude/worktrees
+
+# Generated agent recordings (python -m silverloop.agent.demo_recording record)
+apps/api/recordings/

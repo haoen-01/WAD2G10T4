@@ -29,11 +29,24 @@ async function checkInAs(request: APIRequestContext, sub: string, note: string) 
   expect(response.status()).toBe(201);
 }
 
-test('Home shows the seeded family updates, each tagged as a sample', async ({ page }) => {
+test('Home shows the seeded family updates, five at first, labelled sample once', async ({
+  page,
+}) => {
   await page.goto('/');
-  await expect(feed(page).getByRole('heading', { name: 'Family updates' })).toBeVisible();
+  await expect(feed(page).getByRole('heading', { name: 'Recently' })).toBeVisible();
+  await expect(feed(page).locator('li')).toHaveCount(5);
+  // One notice for the screen; each seeded row still says so to a screen reader.
+  await expect(page.getByTestId('home-sample')).toHaveCount(1);
+  await expect(page.getByTestId('home-sample')).toContainText('family updates are sample data');
+  await expect(feed(page).getByText('Sample', { exact: true })).toHaveCount(0);
+  await expect(feed(page).locator('[data-sample="true"]')).toHaveCount(5);
+  await expect(feed(page).locator('[data-sample="true"]').first()).toContainText('(sample update)');
+
+  const all = feed(page).getByTestId('feed-see-all');
+  await expect(all).toHaveAttribute('aria-expanded', 'false');
+  await all.click();
+  await expect(all).toHaveAttribute('aria-expanded', 'true');
   await expect(feed(page).locator('li')).toHaveCount(6);
-  await expect(feed(page).getByText('Sample', { exact: true })).toHaveCount(6);
   await expect(feed(page)).toContainText('You called Mdm Lim');
   await expect(feed(page)).toContainText('She sounded cheerful');
 });
@@ -42,8 +55,11 @@ test('a check-in shows at once, survives a reload, and is Sarah’s (not “You�
   page,
 }) => {
   await page.goto('/');
-  await expect(feed(page).locator('li')).toHaveCount(6);
+  await expect(feed(page).locator('li')).toHaveCount(5);
 
+  // The three choices come first; the optional note is one click away, and gets the focus.
+  await page.getByTestId('checkin-add-note').click();
+  await expect(page.getByLabel('Add a note (optional)')).toBeFocused();
   await page.getByLabel('Add a note (optional)').fill('Brought her kaya toast');
   await page
     .getByRole('group', { name: 'How you were in touch' })
@@ -53,7 +69,9 @@ test('a check-in shows at once, survives a reload, and is Sarah’s (not “You�
   const mine = feed(page).locator('li', { hasText: 'Brought her kaya toast' });
   await expect(mine).toContainText('You called Mdm Lim');
   await expect(mine.getByText('Sample')).toHaveCount(0);
-  await expect(page.getByLabel('Add a note (optional)')).toHaveValue('');
+  // Shared: the note box closes, ready for next time.
+  await expect(page.getByLabel('Add a note (optional)')).toHaveCount(0);
+  await expect(page.getByTestId('checkin-add-note')).toBeVisible();
 
   await page.reload();
   await expect(feed(page).locator('li', { hasText: 'Brought her kaya toast' })).toContainText(
@@ -72,11 +90,13 @@ test('a check-in shows at once, survives a reload, and is Sarah’s (not “You�
 test('a refused check-in is taken back out of the feed with a message', async ({ page }) => {
   await page.route('**/check-ins', (route) => route.fulfill({ status: 500, body: 'nope' }));
   await page.goto('/');
-  await expect(feed(page).locator('li')).toHaveCount(6);
+  await expect(feed(page).locator('li')).toHaveCount(5);
+  await page.getByTestId('checkin-add-note').click();
   await page.getByLabel('Add a note (optional)').fill('This will fail');
   await page.getByRole('button', { name: 'Messaged', exact: true }).click();
   await expect(page.getByText('Could not share that.')).toBeVisible();
-  await expect(feed(page).locator('li')).toHaveCount(6);
+  await expect(feed(page).locator('li', { hasText: 'This will fail' })).toHaveCount(0);
+  await expect(feed(page).locator('li')).toHaveCount(5);
   await expect(page.getByLabel('Add a note (optional)')).toHaveValue('This will fail');
 });
 
@@ -86,7 +106,7 @@ test('the feed refreshes every 30 seconds and when the window gains focus', asyn
 }) => {
   await page.clock.install();
   await page.goto('/');
-  await expect(feed(page).locator('li')).toHaveCount(6);
+  await expect(feed(page).locator('li')).toHaveCount(5);
 
   await checkInAs(request, 'demo-john', 'Dropped off soup');
   await page.clock.runFor(31_000);

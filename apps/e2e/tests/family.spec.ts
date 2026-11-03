@@ -223,7 +223,13 @@ const hour = (page: Page, day: string, slot: number) =>
 
 /** Presses on one hour and drags to another, like a person painting their week. */
 async function paint(page: Page, day: string, from: number, to: number) {
-  await hour(page, day, from).scrollIntoViewIfNeeded();
+  // The painter is under "Choose exact hours"; the quick picks come first.
+  const exact = page.getByTestId('exact-hours-toggle');
+  if ((await exact.getAttribute('aria-expanded')) !== 'true') await exact.click();
+  // Centred, so the hour the drag ends on is on screen too.
+  await hour(page, day, from).evaluate((el) =>
+    el.scrollIntoView({ block: 'center', behavior: 'instant' }),
+  );
   const start = await hour(page, day, from).boundingBox();
   const end = await hour(page, day, to).boundingBox();
   if (!start || !end) throw new Error('painter hour not on screen');
@@ -233,11 +239,46 @@ async function paint(page: Page, day: string, from: number, to: number) {
   await page.mouse.up();
 }
 
+test('quick picks save a part of the day, show it, and turn it off again', async ({ page }) => {
+  await page.goto('/family');
+  const day = isoDay(3);
+  const picks = page.getByTestId('quick-picks').locator(`[data-day="${day}"]`);
+  const morning = picks.getByRole('button', { name: 'Morning', exact: true });
+  await expect(morning).toHaveAttribute('aria-pressed', 'false');
+
+  await morning.click();
+  await expect(morning).toHaveAttribute('aria-pressed', 'true');
+  const sarahs = row(page.locator('main'), 'Sarah').filter({ hasText: 'Morning' });
+  await expect(sarahs.first()).toBeVisible();
+
+  // Saved through the API: still on after a reload.
+  await page.reload();
+  await expect(morning).toHaveAttribute('aria-pressed', 'true');
+
+  // All day takes the place of the morning; the hour painter is still one click away.
+  await picks.getByRole('button', { name: 'All day', exact: true }).click();
+  await expect(picks.getByRole('button', { name: 'All day', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(morning).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('exact-hours-toggle').click();
+  await expect(page.getByTestId('exact-hours-toggle')).toHaveAttribute('aria-expanded', 'true');
+  await expect(hour(page, day, 0)).toHaveClass(/available/);
+
+  await picks.getByRole('button', { name: 'All day', exact: true }).click();
+  await expect(picks.getByRole('button', { name: 'All day', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+});
+
 test('painting busy hours, clearing them, and using the keyboard', async ({ page }) => {
   await page.goto('/family');
   const day = isoDay(2);
 
   // Busy mode: the painted hours are busy.
+  await page.getByTestId('exact-hours-toggle').click();
   await page.getByRole('button', { name: 'Busy', exact: true }).click();
   await paint(page, day, 2, 4);
   for (const slot of [2, 3, 4]) await expect(hour(page, day, slot)).toHaveClass(/unavailable/);

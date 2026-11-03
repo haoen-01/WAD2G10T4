@@ -95,7 +95,7 @@ test('consent withdrawn through the API still shows on the home overview', async
     });
   expect((await consent(false)).ok()).toBe(true);
   await page.goto('/');
-  await expect(page.getByText('Consent withdrawn').first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('withdrawn her consent');
 
   // Leave the shared demo person as it was found.
   expect((await consent(true)).ok()).toBe(true);

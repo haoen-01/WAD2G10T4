@@ -13,6 +13,11 @@ const props = defineProps<{
   colours: readonly string[];
   /** The medal, for the burst out of its centre. */
   origin: HTMLElement | null;
+  /**
+   * A smaller cheer (the senior finishing the day's tasks): one light throw from the bottom
+   * corners that settles in a few seconds: no burst and no shower.
+   */
+  brief?: boolean;
 }>();
 
 const canvas = ref<HTMLCanvasElement | null>(null);
@@ -25,7 +30,18 @@ let height = 0;
 const rand = seeded(Date.now() & 0xffff);
 
 /** What is thrown when: seconds after it starts. */
-const PLAN: { at: number; done: boolean; run: () => Piece[] }[] = [
+const BRIEF_PLAN: { at: number; done: boolean; run: () => Piece[] }[] = [
+  {
+    at: 0.05,
+    done: false,
+    run: () => [
+      ...burst(36, -10, height + 10, -62, 24, height * 1.2, props.colours, rand),
+      ...burst(36, width + 10, height + 10, -118, 24, height * 1.2, props.colours, rand),
+    ],
+  },
+];
+
+const FULL_PLAN: { at: number; done: boolean; run: () => Piece[] }[] = [
   {
     at: 0.3,
     done: false,
@@ -50,6 +66,8 @@ const PLAN: { at: number; done: boolean; run: () => Piece[] }[] = [
     run: () => shower(6, width, props.colours, rand),
   })),
 ];
+
+const PLAN = props.brief ? BRIEF_PLAN : FULL_PLAN;
 
 function fit() {
   const el = canvas.value;

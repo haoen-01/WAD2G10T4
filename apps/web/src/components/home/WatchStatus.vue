@@ -30,34 +30,38 @@ const synced = computed(() =>
 </script>
 
 <template>
+  <!-- One quiet line: connected or not, last sync, battery, and that the watch is simulated. Only a
+       low battery gets colour, because only then is there something to do. -->
   <div class="watch" data-testid="watch-status">
-    <span v-if="failed" class="chip chip-off">
-      <span class="dot" aria-hidden="true"></span>Watch status unavailable
-    </span>
-    <template v-else-if="status">
-      <span class="chip" :class="status.connected ? 'chip-on' : 'chip-off'">
-        <span class="dot" aria-hidden="true"></span>
-        <template v-if="status.connected">
-          Watch connected<template v-if="synced"> · {{ synced }}</template>
-        </template>
-        <template v-else>Watch not connected</template>
+    <p class="watch-line mb-0">
+      <span v-if="failed" class="watch-part">
+        <span class="dot" aria-hidden="true"></span>Watch status unavailable
       </span>
-      <span
-        v-if="percent !== null && level"
-        class="chip battery"
-        :class="`battery-${level}`"
-        data-testid="watch-battery"
-      >
-        <span class="cell" aria-hidden="true">
-          <span class="fill" :style="{ width: `${percent}%` }"></span>
+      <template v-else-if="status">
+        <span class="watch-part" :class="{ on: status.connected }">
+          <span class="dot" aria-hidden="true"></span>
+          <template v-if="status.connected">
+            Watch connected<template v-if="synced"> · {{ synced }}</template>
+          </template>
+          <template v-else>Watch not connected</template>
         </span>
-        <span><span class="visually-hidden">Watch battery </span>{{ words }}</span>
+        <span
+          v-if="percent !== null && level"
+          class="watch-part battery"
+          :class="`battery-${level}`"
+          data-testid="watch-battery"
+        >
+          <span class="cell" aria-hidden="true">
+            <span class="fill" :style="{ width: `${percent}%` }"></span>
+          </span>
+          <span><span class="visually-hidden">Watch battery </span>{{ words }}</span>
+        </span>
+        <span class="watch-part sim">Simulated watch</span>
+      </template>
+      <span v-else class="watch-part">
+        <span class="dot" aria-hidden="true"></span>Checking the watch…
       </span>
-      <span class="sim">Simulated watch</span>
-    </template>
-    <span v-else class="chip chip-off"
-      ><span class="dot" aria-hidden="true"></span>Checking the watch…</span
-    >
+    </p>
 
     <p v-if="level === 'critical'" class="remind mb-0" data-testid="charge-reminder">
       The watch battery is low. Remind {{ elder }} to charge the watch.
@@ -66,42 +70,38 @@ const synced = computed(() =>
 </template>
 
 <style scoped>
-.watch {
+.watch-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem 1rem;
+  color: var(--sl-ink-soft);
+  font-size: 0.95rem;
 }
 
-.chip {
+.watch-part {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.3rem 0.75rem;
-  border: 1px solid var(--sl-line);
-  border-radius: 999px;
-  background: var(--sl-surface);
-  font-size: 0.9rem;
-  font-weight: 600;
+  gap: 0.4rem;
 }
 
 .dot {
-  width: 0.6rem;
-  height: 0.6rem;
+  width: 0.55rem;
+  height: 0.55rem;
   border-radius: 50%;
-  background: var(--bs-secondary);
+  background: var(--sl-ink-soft);
 }
 
 /* Connected: green dot, as on most devices. Not connected: grey. */
-.chip-on .dot {
+.on .dot {
   background: var(--bs-success);
 }
 
 /* A small battery: a cell with a fill the width of the charge, and a nub on the right. */
 .cell {
   position: relative;
-  width: 1.6rem;
-  height: 0.8rem;
+  width: 1.4rem;
+  height: 0.7rem;
   padding: 1px;
   border: 2px solid currentcolor;
   border-radius: 3px;
@@ -112,7 +112,7 @@ const synced = computed(() =>
   top: 50%;
   right: -5px;
   width: 3px;
-  height: 0.35rem;
+  height: 0.3rem;
   border-radius: 0 1px 1px 0;
   background: currentcolor;
   content: '';
@@ -126,38 +126,27 @@ const synced = computed(() =>
   background: currentcolor;
 }
 
-/* Green when fine or charging, amber when getting low, red when it needs charging. */
-.battery-good,
-.battery-charging {
-  border-color: var(--bs-success-border-subtle);
-  background: var(--bs-success-bg-subtle);
-  color: var(--bs-success-text-emphasis);
-}
-
+/* Quiet while fine or charging; amber when getting low, red when it needs charging. */
 .battery-low {
-  border-color: var(--bs-warning-border-subtle);
-  background: var(--bs-warning-bg-subtle);
   color: var(--bs-warning-text-emphasis);
+  font-weight: 600;
 }
 
 .battery-critical {
-  border-color: var(--bs-danger-border-subtle);
-  background: var(--bs-danger-bg-subtle);
-  color: var(--bs-danger-text-emphasis);
+  color: var(--sl-coral-deep);
+  font-weight: 700;
 }
 
 .sim {
-  color: var(--sl-ink-soft);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 
 .remind {
-  flex-basis: 100%;
+  margin-top: 0.5rem;
   padding: 0.5rem 0.75rem;
-  border-left: 4px solid var(--bs-danger);
-  border-radius: 0.25rem;
-  background: var(--bs-danger-bg-subtle);
-  color: var(--bs-danger-text-emphasis);
+  border-radius: var(--sl-radius-sm);
+  background: var(--sl-coral-soft);
+  color: var(--sl-coral-deep);
   font-weight: 600;
 }
 </style>

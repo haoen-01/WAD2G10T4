@@ -1,12 +1,14 @@
 import { expect, test } from '@playwright/test';
 
-import { resetDemo } from './support';
+import { resetDemo, showMoreOnHome } from './support';
 
 // Home's day timeline: the senior's day by the hour, live. The demo family calendar has a doctor's
 // appointment tomorrow from 10:00 am to 12:00 pm that nobody has taken yet.
 
-test.beforeEach(async ({ request }) => {
+test.beforeEach(async ({ page, request }) => {
   await resetDemo(request);
+  // The timeline sits under Home's "See more about this week".
+  await showMoreOnHome(page);
 });
 
 test('an appointment that needs someone can be taken from the timeline', async ({ page }) => {

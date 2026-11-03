@@ -22,8 +22,8 @@ import {
 import type { Appointment, AvailabilityStatus, FamilyState, MemberStatus } from '@/lib/family';
 import { calendarSourceFor } from '@/lib/family-group';
 import { DEMO_PERSON_ID } from '@/lib/labels';
-import { paintChanges } from '@/lib/planner';
-import type { SlotStatus } from '@/lib/planner';
+import { paintChanges, quickPickChanges } from '@/lib/planner';
+import type { DayPartKey, SlotStatus } from '@/lib/planner';
 import * as api from '@/services/careApi';
 
 /**
@@ -322,6 +322,26 @@ function paintDay(day: string, painted: SlotStatus[]): boolean {
   return true;
 }
 
+/**
+ * A quick pick ("Morning", "All day") for the current member on one day: the same saves as
+ * painting (`saveRemoval`, `saveWindow`), the rules in `quickPickChanges`. False when nothing
+ * changed.
+ */
+function pickDayPart(day: string, part: DayPartKey): boolean {
+  const member = currentMember.value;
+  if (!member) return false;
+  const { remove, add } = quickPickChanges(state.availability, member.id, day, part);
+  if (!remove.length && !add.length) return false;
+  const added = add.map((window) => ({ tempId: newId('saving'), window }));
+  state.availability = [
+    ...state.availability.filter((entry) => !remove.includes(entry.id)),
+    ...added.map(({ tempId, window }) => ({ id: tempId, memberId: member.id, ...window })),
+  ];
+  for (const id of remove) void saveRemoval(id);
+  for (const { tempId, window } of added) void saveWindow(tempId, window);
+  return true;
+}
+
 /** Removes an appointment, every day of it if it repeats. */
 function removeAppointment(seriesId: string): Promise<void> {
   const keep = appointments.filter((appointment) => appointment.seriesId !== seriesId);
@@ -360,6 +380,7 @@ export function useFamily() {
     updateAppointment,
     moveAppointment,
     paintDay,
+    pickDayPart,
     removeAppointment,
     statusOf,
     helperIdsOf: (appointmentId: string) => helperIds(state.assignments, appointmentId),

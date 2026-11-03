@@ -72,7 +72,10 @@ test.describe('in Singapore time', () => {
     const titles = panel.locator('.task-title');
     await expect(titles).toHaveText(['First task', 'Second task', 'Third task']);
     await expect(panel.locator('.next-task .task-title')).toHaveText('First task');
-    await panel.getByRole('button', { name: 'Mark First task done', exact: true }).click();
+    const tick = panel.getByRole('button', { name: 'Mark First task done', exact: true });
+    // Big enough for older hands.
+    expect((await tick.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(56);
+    await tick.click();
     await expect(titles).toHaveText(['First task', 'Second task', 'Third task']);
     await expect(panel.locator('.task-row').first()).toHaveClass(/completed/);
     await expect(panel.locator('.next-task .task-title')).toHaveText('Second task');

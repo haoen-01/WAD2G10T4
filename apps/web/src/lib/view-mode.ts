@@ -58,6 +58,15 @@ export function isLoginPath(pathname: string): boolean {
   );
 }
 
+/**
+ * The screens someone sees before they are in: the sign-in and sign-up pages, plus `/welcome`
+ * (signed in, but not yet senior or family). No menu links show on these, in either sign-in mode.
+ * Kept apart from `isLoginPath`, which the 401 handling relies on.
+ */
+export function isSignInScreen(pathname: string): boolean {
+  return isLoginPath(pathname) || pathname.toLowerCase() === '/welcome';
+}
+
 /** Where a family member joins or creates a family group. */
 export const GROUP_START_PATH = '/groups/start';
 

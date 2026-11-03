@@ -622,3 +622,21 @@ def test_an_adversarial_candidate_title_cannot_change_the_permitted_action_class
     assert payload["candidate_key"] == "gentle_nudge:indoor_walk"
     assert payload["title"].startswith(FENCE_OPEN)
     assert ADVERSARIAL_INSTRUCTION in payload["title"]
+
+
+def test_a_message_that_copies_the_untrusted_fence_is_rejected() -> None:
+    """The gap found while building the family agents: a proposal that pasted a fenced tool value
+    straight into the senior's message was approved. The fence is data framing, never copy."""
+    from silverloop.agent.guardrails import AgentProposal, validate_proposal
+
+    for message in (
+        f"Would you like {fence_untrusted('Morning Tai Chi')} today? No pressure at all.",
+        "Would you like to try untrusted_text today? No pressure at all.",
+        "Would you like to try >>> stretching today? No pressure at all.",
+    ):
+        verdict = validate_proposal(
+            AgentProposal(candidate_key="a", message=message, reasoning="because"),
+            permitted_candidate_keys=["a"],
+        )
+        assert not verdict.approved
+        assert any("copies a data marker" in violation for violation in verdict.violations)

@@ -1,4 +1,5 @@
 import type {
+  AppointmentDraft,
   AccountRole,
   AssistantChatRequest,
   AssistantReply,
@@ -10,6 +11,8 @@ import type {
   AvailabilityStatus,
   CalendarAppointment,
   CareGroup,
+  CatchUp,
+  MyDay,
   CheckInRequest,
   CreateGroupRequest,
   DailyMetric,
@@ -178,6 +181,14 @@ export async function createAppointment(
 }
 
 /** Changes an appointment (the whole series, if it repeats). */
+/** Fill in the appointment form from what was typed. Saves nothing; `createAppointment` does. */
+export async function draftAppointment(groupId: string, text: string): Promise<AppointmentDraft> {
+  const response = await http.post<AppointmentDraft>(`/v1/groups/${groupId}/appointments/draft`, {
+    text,
+  });
+  return response.data;
+}
+
 export async function updateAppointment(
   groupId: string,
   appointmentId: string,
@@ -288,7 +299,21 @@ export async function getWearable(personId: string): Promise<WearableStatus> {
   return response.data;
 }
 
+/** "Read my day": a short script of the senior's day, for the browser to read aloud. */
+export async function getMyDay(personId: string): Promise<MyDay> {
+  const response = await http.get<MyDay>(`/v1/people/${personId}/my-day`);
+  return response.data;
+}
+
 // ── Family activity feed ─────────────────────────────────────────────────────
+
+/** "Since you last visited": what changed after `since`, what needs someone, today's tasks. */
+export async function getCatchUp(groupId: string, since: string | null): Promise<CatchUp> {
+  const response = await http.get<CatchUp>(`/v1/groups/${groupId}/catch-up`, {
+    params: since ? { since } : {},
+  });
+  return response.data;
+}
 
 /** The group's feed, newest first. Pass the last page's `next_before` as `before` for older entries. */
 export async function getGroupActivity(
