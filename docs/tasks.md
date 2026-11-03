@@ -20,10 +20,10 @@ Nothing in `advance`, the policy, review cases or outreach reads a task. A misse
 nothing, and ticks are not written to the family activity feed.
 
 - Routes: see `docs/api.md` (Tasks).
-- Rules on the server: `apps/api/src/silverloop/family_tasks.py`, tested in
-  `apps/api/tests/test_family_tasks.py`.
-- Rules in the browser (pure, tested in `lib/tasks.test.ts`): `apps/web/src/lib/tasks.ts`.
-- Shared reactive state: `apps/web/src/composables/useTasks.ts`. It reads from the same place as
+- Rules on the server: `server/src/silverloop/family_tasks.py`, tested in
+  `server/tests/test_family_tasks.py`.
+- Rules in the browser (pure, tested in `lib/tasks.test.ts`): `client/src/lib/tasks.ts`.
+- Shared reactive state: `client/src/composables/useTasks.ts`. It reads from the same place as
   the calendar (`calendarSourceFor`): the senior their own list, a family member the group they
   picked. It reads again when a screen opens, when the day timeline refreshes (every 30 s and when
   the tab comes back) and after every change.

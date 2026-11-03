@@ -18,7 +18,7 @@
 --   anon_or_auth_grants     = {}     (empty array: neither Data API role holds any privilege)
 --
 -- `public.alembic_version` is Alembic's own bookkeeping table, not part of the domain
--- schema in `apps/api/src/silverloop/db_models.py`; it is included here because it is a
+-- schema in `server/src/silverloop/db_models.py`; it is included here because it is a
 -- real table in the same schema and the original mirror
 -- (`infra/supabase/migrations/202608200001_silverloop_core.sql`) already covers it, but it
 -- is not one of the tables `rls_posture_apply.sql` or the CI test enumerate.

@@ -1,14 +1,21 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: /
+    directory: /client
     schedule:
       interval: weekly
     groups:
-      javascript-workspace:
+      javascript-client:
+        patterns: ['*']
+  - package-ecosystem: npm
+    directory: /e2e
+    schedule:
+      interval: weekly
+    groups:
+      javascript-e2e:
         patterns: ['*']
   - package-ecosystem: pip
-    directory: /apps/api
+    directory: /server
     schedule:
       interval: weekly
     groups:

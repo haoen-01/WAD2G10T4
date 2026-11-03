@@ -3,7 +3,7 @@
 -- Enables row-level security, drops FORCE if it is somehow set, revokes the `anon` and
 -- `authenticated` Data API roles' table privileges, and installs one deny-all
 -- `deny_browser_access` policy for every public domain table the SQLAlchemy ORM
--- (`apps/api/src/silverloop/db_models.py`) defines.
+-- (`server/src/silverloop/db_models.py`) defines.
 --
 -- This file contains no `create table`, `alter table ... add column`, `drop`, or any other
 -- statement that could fail because a table already does or does not exist, and it never
@@ -31,9 +31,9 @@
 -- this file establishes. Run it before and after applying this file.
 --
 -- Keeping this current: when a new Alembic migration adds a table, add its name to the
--- array below. `apps/api/tests/test_rls_posture_apply.py` fails locally if a table defined
+-- array below. `server/tests/test_rls_posture_apply.py` fails locally if a table defined
 -- in `db_models.py` is missing from this list, and the PostgreSQL integration test in
--- `apps/api/tests/test_postgres_integration.py` fails in CI if applying this file does not
+-- `server/tests/test_postgres_integration.py` fails in CI if applying this file does not
 -- leave that table's live posture correct.
 
 do $$
@@ -63,11 +63,13 @@ begin
     'family_activity',
     'family_pins',
     'group_members',
+    'helper_asks',
     'helper_assignments',
     'intervention_enjoyment',
     'intervention_follow_through',
     'intervention_outcomes',
     'interventions',
+    'notifications',
     'people',
     'pin_attempts',
     'plan_enjoyment',

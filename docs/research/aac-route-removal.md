@@ -6,11 +6,11 @@
   the modules nothing else needs, with their tests; keep every module `advance` uses; keep
   review-case writing; drop no tables).
 - Sources: the code on `dev` only. Paths are relative to the repo root; `main.py`,
-  `sql_repository.py` etc. are under `apps/api/src/silverloop/`.
+  `sql_repository.py` etc. are under `server/src/silverloop/`.
 
 How this was derived. Routes were enumerated from the `@application.<verb>(` decorators in
 `main.py` and `family_routes.py` and cross-checked against `openapi/silverloop.json`. Web calls
-were read from `apps/web/src/services/careApi.ts`. "Is this code still needed?" was answered with
+were read from `client/src/services/careApi.ts`. "Is this code still needed?" was answered with
 a static call graph over `sql_repository.py` (Python `ast`; a function depends on the top-level
 helpers it names and on every method whose name it calls through `self.`). Roots were the
 repository methods that kept routes and the CLI tools call. Matching `self.` calls by name
@@ -22,11 +22,11 @@ as removable.
 | Count  | What                                                                                                                                                                                                                                                                     |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 85     | API operations in `openapi/silverloop.json` (61 in `main.py`, 24 in `family_routes.py`). The decorators and the snapshot agree.                                                                                                                                          |
-| 29     | Operations the web app calls: 28 in `careApi.ts` (4 in `main.py`, all 24 in `family_routes.py`) and `GET /v1/auth/me` through the generated client (`apps/web/src/composables/useAuth.ts:43`, the only `SilverLoopClient` call in the web app).                          |
+| 29     | Operations the web app calls: 28 in `careApi.ts` (4 in `main.py`, all 24 in `family_routes.py`) and `GET /v1/auth/me` through the generated client (`client/src/composables/useAuth.ts:43`, the only `SilverLoopClient` call in the web app).                            |
 | 56     | Operations the web app never calls (85 − 29).                                                                                                                                                                                                                            |
 | 4      | Of those, infrastructure and demo-tooling routes that are clearly outside the inventory: `GET /health`, `GET /ready`, `POST /v1/demo/reset`, `POST /v1/simulation/advance`.                                                                                              |
 | **52** | 56 − 4. **This matches the 26 Oct inventory.** It is the most likely way the 52 was counted (inferred; the inventory is not in the repo).                                                                                                                                |
-| 1      | Of the 52, kept because e2e uses it: `POST /v1/people/{person_id}/consent` (`apps/e2e/tests/loop.spec.ts:90`).                                                                                                                                                           |
+| 1      | Of the 52, kept because e2e uses it: `POST /v1/people/{person_id}/consent` (`e2e/tests/loop.spec.ts:90`).                                                                                                                                                                |
 | **51** | **Routes to remove**: 30 route-only (Table A) and 21 full removals (Table B).                                                                                                                                                                                            |
 | 8      | Modules that can be deleted outright: `triage.py`, `case_delta.py`, `ranker_inspector.py`, `evaluator_presets.py`, `intent.py`, `activity_rerank.py`, `outreach_content.py`, `agent/intent_planner.py`. One more, `review_lessons.py`, is a candidate (open question 5). |
 | 2      | Modules the issue lists for full removal that **must stay**: `world_model.py` and `follow_up.py`. Both are used by `repository.metrics()`, which `supabase_smoke.py:44` calls.                                                                                           |
@@ -74,8 +74,8 @@ can still set up state is open question 4.
 
 ## Table B: full removals
 
-"Importers checked" lists every file that imports the module (`grep` over `apps/api/src`,
-`apps/api/tests` and `scripts`). "Removed-only" means that inside `sql_repository.py`, only code
+"Importers checked" lists every file that imports the module (`grep` over `server/src`,
+`server/tests` and `scripts`). "Removed-only" means that inside `sql_repository.py`, only code
 reachable from removed routes uses the module.
 
 | #          | Method | Path                                                   | Handler                      | Repository method(s)                                                                                | Module(s) deleted                                                        | Importers checked                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -121,7 +121,7 @@ Other code that goes with these routes:
   `activity_tool_definitions`, `validate_activity_order`) is reached only from
   `search_activities` / `inspect_ranker`. `plan_outreach` (`:843`) is what `advance` uses
   (`_plan_outreach_safely` `sql_repository.py:3720`). Trimming is optional; see open question 6.
-- **`libs/api-client/src/index.ts`** (hand-written facade, not generated: `scripts/generate-contract.sh`
+- **`client/src/api-client/index.ts`** (hand-written facade, not generated: `scripts/generate-contract.sh`
   writes only `src/generated`). It imports 50 SDK functions for removed operations (`:3-63`) and
   wraps them as methods (`:535-1215`: `queue`, `getCase`, `coordinatorPeople`, … `reconfirmThreshold`).
   These must go, or `pnpm typecheck` fails after `pnpm client:generate`. Keep `me`, `state`,
@@ -132,11 +132,11 @@ Other code that goes with these routes:
 
 | Route                                 | Used by                                                                                                          | Decision                                                          |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `GET /health`                         | `apps/e2e/playwright.config.ts:47` (webServer probe), `smoke.py:9`                                               | Keep                                                              |
+| `GET /health`                         | `e2e/playwright.config.ts:47` (webServer probe), `smoke.py:9`                                                    | Keep                                                              |
 | `GET /ready`                          | Liveness and readiness contract (`docs/observability.md`); tests in `test_api.py`, `test_rls_posture_startup.py` | Keep                                                              |
-| `POST /v1/demo/reset`                 | `apps/e2e/tests/support.ts:25`, `smoke.py:11`, `apps/api/project.json:103` (`pnpm demo:reset`)                   | Keep                                                              |
-| `POST /v1/simulation/advance`         | `apps/e2e/tests/support.ts:47`                                                                                   | Keep                                                              |
-| `POST /v1/people/{person_id}/consent` | `apps/e2e/tests/loop.spec.ts:90` ("consent withdrawn through the API still shows on the home overview")          | **Keep.** It is in the 52 but not removable without changing e2e. |
+| `POST /v1/demo/reset`                 | `e2e/tests/support.ts:25`, `smoke.py:11`, `apps/api/project.json:103` (`pnpm demo:reset`)                        | Keep                                                              |
+| `POST /v1/simulation/advance`         | `e2e/tests/support.ts:47`                                                                                        | Keep                                                              |
+| `POST /v1/people/{person_id}/consent` | `e2e/tests/loop.spec.ts:90` ("consent withdrawn through the API still shows on the home overview")               | **Keep.** It is in the 52 but not removable without changing e2e. |
 | `GET /v1/people/{person_id}/state`    | `smoke.py:12` (also called by the web app)                                                                       | Keep                                                              |
 
 Non-HTTP tool use of repository methods (these stay): `scenarios.py:25-59` (`create_schema_for_tests`,
@@ -210,14 +210,14 @@ group, with `models.py` line:
 `ReplanOffer` 2561 (`replanning.py`), `ProposedMemory` 2256 (`context_question.py`), `Programme`
 833, `ActivityCandidate` and the activity-ontology enums (`activity_search.py`, `preferences.py`,
 `fixtures.py`). Removing operations changes the contract, so `pnpm client:generate` has to run and
-both `openapi/silverloop.json` and `libs/api-client/src/generated` have to be committed. `pnpm
+both `openapi/silverloop.json` and `client/src/api-client/generated` have to be committed. `pnpm
 client:check` enforces this.
 
 ## Tests to delete or update
 
 The numbers are tests that touch the removed surface over the file's total `def test_` count. A
 test counts as touching it if it calls a removed route, calls a removed repository method, imports a
-removed module, or uses a helper that does. All files are in `apps/api/tests/`.
+removed module, or uses a helper that does. All files are in `server/tests/`.
 
 **Delete the whole file** (its subject is the removed surface):
 
@@ -271,7 +271,7 @@ evaluator, metrics, programmes and simulation rows), `test_case_clock.py` 2/4, `
 `approve_threshold_proposal`), `test_world_model.py` 9/51 (`world_model.py` stays; drop the route
 tests).
 
-`apps/e2e/tests/`: **nothing to change.** No spec calls a removed route. The routes e2e does call
+`e2e/tests/`: **nothing to change.** No spec calls a removed route. The routes e2e does call
 are listed above.
 
 ## Scenarios
@@ -345,7 +345,7 @@ These tables still have kept writers: `CandidatePreferenceRow` (`_suppress_after
 - Review-case writing inside `advance` stays. `_create_case` is called at `:2949` (def `:3875`),
   and the system closures `_close_open_cases_for_consent` (`:2740`, def `:2361`) and
   `_close_open_cases_for_recovery` (`:2926`, def `:2401`) stay. `AdvanceResponse.created_case` (a
-  `ReviewCase`) stays in the contract, and e2e reads it (`apps/e2e/tests/support.ts:33-37`).
+  `ReviewCase`) stays in the contract, and e2e reads it (`e2e/tests/support.ts:33-37`).
 - What goes is the human side of a case only: `get_case`, `review_case` and the queue route.
 
 ## Open questions
@@ -384,6 +384,6 @@ These tables still have kept writers: `CandidatePreferenceRow` (`_suppress_after
 7. **The `Coordinator` role.** After removal no route requires `Coordinator` (`auth.py:362`). The
    role stays in `AuthRole` and `setup_demo_accounts.py`. `test_auth_rbac.py` loses its coordinator
    rows. Is that fine, or should the role's purpose be documented?
-8. **`libs/api-client/src/index.ts`** is hand-written and must be edited in the same change.
-   `CLAUDE.md` says not to hand-edit `libs/api-client`, but that rule is about `src/generated`. Please
+8. **`client/src/api-client/index.ts`** is hand-written and must be edited in the same change.
+   `CLAUDE.md` says not to hand-edit `client/src/api-client`, but that rule is about `src/generated`. Please
    confirm the facade can be edited.

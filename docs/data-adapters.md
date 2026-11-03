@@ -53,7 +53,7 @@ Two correctness properties matter more than usual for this adapter:
   overlapping interval, only credits the time not already covered by a higher-priority source.
   Sleep intervals are deduplicated the same way but without a device priority: overlapping
   "asleep" time from any source is unioned, not summed. See the module docstring in
-  `apps/api/src/silverloop/adapters/apple_export.py` for the full algorithm.
+  `server/src/silverloop/adapters/apple_export.py` for the full algorithm.
 - **`wear_hours` is a derived proxy, not a measurement.** Apple Health exports no wear-time signal.
   This adapter proxies it as the count of distinct clock hours in the day containing at least one
   step sample from any source. A day where the tracker was left at home correctly reads as low wear

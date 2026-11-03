@@ -24,10 +24,14 @@ tests and the explicit emergency offline demo.
 You need Node 24, pnpm 11, and Python 3.13 with [uv](https://docs.astral.sh/uv/).
 
 ```bash
-pnpm install
-cd apps/api && uv sync && cd ../..
+pnpm --dir client install
+cd server && uv sync && cd ..
 pnpm demo:offline
 ```
+
+`client/` (the web app), `e2e/` (the Playwright suite) and `server/` (the API) are separate installs
+with their own lockfiles; the root `package.json` has no dependencies and only runs scripts, so
+every `pnpm …` command below works from the repo root. `pnpm run setup` installs all three.
 
 `pnpm demo:offline` starts the API on a local SQLite file with synthetic data and no language
 model, and the web app with sign-in off. It works in any shell, including Windows. Open:
@@ -39,7 +43,7 @@ model, and the web app with sign-in off. It works in any shell, including Window
 reachable directly. Only the Supabase-backed "Shared runtime" below uses real accounts, created
 through Supabase's own sign-up, not a fixed demo login.
 
-The web app is a Vue 3 + Bootstrap 5 single-page app in `apps/web`. The family screens use a
+The web app is a Vue 3 + Bootstrap 5 single-page app in `client`. The family screens use a
 bottom tab bar on phones and a header pill on desktop. **Home** is a daily overview (the senior's
 activity against a usual day, a feed of what the family has done, a one-tap "Tell the family you
 were in touch" check-in, a brief look at the calendar, and today's tasks and medicine). **Senior**
@@ -78,7 +82,7 @@ pnpm demo:supabase-smoke
 
 ```bash
 pnpm test            # Python unit/API tests, plus the Playwright browser suite
-pnpm test:e2e         # just the Playwright browser suite (apps/e2e/tests)
+pnpm test:e2e         # just the Playwright browser suite (e2e/tests)
 pnpm test:scenarios   # YAML safety-policy scenarios under scenarios/
 pnpm test:postgres    # needs SILVERLOOP_POSTGRES_TEST_URL; the database name must contain "test"
 pnpm verify           # format, contract, lint, typecheck, test, scenarios, build -- what CI runs

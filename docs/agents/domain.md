@@ -20,7 +20,7 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 ├── docs/adr/
 │   ├── 0001-consent-scope-model.md
 │   └── …
-└── apps/ libs/ tools/
+└── client/ server/ e2e/ tools/
 ```
 
 ## Use the glossary's vocabulary

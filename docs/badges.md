@@ -12,7 +12,7 @@ them, and missing a goal costs nothing.
   `composables/useWalk.ts`), credited to that senior. Only the part she shared counts, and the
   time recorded is the real time it finished. What she did not share is never recorded.
 
-The rules are pure functions in `apps/web/src/lib/badges.ts`, tested in `badges.test.ts`.
+The rules are pure functions in `client/src/lib/badges.ts`, tested in `badges.test.ts`.
 
 | Group     | Badge                                   | How it is earned                                           |
 | --------- | --------------------------------------- | ---------------------------------------------------------- |

@@ -202,7 +202,7 @@ previous in either dimension); `reconfirmed` resets the top approval's 60-day cl
 `day >= expires_on_day`, pop (stateless expiry; the daily check writes the `expired` row that day for
 audit and notice); `rejected`/`check_*` change nothing; empty → DEFAULT.
 
-**Migration** `apps/api/alembic/versions/<rev>_add_review_threshold_calibration.py`,
+**Migration** `server/alembic/versions/<rev>_add_review_threshold_calibration.py`,
 `down_revision="d8b1e4f70c2a"`: both tables; SQLite `_reject_update`/`_reject_delete` triggers and
 PostgreSQL `_append_only` triggers (copy `c2f4a8d1e6b7`); batch add `case_reviews.reached_too_late` as
 `e3b7d5c18a42` does; downgrade drops the column and restores the `case_reviews` SQLite triggers.
@@ -494,7 +494,7 @@ candidate)`, `approve_threshold_proposal`, `reject_threshold_proposal`, `set_thr
 
 **HTTP**: the seven routes; `POST /v1/demo/reset?person_id=`; review body `reached_too_late`.
 
-**Facade** `libs/api-client/src/index.ts`: `reset(personId?)`; `reviewCase(..., overrideReason?,
+**Facade** `client/src/api-client/index.ts`: `reset(personId?)`; `reviewCase(..., overrideReason?,
 reachedTooLate?)`; `reviewThreshold(personId)`; `reviewThresholdReplay(personId, severityPct,
 persistenceDays)`; `approveThresholdProposal(personId, proposalId, causeConfirmed, shownOnDay, note?)`;
 `rejectThresholdProposal(personId, proposalId, reason, note?)`; `setThresholdManually(personId,
@@ -651,7 +651,7 @@ shadow ∈ {None, day} × delta ∈ {-35,-45,-62} × sustained 2..5 × consent �
   `/v1/cases/{case_id}/review`. `care_priorities` calls `_evaluate` per active run, so a loosened senior
   adds ≤28 `analyse_signal` calls per board load and must write nothing.
 - **Client:** one `pnpm client:generate` after the merge; generated files are only ever regenerated;
-  `libs/api-client/src/index.ts` is hand-merged (keeps `coordinatorPriorities`).
+  `client/src/api-client/index.ts` is hand-merged (keeps `coordinatorPriorities`).
 - **e2e (track D):** the persona count assertion (`1 of 5 demo personas are currently seeded`, ~473) →
   `1 of 6`. **No e2e advances or resets `mdm-wong`**: e2e resets only `mdm-lim` on one SQLite database, and a
   live `mdm-wong` run breaks the seeding disclosure and the board's empty-state assertions. The guided

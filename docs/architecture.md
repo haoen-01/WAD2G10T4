@@ -22,8 +22,9 @@ evidence.
 
 ## Decision summary
 
-- pnpm + thin Nx coordinate tasks; uv manages Python.
-- The Vue web app (a Vite single-page app styled with Bootstrap 5, in `apps/web`) provides the
+- `client/`, `e2e/` and `server/` are separate installs (pnpm for the first two, uv for the API);
+  the root `package.json` has no dependencies and only runs scripts that delegate to them.
+- The Vue web app (a Vite single-page app styled with Bootstrap 5, in `client`) provides the
   Home, Senior, Calendar and Family screens. It has no server side: sign-in uses
   `@supabase/supabase-js`, and every domain read and write is an Axios call in
   `services/careApi.ts`, typed with the generated client's types. Home's weather card and the
@@ -103,11 +104,11 @@ scored as such; it is not attributable to the offer and is never reported as if 
 
 ## Module map
 
-`apps/api/src/silverloop/` is about 45,000 lines, a third of it `sql_repository.py`. This is what
+`server/src/silverloop/` is about 45,000 lines, a third of it `sql_repository.py`. This is what
 each file owns; `docs/api.md` covers the HTTP surface these files back.
 
 **What the screens use.** The web app calls the routes listed in
-`apps/web/src/services/careApi.ts` (person state and metrics, interventions and their outcomes,
+`client/src/services/careApi.ts` (person state and metrics, interventions and their outcomes,
 `/v1/me`, care groups, the family calendar, the family activity feed and check-ins, per-day
 appointment notes, tasks, the watch status and the assistant) plus `/v1/auth/me`. The e2e suite
 also calls `/v1/demo/reset`, `/v1/simulation/advance` and `/v1/people/{id}/consent`. Step 7
@@ -136,7 +137,9 @@ Top-level modules:
   (appointments, family availability, who is helping, per-day appointment notes), the family activity feed and check-ins, and
   the `/v1/me` and `/v1/groups/...` routes for all of them. They own their own tables and share the
   repository's database sessions. `family_activity.py` imports nothing from the decision path
-  (tested).
+  (tested). `family_asks.py` holds the rules for asking a member to take an appointment day and
+  the in-app notifications about it; its routes are thin methods on the calendar store, and it
+  imports nothing from the decision path or `family_calendar.py` (tested).
 - `wearable_status.py` -- the simulated watch status on Home (connected, last sync, battery). No
   real device is connected.
 - `db_models.py` -- the SQLAlchemy 2 declarative schema. See [Data model](#data-model).
@@ -227,7 +230,7 @@ Subpackages:
 ## Request lifecycle
 
 The Vue app calls a route in `main.py` (or `family_routes.py`) with Axios, through
-`apps/web/src/services/careApi.ts`, typed with the generated client's types (`libs/api-client`).
+`client/src/services/careApi.ts`, typed with the generated client's types (`client/src/api-client`).
 The route depends on one of four FastAPI dependencies from `auth.py` (`Senior`, `Coordinator`,
 `DemoOperator`, `AnyUser`), which verifies the bearer JWT and injects a typed `CurrentUser` -- or,
 with `AUTH_ENABLED=false`, substitutes a fixed synthetic identity per role and skips verification
@@ -253,10 +256,10 @@ matching rules and the one route whose gap is not an exception at all.
 
 The response is a Pydantic model validated against `models.py` and serialised by FastAPI.
 `python -m silverloop.openapi` (`pnpm client:generate`) writes `app.openapi()` to
-`openapi/silverloop.json`, from which `libs/api-client/src/generated` is regenerated; `pnpm
+`openapi/silverloop.json`, from which `client/src/api-client/generated` is regenerated; `pnpm
 client:check` fails CI if either artifact would differ from what `models.py` and `main.py`
 currently produce. The browser types every response with that generated client's types -- never a
-handwritten copy of a model type -- and makes the requests with Axios (`apps/web/src/services/`),
+handwritten copy of a model type -- and makes the requests with Axios (`client/src/services/`),
 never Supabase directly.
 
 ## The decision path in detail
@@ -395,11 +398,13 @@ left alone ("write-once"), or updated in place:
   lockout); `appointments`, `availability_entries` and `helper_assignments` (the shared calendar);
   `family_activity` (the family feed: append-only, no FK to appointments, cleared only by the demo
   reset); `appointment_notes` (per-day notes on an appointment, group-only, deletable by their
-  author; deleted with their appointment).
+  author; deleted with their appointment); `helper_asks` (a member asking another to take one
+  appointment day; at most one open per day, no FK to appointments) and `notifications` (one
+  in-app notification per recipient about an ask; only `read_at` changes).
 
 ## Schema ownership
 
-SQLAlchemy 2 (`db_models.py`) and Alembic (`apps/api/alembic/versions/`, 23 revisions) are the
+SQLAlchemy 2 (`db_models.py`) and Alembic (`server/alembic/versions/`, 23 revisions) are the
 schema of record for both PostgreSQL/Supabase and the SQLite test/offline
 fallback; `migrations.py` runs `alembic upgrade head` at API startup. `infra/supabase/migrations`
 is a **hand-maintained SQL mirror** of that schema for the Supabase project (24 files:

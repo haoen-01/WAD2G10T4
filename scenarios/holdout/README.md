@@ -8,7 +8,7 @@ the core 15 were written alongside the policy that passes them.
 1. **No threshold in `policy.py`, `analytics.py` or `quality.py` was changed, tuned, or
    re-checked against these scenarios.** If a holdout scenario fails, that is reported; it is not
    a reason to move a threshold.
-2. **Kept apart from the core set.** `apps/api/tests/test_scenarios.py` runs these through the real
+2. **Kept apart from the core set.** `server/tests/test_scenarios.py` runs these through the real
    `SqlAlchemyRepository` exactly like the core files, but as their own test cases, and checks
    that the core glob (non-recursive) never picks this directory up.
 3. `expected_decisions` / `expected_cases` record what the real pipeline does on each day.
