@@ -77,6 +77,6 @@ function answer(event: Event, yes: boolean) {
     data-ask-focus
     @click="run($event, () => withdrawAsk(ask))"
   >
-    <Icon name="x" class="me-1" />Withdraw
+    <Icon name="x" class="me-1" />Withdraw ask
   </button>
 </template>

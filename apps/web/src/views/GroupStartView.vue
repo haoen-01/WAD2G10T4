@@ -119,28 +119,32 @@ function checkAgain() {
         <li
           v-for="group in activeGroups"
           :key="group.group_id"
-          class="sl-panel group-card d-flex align-items-center gap-3"
+          class="sl-panel group-card d-flex flex-wrap align-items-center gap-3"
           data-testid="group-card"
         >
           <span class="choice-icon"><Icon name="users" /></span>
-          <span class="me-auto">
+          <span class="group-name me-auto">
             <strong class="d-block">{{ group.senior_name }}</strong>
             <span class="sl-note"
               >{{ group.member_count }} {{ group.member_count === 1 ? 'member' : 'members' }}</span
             >
           </span>
-          <span v-if="group.unread_count > 0" class="group-unread" data-testid="group-unread"
-            ><span aria-hidden="true">{{ badgeText(group.unread_count) }}</span
-            ><span class="visually-hidden">{{ groupUnreadLabel(group.unread_count) }}</span></span
-          >
-          <button
-            type="button"
-            class="btn btn-outline-primary"
-            :aria-label="`Open ${group.senior_name}’s family group`"
-            @click="openGroup(group.group_id)"
-          >
-            Open
-          </button>
+          <span class="group-actions d-flex align-items-center gap-2 ms-auto">
+            <span v-if="group.unread_count > 0" class="group-unread" data-testid="group-unread"
+              ><Icon name="bell" class="group-unread-icon" aria-hidden="true" /><span
+                aria-hidden="true"
+                >{{ badgeText(group.unread_count) }}</span
+              ><span class="visually-hidden">{{ groupUnreadLabel(group.unread_count) }}</span></span
+            >
+            <button
+              type="button"
+              class="btn btn-outline-primary"
+              :aria-label="`Open ${group.senior_name}’s family group`"
+              @click="openGroup(group.group_id)"
+            >
+              Open
+            </button>
+          </span>
         </li>
       </ul>
     </section>
@@ -264,8 +268,18 @@ function checkAgain() {
   padding: 0.75rem 1rem;
 }
 
+/* The name takes the row; at large text sizes the badge and Open drop below it instead of pushing
+   the card wider than the screen. */
+.group-name {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
 /* The unread badge, in the bell's style (coral, white ring). Its label says the count in words. */
 .group-unread {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
   min-width: 1.5rem;
   height: 1.5rem;
   padding: 0 0.4rem;
@@ -277,6 +291,11 @@ function checkAgain() {
   font-weight: 800;
   line-height: 1.5rem;
   text-align: center;
+}
+
+.group-unread-icon {
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
 .steps {

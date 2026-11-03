@@ -699,10 +699,11 @@ class FamilyCalendarStore:
 
     # ── Asks and notifications (rules in `family_asks`) ──────────────────────
     #
-    # Each opens a write transaction, even to read: open asks whose day has started lapse first
-    # (ADR 0014). Then membership, then the actor (403), then an ended ask (409), then the rest.
-    # Asking, accepting, declining and withdrawing check membership and lock the appointment
-    # before anything lapses or ends an ask (see `_appointment` and `_ask_locked`).
+    # Each opens a write transaction, even to read, because open asks whose day has started lapse
+    # on access (ADR 0014). Asking, accepting, declining and withdrawing check membership, lock the
+    # appointment, and only then lapse due asks (see `_appointment` and `_ask_locked`); then the
+    # actor (403), then an ended ask (409), then the rest. Listing open asks lapses first: it locks
+    # no appointment.
 
     def create_ask(self, sub: str, group_id: str, body: HelperAskRequest) -> HelperAsk:
         try:

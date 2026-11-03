@@ -1267,10 +1267,13 @@ def _race(
         two = threading.Thread(target=run, args=("second", second), name="second")
         two.start()
         time.sleep(0.75)  # long enough for the second request to block on the appointment
+        # Still running here means it is waiting on the first request's lock: the race was real.
+        contended = two.is_alive()
         release.set()
         one.join(20)
         two.join(20)
     assert not one.is_alive() and not two.is_alive(), outcomes
+    assert contended, f"the second request did not wait for the first, so no race ran: {outcomes}"
     return outcomes
 
 

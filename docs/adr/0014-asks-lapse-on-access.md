@@ -15,7 +15,8 @@ withdraws an ask that should already have lapsed. The start is the appointment's
 Singapore time (`local_time.at_local`), so an ask whose appointment moved to a later time on the
 same day lapses at the new start. An ask whose appointment or day is gone is withdrawn instead.
 
-Asking, "I'll go", editing and deleting first lock the appointment row (`FOR UPDATE` on
+Asking, accepting, declining, withdrawing, "I'll go", editing and deleting first lock the
+appointment row (`FOR UPDATE` on
 PostgreSQL; SQLite runs one writer at a time anyway), then lapse. They therefore run one at a time
 per appointment, and an ask cannot open on a day that has just been taken or removed. Taking the
 lock before lapsing, which updates asks in `ask_id` order, keeps the lock order the same on every

@@ -191,7 +191,7 @@ const askable = computed(() => canStillAsk(props.appointment, now.value));
 .ask-pick {
   flex: none;
   min-width: 4rem;
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   font-weight: 700;
 }
 </style>

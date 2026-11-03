@@ -73,6 +73,8 @@ const helperNames = computed(() =>
 const coverage = computed(() => {
   const names = helperNames.value;
   if (names.length === 0 && !needsHelper(props.appointment)) return 'No one needs to go along.';
+  if (names.length === 0 && ask.value?.can_answer)
+    return 'Nobody is going yet. You have been asked.';
   if (names.length === 0 && ask.value) return 'Nobody is going yet. Someone has been asked.';
   if (names.length === 0) return 'Nobody has said they will go yet.';
   if (names.length === 1) return `${names[0]} is going with ${props.elderName}.`;
@@ -416,7 +418,7 @@ async function share() {
 /* The asked member's two answers, side by side and as big as "I'll help". */
 .ask-answer {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: 0.5rem;
 }
 

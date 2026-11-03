@@ -44,14 +44,14 @@ const rows = computed(() =>
     <li
       v-for="row in rows"
       :key="row.member.id"
-      class="list-group-item d-flex align-items-center gap-3 py-3"
+      class="list-group-item d-flex flex-wrap align-items-center gap-3 py-3"
     >
       <MemberAvatar
         :name="row.member.name"
         :colour="row.member.colour"
         :current="row.member.id === currentMemberId"
       />
-      <span class="me-auto">
+      <span class="member-name me-auto">
         <span class="fw-semibold">{{ row.member.name }}</span>
         <span v-if="row.member.id === currentMemberId" class="text-body-secondary"> (you)</span>
         <span class="d-block small text-body-secondary">{{ row.member.relationship }}</span>
@@ -73,6 +73,11 @@ const rows = computed(() =>
   color: var(--sl-sun-deep);
   font-size: 0.875rem;
   font-weight: 700;
-  white-space: nowrap;
+}
+
+/* The name takes the row; at large text sizes the status drops below it rather than being cut off. */
+.member-name {
+  flex: 1 1 7rem;
+  min-width: 0;
 }
 </style>

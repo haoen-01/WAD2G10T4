@@ -275,8 +275,8 @@ Asks lapse when read or written, not on a schedule (ADR 0014): every ask route, 
 editing or deleting an appointment and `GET /v1/me/notifications` first end open asks whose start
 (Singapore time, from the appointment's current start time) has passed. So deleting an appointment
 after its start, or an edit that removes a day that has started, lapses the ask (the asker is told)
-rather than withdrawing it. Asking, `POST .../helpers`, editing and deleting lock the appointment
-row first (`SELECT ... FOR UPDATE` on PostgreSQL), so an ask cannot open on a day someone has just
+rather than withdrawing it. Asking, accepting, declining, withdrawing, `POST .../helpers`, editing
+and deleting lock the appointment row first (`SELECT ... FOR UPDATE` on PostgreSQL), so an ask cannot open on a day someone has just
 taken or removed.
 
 `POST /v1/groups/{group_id}/asks` takes `{occurrence_id, asked_member_id}` and returns the
