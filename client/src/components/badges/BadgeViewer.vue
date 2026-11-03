@@ -356,10 +356,10 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 .viewer-stage.can-drag {
-  cursor: grab;
+  cursor: var(--sl-cur-spin);
 }
 .viewer-stage.is-dragging {
-  cursor: grabbing;
+  cursor: var(--sl-cur-grabbing);
 }
 .viewer-stage {
   position: relative;

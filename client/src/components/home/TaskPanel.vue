@@ -106,7 +106,7 @@ async function remove() {
         v-if="canManage"
         :type="editing === 'new' ? 'submit' : 'button'"
         :form="editing === 'new' ? `${id}-new-task` : undefined"
-        class="btn btn-primary flex-none"
+        class="btn btn-primary flex-none sl-cur-add"
         data-testid="add-task"
         @click="editing === 'new' ? undefined : openForm()"
       >
@@ -294,7 +294,7 @@ async function remove() {
   min-width: 0;
   min-height: 3.5rem;
   padding: 0.6rem 0.85rem;
-  cursor: pointer;
+  cursor: var(--sl-cur-tick);
 }
 
 .task-check:disabled + .task-label {

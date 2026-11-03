@@ -325,7 +325,7 @@ const label = computed(() => {
 }
 
 .cal-chip.movable {
-  cursor: grab;
+  cursor: var(--sl-cur-grab);
   /* A finger drags the appointment instead of scrolling the page. */
   touch-action: none;
 }

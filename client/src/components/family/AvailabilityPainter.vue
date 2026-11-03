@@ -119,7 +119,7 @@ onBeforeUnmount(finish);
 </script>
 
 <template>
-  <div class="painter">
+  <div class="painter" :class="mode === 'available' ? 'paint-free' : 'paint-busy'">
     <div class="painter-bar">
       <div class="mode-toggle" role="group" aria-label="Paint as">
         <button
@@ -365,8 +365,13 @@ onBeforeUnmount(finish);
   border: 1px solid var(--sl-line);
   border-radius: 0.35rem;
   background: var(--sl-surface);
-  cursor: pointer;
+  cursor: var(--sl-cur-free);
   transition: background-color 0.08s ease;
+}
+
+/* The brush matches what painting will do: a green tip for Free, a grey striped one for Busy. */
+.paint-busy .cell {
+  cursor: var(--sl-cur-busy);
 }
 
 /* Not painted by you: a light green the more others are free then, so overlaps show. */
