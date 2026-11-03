@@ -551,13 +551,13 @@ const orbLabel = computed(() => {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  cursor: grab;
+  cursor: var(--sl-cur-kaki);
   touch-action: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 .kaki-orb.is-dragging {
-  cursor: grabbing;
+  cursor: var(--sl-cur-grabbing);
 }
 .kaki-orb:not(.is-dragging) {
   transition: transform 0.35s var(--sl-ease-spring);

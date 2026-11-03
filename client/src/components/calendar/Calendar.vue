@@ -322,7 +322,7 @@ function onTouchEnd(event: TouchEvent) {
 }
 
 .cal-grid.dragging {
-  cursor: grabbing;
+  cursor: var(--sl-cur-grabbing);
   user-select: none;
 }
 

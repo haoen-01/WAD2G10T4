@@ -223,7 +223,7 @@ function onDragEnd(_event: PointerEvent, info: PanInfo) {
   justify-content: center;
   min-height: 3rem;
   padding: 0.7rem 0.5rem 0.4rem;
-  cursor: grab;
+  cursor: var(--sl-cur-grab);
   touch-action: none;
 }
 
