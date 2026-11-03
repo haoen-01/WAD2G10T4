@@ -110,7 +110,7 @@ jobs:
           version: 11.9.0
       # The root package.json is a dependency-free script runner, so this job installs only the
       # API; `pnpm test:postgres` runs pytest in server/ (through `node scripts/run.mjs`).
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - uses: actions/setup-python@v5
