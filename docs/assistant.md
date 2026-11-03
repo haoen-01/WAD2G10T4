@@ -5,7 +5,7 @@ A chat helper on every screen for seniors and their families. Decisions and data
 
 ## Turning on the AI
 
-1. Put the key in the **API's** `.env` (repo root or `apps/api/.env`), never in a `VITE_` variable:
+1. Put the key in the **API's** `.env` (repo root or `server/.env`), never in a `VITE_` variable:
 
    ```bash
    OPENAI_API_KEY=sk-...
@@ -22,8 +22,8 @@ could not be reached) or `safety` (a fixed answer for an emergency or a medicine
 
 | Part                                          | What it does                                                                                                                                       |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api/src/silverloop/assistant.py`        | Safety answers, the built-in helper, the OpenAI call (`httpx`), the instructions, and the fair-use limit.                                          |
-| `apps/api/src/silverloop/assistant_routes.py` | `POST /v1/assistant/chat`: who may ask about whom (`check_reader`), and the facts about the senior.                                                |
+| `server/src/silverloop/assistant.py`          | Safety answers, the built-in helper, the OpenAI call (`httpx`), the instructions, and the fair-use limit.                                          |
+| `server/src/silverloop/assistant_routes.py`   | `POST /v1/assistant/chat`: who may ask about whom (`check_reader`), and the facts about the senior.                                                |
 | `services/careApi.ts` → `askAssistant`        | The only browser call.                                                                                                                             |
 | `composables/useAssistant.ts`                 | The conversation (in memory), mood, unread count, `assistantLookAt`.                                                                               |
 | `composables/useSpeechInput.ts`               | Voice typing with the Web Speech API, and its first-use notice.                                                                                    |

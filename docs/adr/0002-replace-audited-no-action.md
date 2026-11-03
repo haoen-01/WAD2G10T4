@@ -19,7 +19,7 @@ and rendered by `apps/web/components/evidence-view.tsx`).
 Measured before this change, `silverloop` scored 24/24 (100%) on M4 in **every arm of both
 scenario sets** (core capped, core uncapped, holdout capped, holdout uncapped, and every gate
 ablation). That is not a finding, it is a tautology: `silverloop.policy.decide`
-(`apps/api/src/silverloop/policy.py`) attaches a rationale on every branch and
+(`server/src/silverloop/policy.py`) attaches a rationale on every branch and
 `quality_evidence_id` comes from `signal.quality.evidence_id`, which `analyse_signal` populates
 unconditionally, independent of which policy is folded over the step or what that policy decided.
 The predicate cannot fail for Care+ by construction. For the two baselines, the harness
@@ -223,7 +223,7 @@ needed help, on either scenario set.
   the old field name breaks (none exists outside this repo; the two similarly-named product tests
   `test_stale_programme_fixture_becomes_audited_no_action` and
   `test_when_every_candidate_is_suppressed_the_result_is_an_audited_no_action` in
-  `apps/api/tests/` test the _product's_ audit-trail invariant, not this metric, and are
+  `server/tests/` test the _product's_ audit-trail invariant, not this metric, and are
   unaffected).
 - `docs/evaluation/policy-comparison.{json,md}` schema version bumped 2 -> 3 (new/renamed keys);
   regenerated and committed by this change (`pnpm evaluate` / `uv run python -m
@@ -244,7 +244,7 @@ silverloop.evaluation ../../scenarios --out ../../docs/evaluation`).
   is large enough to report honestly, and -- unlike M10 -- it is defined for all three policies,
   so it fits the existing one-bar-per-policy layout without inventing a number for baselines that
   have no gate ablation. `UI_TERMS.unsupportedRestraint` ("Unsupported restraint") was added; the
-  existing `correctNoAction` term is kept for the Technical-details table. No `apps/e2e` test
+  existing `correctNoAction` term is kept for the Technical-details table. No `e2e` test
   asserted on the removed "Correct no-action" headline text (checked directly).**
 
 - `docs/testing.md` updated to describe M7-M10, to state plainly that M4 and M9 are both logging

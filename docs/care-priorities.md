@@ -249,7 +249,7 @@ The caregiver brief explicitly asked for a priority ranking, so the board now or
 | Contract | `models.py`: `FollowUpWindow`, `PriorityHold`, `CareNote`, `CareTeamGroup`, `CareTeamGroupReason`, `CarePriorityRow`, `CarePriorityBoard`, `ThresholdReference` |
 | Data     | `sql_repository.py`: `care_priorities`, `_care_context`, `_with_recorded_decision`, `_runs_with_open_threshold_proposal` (one query)                            |
 | API      | `GET /v1/coordinator/priorities?top_k=3` (1-10, default 3); see `docs/api.md`                                                                                   |
-| Client   | `libs/api-client`: `coordinatorPriorities(topK)` (generated from `openapi/silverloop.json`)                                                                     |
+| Client   | `client/src/api-client`: `coordinatorPriorities(topK)` (generated from `openapi/silverloop.json`)                                                               |
 | Web      | `apps/web/components/silverloop/care-priority-board.tsx` (`FollowUpFirstCard`, `CaseloadPriorityList`), wired in `care-team-view.tsx`                           |
 | Labels   | `apps/web/lib/view-models.ts`: `carePriorityLabel`, `carePriorityTone`, `CARE_PRIORITY_GROUPS`                                                                  |
 
@@ -273,7 +273,7 @@ board reads it through the recorded decision and needed no change.)
   a case with no recorded day, and group/window agreement across a grid of gates, case states, review
   days and open offers. It also walks a decline through the repository: waiting, judgement,
   monitoring after acknowledgement, then judgement again on the review day.
-- **`apps/api/tests/test_auth_rbac.py`:** coordinator 200; senior and demo operator 403.
+- **`server/tests/test_auth_rbac.py`:** coordinator 200; senior and demo operator 403.
 - **`apps/e2e/tests/product-loop.spec.ts`, "care team leads with who to follow up with first, within
   the policy":**
   - the boundary note;

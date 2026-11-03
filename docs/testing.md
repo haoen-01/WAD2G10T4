@@ -5,7 +5,8 @@
 `pnpm verify` runs formatting, linting, TypeScript/Python checks, unit/API tests, Playwright
 browser/API tests, YAML safety scenarios and production builds. GitHub Actions installs pinned
 Chromium and runs the same categories on pushes and pull requests. Since PR #62 the CI `verify` job runs
-`pnpm test` with `NX_PARALLEL=1`, one test target at a time, because running the API suite at the same
+one test target at a time (`pnpm test` now runs the API suite, the web unit tests and the browser
+suite one after another), because running the API suite at the same
 time as the browser suite starved the e2e dev server on a hosted runner. The job timeout is 30 minutes,
 and Playwright results are uploaded when the job fails or is cancelled.
 
@@ -13,7 +14,7 @@ A separate `postgres-integration` CI job starts a disposable PostgreSQL 17 servi
 `pnpm test:postgres`. Local execution requires `SILVERLOOP_POSTGRES_TEST_URL`; the database name must
 contain `test`, which prevents the test from targeting the normal Supabase `postgres` database.
 
-`apps/api/tests/test_query_counts.py` pins how many SQL statements each person read issues (the
+`server/tests/test_query_counts.py` pins how many SQL statements each person read issues (the
 senior's `/state`, and the metrics and world model `repository.metrics()` assembles). Against the
 shared database each statement is a round trip to the pooler, so query count drives latency. Every
 read must stay within its ceiling in `_CEILINGS`, measured on six people with 23 days of history,
@@ -24,12 +25,12 @@ round trips but do not time them. (The coordinator caseload reads it also measur
 routes in step 7.)
 
 Engine and pool options for a server database (`_engine_options`) are covered in
-`apps/api/tests/test_engine_options.py`. That test builds the engine without connecting to a
+`server/tests/test_engine_options.py`. That test builds the engine without connecting to a
 database.
 
 ## Browser and web unit tests
 
-The Playwright suite in `apps/e2e/tests/` drives the real Vue app against the real API (SQLite,
+The Playwright suite in `e2e/tests/` drives the real Vue app against the real API (SQLite,
 fixture adapters, `LLM_ENABLED=false`). Each file covers one area:
 
 - `loop.spec.ts` — the watch status on Home; a simulated decline (played straight through the API,
@@ -62,7 +63,7 @@ fixture adapters, `LLM_ENABLED=false`). Each file covers one area:
 - `sign-in-look.spec.ts` — no horizontal overflow on the sign-in and onboarding screens at 375px,
   and large "who is signing in" choices.
 
-Web unit tests (`node:test` over `apps/web/src/lib/*.test.ts`, `pnpm --filter ./apps/web test`)
+Web unit tests (`node:test` over `client/src/lib/*.test.ts`, `pnpm --dir client test`)
 cover the pure logic behind the screens: activity, calendar, coverage, family (including the
 temporary-id helpers for availability saves), the family feed's sentences and state, appointment
 notes, the week strip, motion tokens, PIN countdowns, holidays, ICS export, planner, tasks and daily
@@ -80,7 +81,7 @@ none are committed.
 ## The response clock
 
 An offer nobody answers is closed as `no_response` two simulated days after it was made (see
-`docs/api.md`, "Silence resolves itself"). `apps/api/tests/test_response_clock.py` pins it at the
+`docs/api.md`, "Silence resolves itself"). `server/tests/test_response_clock.py` pins it at the
 contract: open inside the window with `awaiting_reply_until` stated; closed once the window
 passes; a recorded answer never overwritten; withdrawn offers never counted as silence; a replayed
 `event_id` never resolving twice; the audit event by `system` naming `resolved_by`; the candidate
@@ -143,7 +144,7 @@ ever raising a decision rung. (The follow-through, follow-up, enjoyment, mute an
 routes, and `test_follow_through_ownership.py` with them, went in step 7; a mute or a dispute
 `advance` still reads is written as a row through `tests/row_fixtures.py`.)
 
-**Browser.** `apps/e2e/tests/loop.spec.ts` drives the real Vue app against the real API (SQLite,
+**Browser.** `e2e/tests/loop.spec.ts` drives the real Vue app against the real API (SQLite,
 fixtures, sign-in off). The follow-through screens tested by the former browser specs are not part
 of the current web app; the API behaviour above is still covered by the API tests.
 

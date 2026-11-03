@@ -6,7 +6,7 @@
 - Interactive controls have accessible names, visible focus styles and a minimum 44-pixel height.
 - Desktop routes have no horizontal overflow.
 - All four product routes pass at a 390 × 844 Chromium viewport without horizontal overflow
-  (`apps/e2e/tests/responsive.spec.ts`).
+  (`e2e/tests/responsive.spec.ts`).
 - Senior view contains no numeric risk/confidence score and exposes accept, decline, defer,
   no-response and opt-out paths in plain language.
 - Accepting a suggestion shows the actual content behind it -- movement steps or programme details
@@ -24,7 +24,7 @@
   Undo), Escape, the close button and the backdrop close it, focus returns to what opened it, and
   the page behind it neither scrolls nor takes focus.
 - The senior and sign-in screens never load the motion chunk (check the network panel).
-- Asking a helper (`apps/e2e/tests/asks.spec.ts`): "Ask someone" sits beside "I'll go" / "I'll help"
+- Asking a helper (`e2e/tests/asks.spec.ts`): "Ask someone" sits beside "I'll go" / "I'll help"
   on a day that needs a helper and nobody is asked; it opens in place, Escape closes it. An asked
   day keeps counting as needing a helper but shows an amber "Asked Emily · waiting" tag (calendar
   card and details, month grid and week strip marker, Home's needs list, week ahead and day

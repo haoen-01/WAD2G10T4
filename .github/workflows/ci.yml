@@ -43,6 +43,10 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+          # client/ and e2e/ are separate installs, each with its own lockfile.
+          cache-dependency-path: |
+            client/pnpm-lock.yaml
+            e2e/pnpm-lock.yaml
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
@@ -51,27 +55,31 @@ jobs:
           version: '0.12.5'
           enable-cache: true
       - run: pnpm install --frozen-lockfile
+        working-directory: client
+      - run: pnpm install --frozen-lockfile
+        working-directory: e2e
       - run: pnpm exec playwright install --with-deps chromium
+        working-directory: e2e
       - run: uv sync --frozen
-        working-directory: apps/api
+        working-directory: server
       - run: pnpm format:check
       - run: pnpm client:check
       - run: pnpm lint
       - run: pnpm typecheck
-      # One test target at a time. Run concurrently, the CPU-bound API suite starves the browser
-      # suite's dev server, API and Chromium on a small runner, and e2e tests fail on timing
-      # (swallowed clicks, closed browser sessions, dropped API sockets) rather than on behaviour.
+      # `pnpm test` runs the API suite, the web unit tests and the browser suite one after another,
+      # each even if an earlier one failed, so a failing API test still leaves Playwright results.
+      # Run concurrently, the CPU-bound API suite starves the browser suite's dev server, API and
+      # Chromium on a small runner, and e2e tests fail on timing (swallowed clicks, closed browser
+      # sessions, dropped API sockets) rather than on behaviour.
       - run: pnpm test
-        env:
-          NX_PARALLEL: 1
       # A failing browser test is only diagnosable from its trace, screenshot and video.
       - uses: actions/upload-artifact@v7
         if: failure() || cancelled()
         with:
           name: playwright-results
           path: |
-            .nx/playwright-results
-            .nx/playwright-report
+            e2e/test-results
+            e2e/playwright-report
           retention-days: 7
           if-no-files-found: ignore
       - run: pnpm test:scenarios
@@ -100,10 +108,11 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 11.9.0
+      # The root package.json is a dependency-free script runner, so this job installs only the
+      # API; `pnpm test:postgres` runs pytest in server/ (through `node scripts/run.mjs`).
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -111,7 +120,6 @@ jobs:
         with:
           version: '0.12.5'
           enable-cache: true
-      - run: pnpm install --frozen-lockfile
       - run: uv sync --frozen
-        working-directory: apps/api
+        working-directory: server
       - run: pnpm test:postgres
