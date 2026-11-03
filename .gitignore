@@ -15,15 +15,25 @@ Thumbs.db
 *.pem
 *.key
 
-# Node / pnpm / Nx
+# Node / pnpm (client/ and e2e/ are separate installs, each with its own committed lockfile)
 node_modules/
 .pnpm-store/
+# The root package.json only runs scripts and has no dependencies. pnpm 11 still writes an empty
+# lockfile (and node_modules/) here the first time a root script runs; it is not used.
+/pnpm-lock.yaml
+# pnpm 11 writes this here when it blocks a build script (e.g. Nx left in an old root node_modules).
+# It would make client/ and e2e/ part of one root workspace, so it must never be committed.
+/pnpm-workspace.yaml
+# Task cache from the former Nx setup; existing checkouts may still have one.
 .nx/
 dist/
 build/
 out/
 coverage/
 *.tsbuildinfo
+# Playwright traces, screenshots, videos and the HTML report (e2e/playwright.config.ts)
+test-results/
+playwright-report/
 
 # Python
 __pycache__/
@@ -47,7 +57,7 @@ htmlcov/
 .local-data/
 
 # Generated API contract artifacts are committed and checked for staleness in CI
-apps/api/openapi.json
+server/openapi.json
 
 # Private/raw wearable exports and interview material
 data/private/

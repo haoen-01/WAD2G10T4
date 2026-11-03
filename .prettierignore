@@ -1,12 +1,11 @@
 .agents
-.nx
 .venv
 coverage
 dist
 node_modules
 pnpm-lock.yaml
-libs/api-client/src/generated
-apps/api/openapi.json
+client/src/api-client/generated
+server/openapi.json
 openapi/silverloop.json
 # Vendored third-party skill content - keep byte-identical to upstream
 .agents/skills

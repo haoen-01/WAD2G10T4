@@ -1,0 +1,37 @@
+{
+  "name": "@silverloop/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "node scripts/typecheck.mjs && tsc --noEmit -p tsconfig.api-client.json",
+    "test": "node --import ./scripts/resolve-ts.mjs --test src/lib/*.test.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "@vueuse/core": "14.4.0",
+    "axios": "1.12.2",
+    "bootstrap": "5.3.8",
+    "maplibre-gl": "6.13.0",
+    "motion-v": "2.6.0",
+    "vue": "3.5.43",
+    "vue-router": "4.6.4"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "@types/node": "26.2.0",
+    "@vitejs/plugin-vue": "6.0.9",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "vite": "8.3.0",
+    "vue-tsc": "3.3.11"
+  }
+}

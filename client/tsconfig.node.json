@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "incremental": false,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "paths": { "@silverloop/api-client": ["./src/api-client/index.ts"] }
+  },
+  "include": ["vite.config.ts", "src/**/*.test.ts"]
+}

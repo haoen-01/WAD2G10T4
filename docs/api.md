@@ -2,16 +2,16 @@
 
 Pydantic response and request models are the cross-language source of truth. The committed OpenAPI
 snapshot lives at `openapi/silverloop.json`, and the generated TypeScript SDK lives at
-`libs/api-client/src/generated`.
+`client/src/api-client/generated`.
 
 After changing a Pydantic contract, run `pnpm client:generate`. `pnpm client:check` regenerates both
 artifacts and fails when either differs from the committed files. CI runs that check before linting,
-type checking and tests. `libs/api-client/src/index.ts` is only a small convenience facade around
+type checking and tests. `client/src/api-client/index.ts` is only a small convenience facade around
 the generated SDK; it contains no handwritten copies of API model types.
 
 ## What the web app uses
 
-The web app calls only the routes in `apps/web/src/services/careApi.ts`, plus `/v1/auth/me` at
+The web app calls only the routes in `client/src/services/careApi.ts`, plus `/v1/auth/me` at
 sign-in: person state and metrics, interventions and their outcomes, and every route under
 [Accounts, family groups and the calendar](#accounts-family-groups-and-the-calendar). The e2e suite
 also calls `POST /v1/demo/reset` and `POST /v1/simulation/advance`.

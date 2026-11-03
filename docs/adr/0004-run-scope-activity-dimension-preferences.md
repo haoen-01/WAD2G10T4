@@ -216,7 +216,7 @@ here as unnecessary complexity -- would need to be revisited.
 
 ## Evidence gathered
 
-- `apps/api/alembic/versions/c2f4a8d1e6b7_add_activity_responses_and_preference_expiry.py` is the
+- `server/alembic/versions/c2f4a8d1e6b7_add_activity_responses_and_preference_expiry.py` is the
   verified current head; `c2725d7de5df` sets `down_revision = "c2f4a8d1e6b7"`.
 - `preferences.py` grepped for `source=`: only `"decline_reason"` (line 306) and `_ENJOYMENT_SOURCE`
   (line 450) are ever written by `apply_decline`/`apply_enjoyment`; `senior_statement` is written
@@ -230,7 +230,7 @@ here as unnecessary complexity -- would need to be revisited.
   (`apps/api/tests/test_activity_responses.py`): written and confirmed failing against the
   `run_id = null`-for-all-`senior_statement` version of this change (the statement reappeared after
   reset), then confirmed passing once time-boxed rows were run-scoped.
-- `uv run pytest` (apps/api): 929 passed, 8 skipped (Postgres-only, no local Postgres), 0 failed,
+- `uv run pytest` (server): 929 passed, 8 skipped (Postgres-only, no local Postgres), 0 failed,
   after this change, the resurrection-bug fix, the architecture-review backfill/world-model fixes
   and their tests.
 - `uv run ruff check .` / `uv run ruff format --check .`: clean.
@@ -239,7 +239,7 @@ here as unnecessary complexity -- would need to be revisited.
 - Manual `alembic upgrade head` / `alembic downgrade -1` round-trip against a fresh SQLite file
   confirmed the new revision applies and reverses cleanly, and `PRAGMA foreign_key_list` /
   `PRAGMA index_list` confirmed the FK and index land as written.
-- `apps/api/tests/test_supabase_mirror.py` (30 tests) passes unchanged against the new mirror file,
+- `server/tests/test_supabase_mirror.py` (30 tests) passes unchanged against the new mirror file,
   including the "newest mirror bumps `alembic_version` to the current head" check.
 - Architecture review of the integrated branch found that a version of this migration without a
   data step left every existing row `run_id = null`, and that a version of `_preference_inactive`
@@ -259,7 +259,7 @@ here as unnecessary complexity -- would need to be revisited.
   one every time a reset retires a run with an inferred belief in it, shown to the senior as "N
   expired and excluded" (`apps/web/components/silverloop/personal-world-model.tsx`), contradicting
   this ADR's own claim that the world model is unaffected. `test_expired_excluded_does_not_grow_across_resets`
-  (`apps/api/tests/test_world_model.py`) pins the count staying flat across three
+  (`server/tests/test_world_model.py`) pins the count staying flat across three
   decline-then-reset cycles.
 
 ## Amendment (2026-09-13): `week_plan_entries` is run-scoped too
@@ -295,8 +295,8 @@ Resolved the way the rest of the ADR resolves it:
 The rows themselves are still never deleted; they belong to the story that made them.
 `WeekPlanEntryRow`'s docstring now says so.
 
-Pinned by `apps/api/tests/test_stale_run_boundary.py` (week-plan section: invisible after reset,
+Pinned by `server/tests/test_stale_run_boundary.py` (week-plan section: invisible after reset,
 404 on follow-through and enjoyment, preferences unmoved, the same choice re-plannable in the new
-run, a same-run plan unaffected) and `apps/api/tests/test_week_plan_run_scope_migration.py` (the
+run, a same-run plan unaffected) and `server/tests/test_week_plan_run_scope_migration.py` (the
 old key rejects the live run's insert, the migration widens it without disturbing existing rows,
 within-run duplicates are still rejected, the downgrade narrows it back).

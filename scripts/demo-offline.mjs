@@ -1,15 +1,23 @@
 // Starts the API (SQLite, fixture data, no LLM, sign-in off) and the web app together, with no
 // credentials: http://127.0.0.1:3000 for the app, http://127.0.0.1:8000 for the API.
 //
-// This is a Node script rather than `VAR=value nx ...` in package.json because that syntax fails
-// in the default Windows shell.
+// This is a Node script rather than `VAR=value node ...` in package.json because that syntax fails
+// in the default Windows shell. It sets the offline environment and runs `scripts/dev.mjs` (the
+// same runner as `pnpm dev`), which starts the web app from client/ and the API from server/.
 //
-// Before starting, it checks the two things that most often stop a first run, and says how to fix
-// them in plain words, instead of leaving Nx to show only a red cross next to `api:dev`:
-//   1. `uv` (the Python tool the API runs through) must be installed and on the PATH.
-//   2. The API's Python packages must be installed. If they are missing, it runs `uv sync` itself.
+// Before starting, it checks the things that most often stop a first run, and says how to fix
+// them in plain words, instead of leaving only a failed `api` line to read:
+//   1. The web app's JavaScript packages must be installed (client/node_modules).
+//   2. `uv` (the Python tool the API runs through) must be installed and on the PATH.
+//   3. The API's Python packages must be installed. If they are missing, it runs `uv sync` itself.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const clientDirectory = join(repoRoot, 'client');
+const serverDirectory = join(repoRoot, 'server');
 
 function stop(lines) {
   console.error(`\n${lines.join('\n')}\n`);
@@ -24,11 +32,11 @@ if (nodeMajor !== 24) {
   );
 }
 
-if (!existsSync('node_modules')) {
+if (!existsSync(join(clientDirectory, 'node_modules'))) {
   stop([
-    'The JavaScript packages are not installed yet.',
+    'The web app’s JavaScript packages are not installed yet.',
     'Run this from the project folder, then try again:',
-    '  pnpm install',
+    '  pnpm --dir client install',
   ]);
 }
 
@@ -42,44 +50,35 @@ if (uv.status !== 0) {
   ]);
 }
 
-if (!existsSync('apps/api/.venv')) {
+if (!existsSync(join(serverDirectory, '.venv'))) {
   console.log('Installing the API’s Python packages (first run only, about a minute)…');
-  const sync = spawnSync('uv', ['sync'], { cwd: 'apps/api', stdio: 'inherit', shell: true });
+  const sync = spawnSync('uv', ['sync'], { cwd: serverDirectory, stdio: 'inherit', shell: true });
   if (sync.status !== 0) {
     stop([
       'Installing the API’s Python packages failed (see the message above).',
       'If it says Python 3.13 is missing, run these and try again:',
-      '  cd apps/api',
+      '  cd server',
       '  uv python install 3.13',
       '  uv sync',
     ]);
   }
 }
 
-// SQLite will not create the folder for its own file, and the API runs from apps/api.
-mkdirSync('apps/api/.demo', { recursive: true });
+// SQLite will not create the folder for its own file, and the API runs from server/.
+mkdirSync(join(serverDirectory, '.demo'), { recursive: true });
 
-const child = spawn(
-  'pnpm',
-  ['exec', 'nx', 'run-many', '-t', 'dev', '--projects=web,api', '--parallel=2'],
-  {
-    stdio: 'inherit',
-    shell: true,
-    env: {
-      ...process.env,
-      // Plain scrolling logs instead of Nx's full-screen view, so an error is printed where you
-      // can read and copy it, and no background Nx daemon (it can stall in OneDrive folders).
-      NX_TUI: 'false',
-      NX_DAEMON: 'false',
-      CAREPLUS_RUNTIME_PROFILE: 'offline',
-      SILVERLOOP_RUNTIME_PROFILE: 'offline',
-      DATABASE_URL: 'sqlite+pysqlite:///./.demo/silverloop.db',
-      ADAPTER_MODE: 'fixture',
-      LLM_ENABLED: 'false',
-      AUTH_ENABLED: 'false',
-      VITE_AUTH_ENABLED: 'false',
-    },
+const child = spawn(process.execPath, [join(repoRoot, 'scripts', 'dev.mjs')], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    CAREPLUS_RUNTIME_PROFILE: 'offline',
+    SILVERLOOP_RUNTIME_PROFILE: 'offline',
+    DATABASE_URL: 'sqlite+pysqlite:///./.demo/silverloop.db',
+    ADAPTER_MODE: 'fixture',
+    LLM_ENABLED: 'false',
+    AUTH_ENABLED: 'false',
+    VITE_AUTH_ENABLED: 'false',
   },
-);
+});
 
 child.on('exit', (code) => process.exit(code ?? 1));

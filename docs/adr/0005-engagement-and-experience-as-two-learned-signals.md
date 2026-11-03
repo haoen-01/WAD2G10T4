@@ -5,7 +5,7 @@ now.
 
 ## Context
 
-`learning.PreferenceLearner` (`apps/api/src/silverloop/learning.py`) is the Beta-Bernoulli learner
+`learning.PreferenceLearner` (`server/src/silverloop/learning.py`) is the Beta-Bernoulli learner
 that ranks outreach candidates (`GENTLE_NUDGE`/`PROGRAMME_SUGGESTION`) `policy.py` has already
 permitted. Before this change it kept exactly one posterior per candidate key, folded from
 whichever report was most informative: `enjoyment` (`enjoyed`/`okay`/`not_for_me`) superseded
@@ -71,7 +71,7 @@ standard way to represent "we don't know" everywhere else in this module (`defer
 ## Evidence gathered
 
 All computed with the actual (post-change) `PreferenceLearner`; see
-`apps/api/tests/test_learning_weights.py::test_reliable_but_lukewarm_attendance_can_outrank_rare_but_loved_attendance`
+`server/tests/test_learning_weights.py::test_reliable_but_lukewarm_attendance_can_outrank_rare_but_loved_attendance`
 for the pinned, executable version of this exact scenario.
 
 **The chair-exercise / gardening example from the ticket.** Chair exercise offered and completed
@@ -134,7 +134,7 @@ previously enforced anywhere.
   (re-run and diffed empty). That benchmark scores `activity_search`'s dimensional preference
   learner (`preferences.py`'s `apply_decline`/`apply_enjoyment`/`dimension_score`), a separate
   learner for the user-initiated activity-search surface, not `learning.PreferenceLearner`.
-- **`apps/api/tests/test_persistence.py::test_state_and_outcomes_survive_repository_restart`**:
+- **`server/tests/test_persistence.py::test_state_and_outcomes_survive_repository_restart`**:
   the hardcoded assertion `scores["gentle_nudge"] > 0.5` failed, because a bare `accepted` outcome
   with no follow-through now combines weak ENGAGEMENT evidence (`0.25, 0.0` -> 0.556) with a still
   entirely-unreported EXPERIENCE factor (0.5 default) to give 0.278, below the old single-posterior
@@ -231,7 +231,7 @@ Scope, stated precisely: this bounds a _single_ real observation against _no_ ob
 case named above and pinned by
 `test_social_nudge_cannot_override_a_single_real_acceptance`/
 `test_social_nudge_cannot_lift_a_single_real_decline_to_the_top`
-(`apps/api/tests/test_agent_integration.py`). It does not, and does not claim to, bound two
+(`server/tests/test_agent_integration.py`). It does not, and does not claim to, bound two
 candidates that have each accumulated a long, nearly-tied history -- breaking that near-tie is
 what this nudge exists for.
 
@@ -264,7 +264,7 @@ the number driving the visible order (`personal-world-model.tsx`'s own sort, and
 implicit ranking), which is a worse mismatch for an evaluator trying to read "why is X above Y"
 from the percentages than a relabelled, honestly-scaled combined number is. This is the evaluator
 surface (`/evidence`), not the senior one; the senior surface (`senior-view.tsx` and siblings)
-shows no scores, percentages or deadlines today and this change adds none. `apps/e2e` was grepped
+shows no scores, percentages or deadlines today and this change adds none. `e2e` was grepped
 for any assertion on this card's text or percentages (`preference learning`, `already-permitted`,
 `expected fit`, `%`) -- none exist, so nothing there needed updating. `pnpm install
 --frozen-lockfile`, `web:typecheck` and `web:lint` all pass with no other changes required (no

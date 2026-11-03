@@ -48,7 +48,8 @@ Claude) may help write a change, but commits may not be authored, committed or c
 Claude: no `Claude` / `@anthropic.com` identity, no `Co-Authored-By: Claude…`, `Claude-Session:` or
 "Generated with Claude Code" lines.
 
-- `pnpm install` and `pnpm setup` point git at `.githooks/`, whose `commit-msg` hook rejects such
+- `pnpm run setup` (and the root `prepare` script, which pnpm runs before the first root `pnpm`
+  script) point git at `.githooks/`, whose `commit-msg` hook rejects such
   commits. If yours is rejected, set your identity and retry:
   `git config user.name "Your Name" && git config user.email "you@example.com"`.
 - CI's `commit-attribution` job checks every commit in a push or pull request with the same rules
