@@ -5,13 +5,19 @@
  * light. Panels placed in the slot (`.sl-panel`) get the frosted card look used on the family
  * screens.
  */
-defineProps<{ title: string; lead?: string; width?: 'narrow' | 'medium' | 'wide' }>();
+defineProps<{
+  title: string;
+  lead?: string;
+  width?: 'narrow' | 'medium' | 'wide';
+  /** 2 when something above already has the page's h1 (the landing story on `/login`). */
+  level?: 1 | 2;
+}>();
 </script>
 
 <template>
   <div class="auth-shell" :class="`auth-${width ?? 'medium'}`">
     <header class="auth-head">
-      <h1>{{ title }}</h1>
+      <component :is="level === 2 ? 'h2' : 'h1'" class="auth-title">{{ title }}</component>
       <p v-if="lead" class="auth-lead">{{ lead }}</p>
     </header>
     <slot />
@@ -54,8 +60,9 @@ defineProps<{ title: string; lead?: string; width?: 'narrow' | 'medium' | 'wide'
   }
 }
 
-.auth-head h1 {
+.auth-title {
   margin: 0;
+  font-family: 'Bricolage Grotesque', var(--bs-body-font-family);
   font-size: clamp(1.75rem, 6vw, 2.6rem);
   font-weight: 800;
   letter-spacing: -0.01em;
