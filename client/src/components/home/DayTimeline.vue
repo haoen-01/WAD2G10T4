@@ -16,6 +16,7 @@ import { showToast } from '@/composables/useToast';
 import { addDays, todayIso } from '@/lib/calendar';
 import { stillNeedsHelper } from '@/lib/coverage';
 import {
+  appointmentRoom,
   clockToMinutes,
   dayRecord,
   daySummary,
@@ -240,16 +241,21 @@ const LANES: { lane: TimelineLane; label: string }[] = [
 ];
 const inLane = (lane: TimelineLane) => moments.value.filter((moment) => moment.lane === lane);
 
-/** Late in the day there is no room after the bar, so the name goes before it instead. */
-function titleBefore(moment: TimelineMoment): boolean {
-  return positionOf(moment.end ?? moment.start, range.value) > 0.8;
-}
-
+/**
+ * An appointment is one pill from its start: at least as long as the appointment, grown to fit its
+ * icon and name, but never past the next appointment or the end of the day (its name then ends in
+ * "…"; the whole name is in its tooltip, label and details).
+ */
 function markerStyle(moment: TimelineMoment) {
   const left = positionOf(moment.start, range.value) * 100;
   if (moment.end === undefined) return { left: `${left}%` };
   const right = positionOf(moment.end, range.value) * 100;
-  return { left: `${left}%`, width: `${Math.max(right - left, 1.5)}%` };
+  const room = positionOf(appointmentRoom(moment, moments.value, range.value), range.value) * 100;
+  return {
+    left: `${left}%`,
+    minWidth: `${Math.max(right - left, 1.5)}%`,
+    maxWidth: `${Math.max(room - left, right - left, 1.5)}%`,
+  };
 }
 
 function markerLabel(moment: TimelineMoment): string {
@@ -505,12 +511,9 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
                 >!</span
               >
             </span>
-            <span
-              v-if="moment.lane === 'appointment'"
-              class="marker-title"
-              :class="{ before: titleBefore(moment) }"
-              >{{ moment.title }}</span
-            >
+            <span v-if="moment.lane === 'appointment'" class="marker-title">{{
+              moment.title
+            }}</span>
           </button>
         </div>
 
@@ -851,10 +854,13 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   background: transparent;
 }
 
-/* Appointments are bars as long as the appointment, starting at their start time. */
+/* Appointments are pills from their start time, at least as long as the appointment, holding its
+   icon, who is going and its name (sized in `markerStyle`). */
 .marker-appointment {
   justify-content: flex-start;
-  padding: 0 0.35rem;
+  width: max-content;
+  overflow: hidden;
+  padding: 0 0.6rem 0 0.35rem;
   border-color: var(--kind);
   border-radius: 0.55rem;
   background: color-mix(in srgb, var(--kind) 12%, var(--sl-surface));
@@ -892,11 +898,14 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   font-weight: 900;
 }
 
-/* An appointment's name sits just after its bar, so a short one keeps its true length. */
+.marker-appointment > :deep(svg),
+.marker-people {
+  flex: none;
+}
+
+/* The appointment's name, inside its pill; "…" when the pill has no more room. */
 .marker-title {
-  position: absolute;
-  left: calc(100% + 0.4rem);
-  max-width: 11rem;
+  min-width: 0;
   overflow: hidden;
   color: var(--sl-ink);
   font-size: 0.78rem;
@@ -904,12 +913,6 @@ const iconOf = (moment: TimelineMoment) => moment.icon as IconName;
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
-}
-
-.marker-title.before {
-  right: calc(100% + 0.4rem);
-  left: auto;
-  text-align: right;
 }
 
 .marker.focused {

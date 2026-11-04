@@ -4,7 +4,6 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 import ErrorAlert from '@/components/ErrorAlert.vue';
 import BadgeShelf from '@/components/badges/BadgeShelf.vue';
 import SeniorCalendar from '@/components/calendar/SeniorCalendar.vue';
-import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import SeniorTaskList from '@/components/senior/SeniorTaskList.vue';
 import LinkFamily from '@/components/senior/LinkFamily.vue';
 import MyFamily from '@/components/senior/MyFamily.vue';
@@ -131,7 +130,6 @@ async function seeCalendar() {
     <div v-if="loading">
       <p class="visually-hidden" role="status">Loading your day…</p>
       <div class="senior-head sl-hero-field" aria-hidden="true">
-        <span class="sl-skeleton sk-avatar"></span>
         <div class="senior-head-text flex-grow-1">
           <span class="sl-skeleton sk-date"></span>
           <span class="sl-skeleton sk-title"></span>
@@ -147,7 +145,6 @@ async function seeCalendar() {
     <template v-else-if="person">
       <header class="senior-head sl-hero-field">
         <span class="senior-blob" aria-hidden="true"></span>
-        <MemberAvatar :name="person.display_name" colour="senior" size="xl" class="senior-avatar" />
         <div class="senior-head-text">
           <p class="senior-date">{{ formatIsoDay(today, { style: 'long' }) }}</p>
           <h1 class="senior-title">{{ greetingFor(now.getHours()) }}, {{ person.display_name }}</h1>
@@ -297,12 +294,6 @@ async function seeCalendar() {
     padding: 2rem 2.25rem;
   }
 }
-.sk-avatar {
-  flex: none;
-  width: 5.5rem;
-  height: 5.5rem;
-  border-radius: 50%;
-}
 .sk-date {
   width: min(14rem, 60%);
   height: 1.2rem;
@@ -324,8 +315,8 @@ async function seeCalendar() {
 .senior-head-text {
   min-width: 0;
 }
-/* Phones: the avatar sits above the greeting, so the greeting has the field's full width and its
-   words never break (150% zoom included). */
+/* Phones: the date sits above the greeting, which takes the field's full width and a size at
+   which its words never break (150% zoom included). */
 @media (max-width: 575.98px) {
   .senior-head {
     flex-direction: column;
@@ -334,11 +325,6 @@ async function seeCalendar() {
   }
   .senior-head .senior-title {
     font-size: 1.85rem;
-  }
-  .senior-head .senior-avatar {
-    width: 4rem;
-    height: 4rem;
-    font-size: 1.4rem;
   }
 }
 .senior-date {

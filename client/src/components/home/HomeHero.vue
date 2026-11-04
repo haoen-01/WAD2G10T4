@@ -209,13 +209,6 @@ watch(() => [props.loading, props.person] as const, markEntered);
         :now="now"
       />
     </div>
-
-    <!-- The torn-paper edge into the page below. Decoration only. -->
-    <svg class="hero-tear" viewBox="0 0 1440 40" preserveAspectRatio="none" aria-hidden="true">
-      <path
-        d="M0 40V22l38-6 31 9 44-11 29 8 52-12 23 10 47-7 36 9 41-13 28 11 55-8 33 7 46-10 24 8 39-5 50 9 27-12 44 7 31-6 49 10 36-9 28 6 53-11 30 10 41-7 35 9 47-12 26 8 50-6 33 10 45-9 29 7 38-8L1440 20V40z"
-      />
-    </svg>
   </header>
 </template>
 
@@ -248,7 +241,7 @@ watch(() => [props.loading, props.person] as const, markEntered);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
-  padding: 2.5rem 0 4.5rem;
+  padding: 2.5rem 0;
   background: var(--ed-plum);
   box-shadow: 0 0 0 100vmax var(--ed-plum);
   clip-path: inset(0 -100vmax);
@@ -270,7 +263,7 @@ watch(() => [props.loading, props.person] as const, markEntered);
     align-items: center;
     gap: 2rem;
     min-height: 34rem;
-    padding: 3.5rem 0 6rem;
+    padding: 3.5rem 0;
   }
 
   .hero--solo {
@@ -483,16 +476,6 @@ watch(() => [props.loading, props.person] as const, markEntered);
 
 .hero :deep(.remind) {
   color: var(--ed-on-plum);
-}
-
-.hero-tear {
-  position: absolute;
-  bottom: -1px;
-  left: 50%;
-  width: 100vw;
-  height: 2.25rem;
-  transform: translateX(-50%);
-  fill: var(--ed-cream);
 }
 
 /* Loading: flat bars at the headline's size, and the watch's place held. */

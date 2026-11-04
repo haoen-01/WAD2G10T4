@@ -118,6 +118,25 @@ export function positionOf(minute: number, window: { from: number; to: number })
 }
 
 /**
+ * How far an appointment's pill may grow to fit its icon and name, in minutes: up to the start of
+ * the next appointment that day, or the end of the window. Never short of the appointment's own end,
+ * so the pill always covers its true length.
+ */
+export function appointmentRoom(
+  moment: TimelineMoment,
+  moments: readonly TimelineMoment[],
+  window: { from: number; to: number },
+): number {
+  let room = window.to;
+  for (const other of moments) {
+    if (other.lane === 'appointment' && other.id !== moment.id && other.start > moment.start) {
+      room = Math.min(room, other.start);
+    }
+  }
+  return Math.max(room, moment.end ?? moment.start);
+}
+
+/**
  * Slides the "Now" label along its line so it always stays over the timeline: its left edge sits on
  * the line at the start of the day, its right edge at the end. `position` is `positionOf`'s 0 to 1.
  */

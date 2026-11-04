@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  appointmentRoom,
   clockToMinutes,
   dayRecord,
   daySummary,
@@ -86,6 +87,23 @@ describe('the timeline', () => {
     assert.equal(positionOf(420, window), 0);
     assert.equal(positionOf(870, window), 0.5);
     assert.equal(positionOf(2000, window), 1);
+  });
+});
+
+describe('an appointment pill', () => {
+  const window = { from: 420, to: 1320 };
+  const taiChi = moment({ id: 'a', lane: 'appointment', start: 510, end: 570 });
+
+  it('may grow to the next appointment, or else to the end of the day', () => {
+    const lunch = moment({ id: 'b', lane: 'appointment', start: 720, end: 780 });
+    const task = moment({ id: 't', lane: 'task', start: 600 });
+    assert.equal(appointmentRoom(taiChi, [taiChi, lunch, task], window), 720);
+    assert.equal(appointmentRoom(lunch, [taiChi, lunch], window), 1320);
+  });
+
+  it('always covers its own length, even when the next one starts sooner', () => {
+    const overlapping = moment({ id: 'c', lane: 'appointment', start: 540, end: 600 });
+    assert.equal(appointmentRoom(taiChi, [taiChi, overlapping], window), 570);
   });
 });
 
