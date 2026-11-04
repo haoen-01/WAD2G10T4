@@ -75,13 +75,16 @@ export interface HomeReadingWords {
   ledeWhen: string;
 }
 
-/** Home's words for the latest reading. "Today" only when the reading is from today. */
+/**
+ * Home's words for the latest reading. "Today" only when the reading is from today. The lede names
+ * the senior ("Mr Tan walked …"): Care+ does not record gender, so it never says "she" or "he".
+ */
 export function homeReadingWords(day: string, today: string, elder: string): HomeReadingWords {
   if (day === today) {
     return {
       heading: `Today with ${elder}`,
       stepsLabel: 'Today so far',
-      ledeStart: 'She has walked',
+      ledeStart: `${elder} has walked`,
       ledeWhen: 'so far',
     };
   }
@@ -89,7 +92,7 @@ export function homeReadingWords(day: string, today: string, elder: string): Hom
   return {
     heading: `${elder} on ${named}`,
     stepsLabel: `Steps on ${named}`,
-    ledeStart: 'She walked',
+    ledeStart: `${elder} walked`,
     ledeWhen: `on ${named}`,
   };
 }

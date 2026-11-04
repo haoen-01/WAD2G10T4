@@ -55,13 +55,18 @@ async function stayTwoHours(page: Page) {
   await page.getByTestId('demo-skip').click();
 }
 
-test('the family sees no walk until the senior shares it, and only she can turn it on', async ({
+test('the family sees no walk until the senior shares it, and only they can turn it on', async ({
   page,
 }) => {
   await page.goto('/login/family');
   await page.getByTestId('continue-family').click();
   await menu(page).getByRole('link', { name: /^Walk/ }).click();
   await expect(page.getByTestId('walk-not-shared')).toBeVisible();
+  await expect(page.getByTestId('walk-not-shared')).toContainText(
+    'Mdm Lim is not sharing their walks',
+  );
+  // Care+ does not record gender: the senior is named, never "she" or "he".
+  await expect(page.locator('main')).not.toContainText(/\b(she|her|he|his)\b/i);
   await expect(page.getByTestId('walk-map')).toHaveCount(0);
 
   await openSettings(page);
@@ -80,7 +85,7 @@ test('the family sees no walk until the senior shares it, and only she can turn 
   await page.getByTestId('choose-family').click();
   await page.getByTestId('continue-family').click();
   await menu(page).getByRole('link', { name: /^Walk/ }).click();
-  await expect(page.getByTestId('walk-sharing')).toBeVisible();
+  await expect(page.getByTestId('walk-sharing')).toHaveText('Mdm Lim is sharing their walk');
   await expect(page.getByTestId('walk-map')).toBeVisible();
 });
 
@@ -149,15 +154,16 @@ test('a long stop away from home raises a check-in on every family screen', asyn
   await expect(banner.getByTestId('checkin-call')).toHaveAttribute('href', /^tel:\+65/);
   await expect(banner.getByTestId('checkin-message')).toHaveAttribute('href', /^sms:\+65/);
 
-  // "I'm checking in" tells the rest of the family; "She's fine" closes it.
+  // "I'm checking in" tells the rest of the family; "Mdm Lim is fine" closes it.
   await banner.getByTestId('checkin-claim').click();
   await expect(banner).toContainText('Sarah is checking in.');
+  await expect(banner.getByTestId('checkin-fine')).toHaveText('Mdm Lim is fine');
   await banner.getByTestId('checkin-fine').click();
   await expect(banner).toHaveCount(0);
   await expect(page.getByTestId('walk-dot')).toHaveCount(0);
 
   await menu(page).getByRole('link', { name: /^Walk/ }).click();
-  await expect(page.getByTestId('checkin-log')).toContainText('Sarah marked her fine');
+  await expect(page.getByTestId('checkin-log')).toContainText('Sarah marked Mdm Lim fine');
   await expect(page.getByTestId('checkin-line')).toContainText('Marked fine for this stop');
 });
 
@@ -184,7 +190,9 @@ test('the senior is asked first, and "I\'m OK" before the limit means the family
   await page.getByTestId('demo-skip-15').click();
   // Paused, so the 15 minutes before the family is told do not run out during the test.
   await page.getByTestId('demo-pause').click();
-  await expect(page.getByTestId('checkin-line')).toContainText('is being asked if she is OK');
+  await expect(page.getByTestId('checkin-line')).toContainText(
+    'Mdm Lim is being asked if they are OK',
+  );
   await expect(page.getByTestId('walk-dot')).toHaveCount(0);
 
   await openSettings(page);
@@ -225,7 +233,7 @@ test('after the family is told, the senior\'s "I\'m OK" tells them', async ({ pa
   await page.getByTestId('continue-family').click();
   await expect(page.getByTestId('checkin-banner')).toHaveCount(0);
   await menu(page).getByRole('link', { name: /^Walk/ }).click();
-  await expect(page.getByTestId('checkin-log')).toContainText('Mdm Lim said she is OK');
+  await expect(page.getByTestId('checkin-log')).toContainText('Mdm Lim said they are OK');
 });
 
 test('when the senior stops sharing, her walk and any check-in disappear for the family', async ({

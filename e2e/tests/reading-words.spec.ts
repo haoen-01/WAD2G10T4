@@ -87,7 +87,9 @@ test.describe('saying today', () => {
     await expect(page.getByTestId('today-sample')).toBeVisible();
     await expect(page.locator('#today-heading')).toHaveText('Mdm Lim on Tue, 18 Aug');
     await expect(page.getByTestId('hero-steps-label')).toHaveText('Steps on Tue, 18 Aug');
-    await expect(page.locator('.hero-lede')).toContainText(/She walked .* on Tue, 18 Aug,/);
+    await expect(page.locator('.hero-lede')).toContainText(/Mdm Lim walked .* on Tue, 18 Aug,/);
+    // Care+ does not record gender: the senior is named, never "she" or "he".
+    await expect(page.locator('.hero')).not.toContainText(/\b(she|her|he|his)\b/i);
     await expect(page.locator('.hero')).not.toContainText(/today|so far/i);
     await expect(page.getByTestId('counted-back')).toHaveText(
       'Days are counted back from the latest reading, Tue, 18 Aug.',

@@ -45,7 +45,7 @@ export default defineComponent({
     reading() {
       return homeReadingWords(this.person?.current_day ?? '', todayIso(this.now), this.elder);
     },
-    /** The latest reading's steps as a percentage of her usual day. */
+    /** The latest reading's steps as a percentage of the usual day. */
     percent(): number | null {
       if (!this.person) return null;
       return percentOfUsual(this.person.signal.current_steps, this.person.baseline.median_steps);
@@ -84,7 +84,9 @@ export default defineComponent({
         {{ reading.ledeStart }} <strong>{{ formatSteps(person.signal.current_steps) }}</strong>
         {{ reading.ledeWhen }}, {{ compareWords(percent) }}.
       </p>
-      <p v-else-if="!loading" class="hero-lede">Her activity is not available right now.</p>
+      <p v-else-if="!loading" class="hero-lede">
+        {{ elder }}’s activity is not available right now.
+      </p>
 
       <WatchStatus
         class="mt-3"

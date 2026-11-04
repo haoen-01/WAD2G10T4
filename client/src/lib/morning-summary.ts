@@ -1,6 +1,6 @@
 /**
  * The morning summary that greets a family member on Home once a day
- * (`components/home/MorningSummary.vue`): how the senior's latest day went against her usual day,
+ * (`components/home/MorningSummary.vue`): how the senior's latest day went against their usual day,
  * one line on whether all is well, and a short list of what matters today. Pure and free of Vue, so
  * `lib/morning-summary.test.ts` can run it under Node's type stripping.
  *
@@ -49,7 +49,7 @@ export type Verdict = 'good' | 'watch' | 'review' | 'paused' | 'unread';
 export interface SummaryInput {
   elder: string;
   today: string;
-  /** The latest reading's day and steps, and her usual day (the API's baseline). */
+  /** The latest reading's day and steps, and the usual day (the API's baseline). */
   readingDay: string;
   steps: number;
   usual: number;
@@ -114,7 +114,7 @@ export function verdictOf(
 const LINES: Record<Verdict, (elder: string) => { headline: string; note: string }> = {
   good: (elder) => ({
     headline: 'All’s good.',
-    note: `${elder}’s activity is within her usual range. Nothing needs doing.`,
+    note: `${elder}’s activity is within their usual range. Nothing needs doing.`,
   }),
   watch: (elder) => ({
     headline: 'Keep an eye on it.',
@@ -122,11 +122,11 @@ const LINES: Record<Verdict, (elder: string) => { headline: string; note: string
   }),
   review: (elder) => ({
     headline: 'Keep monitoring.',
-    note: `${elder}’s activity has been lower for a while, so a person is reviewing her week. You don’t need to do anything yet.`,
+    note: `${elder}’s activity has been lower for a while, so a person is reviewing their week. You don’t need to do anything yet.`,
   }),
   paused: (elder) => ({
     headline: 'Sharing is paused.',
-    note: `${elder} has paused sharing her activity, so there is nothing new to show.`,
+    note: `${elder} has paused sharing their activity, so there is nothing new to show.`,
   }),
   unread: (elder) => ({
     headline: 'Not enough watch wear to compare.',
@@ -181,7 +181,7 @@ export function buildSummary(input: SummaryInput): MorningSummary {
   if (input.battery && !input.battery.charging && input.battery.percent < 20) {
     todo.push({
       icon: 'battery',
-      text: `Her watch is at ${input.battery.percent}%: remind ${input.elder} to charge it`,
+      text: `${input.elder}’s watch is at ${input.battery.percent}%: remind them to charge it`,
       to: '/watch',
     });
   }

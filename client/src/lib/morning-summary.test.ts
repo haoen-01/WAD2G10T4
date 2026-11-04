@@ -105,8 +105,38 @@ describe('the verdict comes from the policy', () => {
   });
 });
 
+describe('naming the senior', () => {
+  it('uses the senior\'s name, never "she", "her", "he" or "his", for Mr Tan as for Mdm Lim', () => {
+    const tan = { ...base, elder: 'Mr Tan', battery: { percent: 12, charging: false } };
+    const notes = [
+      buildSummary(tan),
+      buildSummary({ ...tan, attentionBand: 'watch' }),
+      buildSummary({ ...tan, attentionBand: 'review' }),
+      buildSummary({ ...tan, consentActive: false }),
+      buildSummary({ ...tan, readable: false }),
+    ];
+    for (const summary of notes) {
+      const words = [summary.headline, summary.note, ...summary.todo.map((item) => item.text)];
+      assert.doesNotMatch(words.join(' '), /\b(she|her|he|his)\b/i);
+    }
+    assert.equal(
+      notes[0].note,
+      'Mr Tan’s activity is within their usual range. Nothing needs doing.',
+    );
+    assert.match(
+      notes[2].note,
+      /^Mr Tan’s activity has been lower for a while, so a person is reviewing their week\./,
+    );
+    assert.equal(
+      notes[3].note,
+      'Mr Tan has paused sharing their activity, so there is nothing new to show.',
+    );
+    assert.equal(notes[0].todo.at(-1)?.text, 'Mr Tan’s watch is at 12%: remind them to charge it');
+  });
+});
+
 describe('the steps line', () => {
-  it('compares with her usual day in the same words as Home', () => {
+  it('compares with the usual day in the same words as Home', () => {
     const summary = buildSummary(base);
     assert.equal(summary.percent, 100);
     assert.equal(summary.compare, 'about the same as a usual day');
@@ -144,6 +174,7 @@ describe('what matters today', () => {
     );
     assert.match(summary.todo[2].text, /Grocery shopping on Fri, 6 Nov still needs someone/);
     assert.match(summary.todo[3].text, /12%/);
+    assert.equal(summary.todo[3].text, 'Mdm Lim’s watch is at 12%: remind them to charge it');
   });
 
   it('says when every task is done, counts several unhelped visits, and skips a charging watch', () => {

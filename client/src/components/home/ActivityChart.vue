@@ -24,12 +24,13 @@ import {
  * latest reading ("3 days ago"), never dated: see `lib/reading-days.ts`. Each bar is a button, so a
  * keyboard, a mouse and a finger can all pick a day. A day's figures pop out above its bar while the
  * mouse is over it or the bar has keyboard focus; a click or tap keeps them showing (another click,
- * or Escape, hides them). Each bar's name says the same in words for screen readers. Two lines give the bars meaning: her usual day, and 20% below it (the first point at which
+ * or Escape, hides them). Each bar's name says the same in words for screen readers. Two lines give the bars meaning: the usual day, and 20% below it (the first point at which
  * Care+ might suggest anything). A bar below that line is drawn in coral and says so in words.
  */
-// `owner` is whose usual day it is: "her" for the family, "your" on the senior's own screen.
+// `owner` is whose usual day it is: the senior's name ("Mr Tan’s") for the family, "your" on the
+// senior's own screen, "their" when no name is known (Care+ does not record gender).
 const props = withDefaults(defineProps<{ days: StepDay[]; usual: number; owner?: string }>(), {
-  owner: 'her',
+  owner: 'their',
 });
 
 const selected = ref<string | null>(null);

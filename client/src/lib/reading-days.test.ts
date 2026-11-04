@@ -75,7 +75,7 @@ describe('homeReadingWords', () => {
     assert.deepEqual(homeReadingWords('2026-11-01', '2026-11-01', 'Mdm Lim'), {
       heading: 'Today with Mdm Lim',
       stepsLabel: 'Today so far',
-      ledeStart: 'She has walked',
+      ledeStart: 'Mdm Lim has walked',
       ledeWhen: 'so far',
     });
   });
@@ -85,10 +85,18 @@ describe('homeReadingWords', () => {
     assert.deepEqual(words, {
       heading: 'Mdm Lim on Tue, 18 Aug',
       stepsLabel: 'Steps on Tue, 18 Aug',
-      ledeStart: 'She walked',
+      ledeStart: 'Mdm Lim walked',
       ledeWhen: 'on Tue, 18 Aug',
     });
     assert.doesNotMatch(JSON.stringify(words), /today|so far/i);
+  });
+
+  it('names the senior in the lede, never "she" or "he" (Care+ does not record gender)', () => {
+    const today = homeReadingWords('2026-11-01', '2026-11-01', 'Mr Tan');
+    const older = homeReadingWords('2026-08-18', '2026-11-01', 'Mr Tan');
+    assert.equal(today.ledeStart, 'Mr Tan has walked');
+    assert.equal(older.ledeStart, 'Mr Tan walked');
+    assert.doesNotMatch(JSON.stringify([today, older]), /\b(she|her|he|his)\b/i);
   });
 });
 

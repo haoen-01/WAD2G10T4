@@ -295,6 +295,7 @@ function openSummaryOnceToday() {
           :failed="historyFailed"
           :has-person="person !== null"
           :usual="usual"
+          :elder="elder"
           @retry="loadHistory"
         />
         <NeedsHelperList
