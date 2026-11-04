@@ -205,7 +205,7 @@ onBeforeUnmount(() => {
                   {{ group.senior_name }}
                 </option>
               </select>
-              <DisplayControls cursor-toggle="always" />
+              <DisplayControls />
               <template v-if="ready && signedIn">
                 <hr class="menu-divider" />
                 <button

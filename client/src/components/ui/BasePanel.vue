@@ -32,7 +32,10 @@ export default defineComponent({
 
 <template>
   <section class="sl-panel" :aria-labelledby="headingId">
-    <div v-if="$slots.actions" class="d-flex align-items-center justify-content-between gap-2 mb-2">
+    <div
+      v-if="$slots.actions"
+      class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"
+    >
       <h2 :id="headingId" :class="headingClass">
         <slot name="title">{{ title }}</slot>
       </h2>

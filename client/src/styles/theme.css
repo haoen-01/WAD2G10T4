@@ -178,9 +178,9 @@
   --sl-bubble-rim: conic-gradient(from 210deg, #3fae88, #5b8fe6, #c76fb5, #f4c95d, #3fae88);
 
   /*
-   * Cursors. Each is a keyword unless the reader has Care+ cursors on (Display settings), when it
-   * becomes a picture from /public/cursors with the keyword as the fallback. See the end of this
-   * file for where each one is used.
+   * Cursors. Each is a keyword here; with a mouse or trackpad it becomes a picture from
+   * /public/cursors with the keyword as the fallback. See the end of this file for where each one
+   * is used.
    */
   --sl-cur-default: auto;
   --sl-cur-link: pointer;
@@ -1034,15 +1034,15 @@ h1,
 
 /* ---------- Cursors ---------- */
 /*
- * With Care+ cursors on (`html.sl-cursors`, set by `useDisplay.ts`) and a mouse or trackpad
- * (`pointer: fine`), each `--sl-cur-*` becomes a picture. `url(...) x y` names the picture and
+ * With a mouse or trackpad (`pointer: fine`), each `--sl-cur-*` becomes a picture. They are
+ * always on (there is no setting). Links and buttons share the same hand. `url(...) x y` names the picture and
  * the point that clicks (its hotspot); the keyword after the comma is used if the picture cannot
  * load. Phones and tablets never see them.
  */
 @media (pointer: fine) {
-  :root.sl-cursors {
+  :root {
     --sl-cur-default: url('/cursors/arrow.svg') 5 3, auto;
-    --sl-cur-link: url('/cursors/book.svg') 4 8, pointer;
+    --sl-cur-link: url('/cursors/hand.svg') 13 2, pointer;
     --sl-cur-press: url('/cursors/hand.svg') 13 2, pointer;
     --sl-cur-text: url('/cursors/ibeam.svg') 16 16, text;
     --sl-cur-tick: url('/cursors/check.svg') 16 16, pointer;
