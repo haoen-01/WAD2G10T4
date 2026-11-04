@@ -57,6 +57,7 @@ test.describe('on a phone', () => {
     await expect(menu(page).getByRole('link')).toHaveText([
       'Home',
       'My day',
+      'Watch',
       'Walk',
       'Calendar',
       'Family',
@@ -128,6 +129,31 @@ test.describe('on a phone', () => {
   });
 });
 
+test.describe('the family tab bar at the largest text size', () => {
+  test.use({ viewport: { width: 375, height: 700 } });
+
+  test('all five tabs, Watch included, keep their labels inside their own tab', async ({
+    page,
+  }) => {
+    await enterAs(page, 'family');
+    for (const width of [375, 320]) {
+      await page.setViewportSize({ width, height: 700 });
+      await page.evaluate(() => (document.documentElement.style.fontSize = '150%'));
+      const links = menu(page).getByRole('link');
+      await expect(links).toHaveText(['Home', 'Watch', 'Walk', 'Calendar', 'Family']);
+      for (const link of await links.all()) {
+        const fits = await link.evaluate((el) => {
+          const label = el.querySelector('.mainnav-label')!.getBoundingClientRect();
+          const tab = el.getBoundingClientRect();
+          return label.left >= tab.left - 0.5 && label.right <= tab.right + 0.5;
+        });
+        expect(fits, `${await link.innerText()} at ${width}px`).toBe(true);
+        expect((await link.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(44);
+      }
+    }
+  });
+});
+
 test.describe('on a very small phone', () => {
   test.use({ viewport: { width: 320, height: 640 } });
 
@@ -164,6 +190,7 @@ test.describe('on a wide screen', () => {
     await expect(nav.getByRole('link')).toHaveText([
       'Home',
       'My day',
+      'Watch',
       'Walk',
       'Calendar',
       'Family',

@@ -392,6 +392,8 @@ watch(
 .mainnav--tabs li:not(.mainnav-indicator) {
   flex: 1 1 0;
   min-width: 0;
+  /* Each tab is a size container, so its label can shrink to the tab's own width (below). */
+  container-type: inline-size;
 }
 
 .mainnav--tabs .mainnav-link {
@@ -425,8 +427,13 @@ watch(
   height: 1.5rem;
 }
 
+/* One line, never wider than its tab: with five or six tabs on a narrow phone at the largest text
+   size, the label shrinks to fit (about 20% of the tab's width) instead of running into the next. */
 .mainnav--tabs .mainnav-label {
+  max-width: 100%;
   margin-top: 0.1rem;
+  font-size: min(1em, 19cqi);
+  white-space: nowrap;
 }
 
 /* On the tab bar the dot sits at the icon's top-right corner. */
@@ -499,8 +506,10 @@ watch(
     display: none;
   }
 
+  /* The sides shrink with the screen (never past 0.9rem), so six links still fit at the largest
+     text size. */
   .mainnav--pill .mainnav-link {
-    padding: 0.4rem 0.9rem;
+    padding: 0.4rem min(0.9rem, 1.4vw);
   }
 }
 </style>
