@@ -39,6 +39,9 @@ import type {
   TaskRequest,
   WearableStatus,
 } from '@silverloop/api-client';
+import { ApiHttpError } from '@silverloop/api-client';
+
+import { SpeechBusyError, isBusyBody } from '@/lib/read-aloud';
 
 import { http } from './http';
 
@@ -333,7 +336,8 @@ export async function getMyDayVoice(personId: string): Promise<SpeechVoice> {
 
 /**
  * One sentence of "Read my day", spoken by a Kokoro voice (a WAV): `voice` is one the voice route
- * listed, or null for the server's default. 503 when it cannot speak.
+ * listed, or null for the server's default. A 503 marked busy rejects with `SpeechBusyError` (ask
+ * again in a moment); any other 503 with an `ApiHttpError` (it cannot speak).
  */
 export async function getMyDaySpeech(
   personId: string,
@@ -343,8 +347,18 @@ export async function getMyDaySpeech(
   const response = await http.post<Blob>(
     `/v1/people/${personId}/my-day/speech`,
     voice ? { text, voice } : { text },
-    { responseType: 'blob', timeout: AGENT_TIMEOUT_MS },
+    {
+      responseType: 'blob',
+      timeout: AGENT_TIMEOUT_MS,
+      // A 503's body is a blob too: read here, so "busy" and "cannot speak" can be told apart.
+      validateStatus: (code) => (code >= 200 && code < 300) || code === 503,
+    },
   );
+  if (response.status === 503) {
+    const body = await response.data.text().catch(() => '');
+    if (isBusyBody(body)) throw new SpeechBusyError();
+    throw new ApiHttpError(503, 'The Kokoro voice cannot speak here.');
+  }
   return response.data;
 }
 

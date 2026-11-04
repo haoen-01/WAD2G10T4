@@ -353,6 +353,21 @@ function turn(direction: -1 | 1) {
   height: 1.25rem;
 }
 
+/* A narrow card at a large text size (the phone's card is a `hero-card` container; see
+   `HomeHero`): the hint gets a full-width line of its own above the two buttons, rather than a
+   column a word or two wide between them. */
+@container hero-card (max-width: 18rem) {
+  .watch-caption {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+
+  .watch-hint {
+    flex: 1 0 100%;
+    order: -1;
+  }
+}
+
 @media (max-width: 575.98px) {
   .watch-stage {
     height: 288px;

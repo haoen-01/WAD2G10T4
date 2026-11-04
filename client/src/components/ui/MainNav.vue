@@ -5,7 +5,7 @@ import { RouterLink, useRoute } from 'vue-router';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import { sameSpan, type Span, STRETCH_MS, stretchSpan } from '@/lib/nav-bubble';
-import { tabRows } from '@/lib/tab-rows';
+import { LABEL_ROOM, pillLeft, tabRows } from '@/lib/tab-rows';
 
 /**
  * The main menu, in three looks:
@@ -41,8 +41,6 @@ let resizeObserver: ResizeObserver | null = null;
 /** Tab bar only: the rows it is using, and how many tabs to a row. */
 const rows = ref(1);
 const perRow = ref(props.links.length);
-/** Space (px) a label keeps clear of its tab's edges. */
-const LABEL_ROOM = 8;
 /** The tab bar's one-row height, read from theme.css before this bar changes it. */
 let rowHeight = '';
 let stretchTimer = 0;
@@ -52,10 +50,19 @@ let shown: Span | null = null;
 const reducedMotion = () =>
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
-/** Sets the bubble's place (CSS turns these two numbers into its position and width). */
+/**
+ * Sets the bubble's place (CSS turns these two numbers into its position and width). The tab bar's
+ * pill has a width of its own, centred on the tab and held inside the bar (`pillLeft`).
+ */
 function place(span: Span) {
-  list.value?.style.setProperty('--ind-x', `${span.x}px`);
-  list.value?.style.setProperty('--ind-w', `${span.w}px`);
+  const el = list.value;
+  if (!el) return;
+  el.style.setProperty('--ind-x', `${span.x}px`);
+  el.style.setProperty('--ind-w', `${span.w}px`);
+  if (props.variant === 'tabs') {
+    const pill = el.querySelector<HTMLElement>('.mainnav-indicator')?.offsetWidth ?? 0;
+    el.style.setProperty('--ind-left', `${pillLeft(span.x, span.w, pill, el.clientWidth)}px`);
+  }
 }
 
 /**
@@ -499,15 +506,13 @@ watch(
   right: calc(50% - 1.1rem);
 }
 
-/* The pill is 4rem wide and 2rem tall, centred on the current tab, level with the icons. */
+/* The pill is 4rem wide and 2rem tall, centred on the current tab (held inside the bar when the
+   tab is narrower than the pill; see `place`), level with the icons. */
 .mainnav--tabs .mainnav-indicator {
   top: 0.35rem;
   width: 4rem;
   height: 2rem;
-  transform: translate(
-    calc(var(--ind-x, 0px) + (var(--ind-w, 4rem) - 4rem) / 2),
-    var(--ind-y, 0px)
-  );
+  transform: translate(var(--ind-left, 0px), var(--ind-y, 0px));
 }
 
 /* Wide screens: a pill in the header row. The current link is a solid jade pill with white text. */

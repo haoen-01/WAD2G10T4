@@ -49,6 +49,11 @@ class SpeechBusy(SpeechUnavailable):
     """Kokoro is speaking another sentence and this one waited its limit for a turn."""
 
 
+# The `code` of the speech route's busy 503: the browser asks for that sentence again in a moment
+# rather than switching to its own voice (`client/src/lib/speech.ts`, `SPEECH_BUSY_CODE`).
+SPEECH_BUSY_CODE = "speech_busy"
+
+
 def model_dir(settings: Settings) -> Path:
     path = Path(settings.tts_model_dir)
     return path if path.is_absolute() else API_ROOT / path

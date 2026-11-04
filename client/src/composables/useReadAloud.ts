@@ -1,5 +1,6 @@
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
+import { isSpeechBusy, noReadingVoice, sentenceFetcher } from '@/lib/read-aloud';
 import {
   SENTENCE_PAUSE_MS,
   SPEECH_PITCH,
@@ -84,10 +85,13 @@ function voicesOnDevice(waitMs: number): Promise<SpeechSynthesisVoice[]> {
  * the browser's own speech in the warmest on-device voice there is (see `lib/speech.ts`). Online
  * browser voices (Edge's "Online (Natural)", Chrome's "Google …") are never used, so the script
  * never goes to Microsoft or Google; with no on-device voice, `hint` says it cannot read aloud.
+ * A busy Kokoro (another sentence being spoken) is asked again, never dropped for it; `noVoice`
+ * says, before any press, that neither voice can read here.
  */
 export function useReadAloud(server?: ServerVoice) {
   const hasBrowserSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
-  const canSpeak = hasBrowserSpeech || (typeof window !== 'undefined' && !!server);
+  // This browser has some way to speak (its own speech, or the server's voice to ask).
+  const mayHaveVoice = hasBrowserSpeech || (typeof window !== 'undefined' && !!server);
   const state = ref<ReadAloudState>('idle');
   const engine = ref<ReadAloudEngine>('browser');
   /** The voice that is reading (or will read), in words for the card; its full name for tests. */
@@ -99,6 +103,29 @@ export function useReadAloud(server?: ServerVoice) {
   const serverVoices = ref<{ name: string; label: string }[]>([]);
   /** Set when the device has no voice of its own, so nothing can be read aloud here. */
   const hint = ref<string | null>(null);
+  // What is known so far about each way of reading aloud, for `noVoice`.
+  const kokoroKnown = ref(!server);
+  const kokoroReady = ref(false);
+  const deviceKnown = ref(!hasBrowserSpeech);
+  const deviceHasVoice = ref(false);
+  /**
+   * True once it is known that nothing can read aloud on this device: no Kokoro voice (none
+   * offered, or it said it cannot speak) and the browser has listed its voices with none of its
+   * own (or has no speech at all). False while either is still being found out. While true, `hint`
+   * says why.
+   */
+  const noVoice = computed(
+    () =>
+      !mayHaveVoice ||
+      noReadingVoice({
+        kokoroKnown: kokoroKnown.value,
+        kokoroReady: kokoroReady.value,
+        deviceKnown: deviceKnown.value,
+        deviceHasVoice: deviceHasVoice.value,
+      }),
+  );
+  /** Whether the day can be read aloud here: `!noVoice` (true while that is still being found out). */
+  const canSpeak = computed(() => !noVoice.value);
   /**
    * The listener's own pick, remembered here: a browser voice's name or a Kokoro voice
    * ("kokoro:af_bella"). Null means "the best available": Kokoro's default when it is there.
@@ -122,7 +149,7 @@ export function useReadAloud(server?: ServerVoice) {
   let reading = 0;
   // Kokoro: one audio element for the whole reading, unlocked by the press itself.
   let audio: HTMLAudioElement | null = null;
-  let sentenceAudio: Promise<Blob>[] = [];
+  let sentences: ReturnType<typeof sentenceFetcher<Blob>> | null = null;
   let playing = false;
   let url: string | null = null;
 
@@ -134,12 +161,21 @@ export function useReadAloud(server?: ServerVoice) {
   // Ask for the voices as soon as the card is on screen, and keep the list and the shown choice up
   // to date as the browser adds voices, so the first press rarely has to wait.
   const refreshShownVoice = () => {
-    if (!hasBrowserSpeech) return;
+    if (!hasBrowserSpeech) {
+      if (noVoice.value) hint.value = NO_DEVICE_VOICE_HINT;
+      return;
+    }
     const all = window.speechSynthesis.getVoices();
     // The list stays current under Kokoro too, so a browser voice can still be chosen.
     voices.value = englishVoices(all).map((item) => ({ name: item.name, label: voiceLabel(item) }));
+    if (all.some(isOnDeviceVoice)) {
+      deviceHasVoice.value = true;
+      deviceKnown.value = true;
+    } else {
+      deviceHasVoice.value = false;
+    }
     if (engine.value !== 'browser') return;
-    hint.value = voiceHint(all);
+    hint.value = noVoice.value ? NO_DEVICE_VOICE_HINT : voiceHint(all);
     if (state.value === 'idle') showBrowserVoice(chooseVoice(all, chosenName.value));
   };
 
@@ -178,6 +214,8 @@ export function useReadAloud(server?: ServerVoice) {
   function useBrowser() {
     serverDefault = null;
     serverVoices.value = [];
+    kokoroReady.value = false;
+    kokoroKnown.value = true;
     engine.value = 'browser';
     refreshShownVoice();
   }
@@ -185,17 +223,31 @@ export function useReadAloud(server?: ServerVoice) {
   // The wait for the device's voices counts from here: a few seconds after the card
   // appears, the browser has listed all it will, and a press speaks at once.
   let listeningSince = Date.now();
+  let deviceWait: number | undefined;
   onMounted(() => {
     listeningSince = Date.now();
     if (hasBrowserSpeech) {
       refreshShownVoice();
       window.speechSynthesis.addEventListener('voiceschanged', refreshShownVoice);
+      // By now the browser has listed every voice it will: with none of its own, it has none.
+      deviceWait = window.setTimeout(() => {
+        deviceWait = undefined;
+        deviceKnown.value = true;
+        refreshShownVoice();
+      }, DEVICE_VOICE_WAIT_MS);
+    } else {
+      refreshShownVoice();
     }
     if (server) {
       server
         .status()
         .then((status) => {
-          if (!status.available) return;
+          kokoroKnown.value = true;
+          if (!status.available) {
+            refreshShownVoice();
+            return;
+          }
+          kokoroReady.value = true;
           serverDefault = { voice: status.voice ?? null, label: status.label };
           serverVoices.value = (status.voices ?? []).map((item) => ({
             name: kokoroChoice(item.voice),
@@ -203,10 +255,15 @@ export function useReadAloud(server?: ServerVoice) {
           }));
           if (state.value === 'idle') settleEngine();
         })
-        .catch(() => undefined); // the browser's own voice it is
+        .catch(() => {
+          // the browser's own voice it is
+          kokoroKnown.value = true;
+          refreshShownVoice();
+        });
     }
   });
   onBeforeUnmount(() => {
+    if (deviceWait !== undefined) window.clearTimeout(deviceWait);
     if (hasBrowserSpeech)
       window.speechSynthesis.removeEventListener('voiceschanged', refreshShownVoice);
   });
@@ -272,28 +329,33 @@ export function useReadAloud(server?: ServerVoice) {
 
   // ── Kokoro ───────────────────────────────────────────────────────────────────
 
-  function fetchSentence(at: number): Promise<Blob> {
-    sentenceAudio[at] ??= server!.audio(chunks[at], kokoroVoice);
-    return sentenceAudio[at];
-  }
-
-  /** Kokoro could not go on: the rest of this reading, and every later one, uses the browser. */
-  function fallBack(run: number) {
+  /**
+   * Kokoro could not go on: the rest of this reading uses the browser. Only when it cannot speak
+   * is it dropped for every later reading too; when it stayed busy, the next reading tries it again.
+   */
+  function fallBack(run: number, keepKokoro = false) {
     if (run !== reading) return;
     playing = false;
     releaseUrl();
-    useBrowser();
+    if (keepKokoro) {
+      engine.value = 'browser';
+      refreshShownVoice();
+    } else {
+      useBrowser();
+    }
     void speakWithBrowser(run);
   }
 
   /**
    * A sentence could not be fetched or played. Pausing or stopping just as a sentence starts makes
    * the browser reject its `play()` with an AbortError: that is the listener's own doing, not a
-   * failure, and the reading carries on from where it is. Anything else falls back to the browser.
+   * failure, and the reading carries on from where it is. A busy Kokoro has already been asked
+   * again (`lib/read-aloud.ts`); still busy, this reading goes on in the browser's voice, Kokoro
+   * kept. Anything else means Kokoro cannot speak, and it is dropped.
    */
   function failed(run: number, error: unknown) {
     if (error instanceof DOMException && error.name === 'AbortError') return;
-    fallBack(run);
+    fallBack(run, isSpeechBusy(error));
   }
 
   function playSentence(run: number) {
@@ -304,8 +366,9 @@ export function useReadAloud(server?: ServerVoice) {
     }
     const at = index;
     // This sentence first (the server makes one at a time), then the next one while this plays.
-    const current = fetchSentence(at);
-    if (at + 1 < chunks.length) void fetchSentence(at + 1).catch(() => undefined);
+    // A busy answer to either is asked for again when that sentence's turn comes.
+    const current = sentences!.forTurn(at);
+    if (at + 1 < chunks.length) sentences!.prefetch(at + 1);
     current
       .then((blob) => {
         if (run !== reading || !audio) return;
@@ -340,7 +403,7 @@ export function useReadAloud(server?: ServerVoice) {
   // ── Both ─────────────────────────────────────────────────────────────────────
 
   async function speak(script: string) {
-    if (!canSpeak) return;
+    if (!canSpeak.value) return;
     stop();
     settleEngine(); // a voice chosen during the last reading applies from this one
     const run = ++reading;
@@ -349,7 +412,11 @@ export function useReadAloud(server?: ServerVoice) {
     state.value = 'speaking';
     if (engine.value === 'kokoro' && server) {
       audio ??= new Audio();
-      sentenceAudio = [];
+      const said = chunks;
+      const voiceNow = kokoroVoice;
+      sentences = sentenceFetcher((at) => server.audio(said[at], voiceNow), {
+        stillWanted: () => run === reading,
+      });
       playSentence(run);
       return;
     }
@@ -357,7 +424,7 @@ export function useReadAloud(server?: ServerVoice) {
   }
 
   function pause() {
-    if (!canSpeak || state.value !== 'speaking') return;
+    if (!canSpeak.value || state.value !== 'speaking') return;
     state.value = 'paused';
     if (engine.value === 'kokoro') {
       audio?.pause();
@@ -368,7 +435,7 @@ export function useReadAloud(server?: ServerVoice) {
   }
 
   function resume() {
-    if (!canSpeak || state.value !== 'paused') return;
+    if (!canSpeak.value || state.value !== 'paused') return;
     state.value = 'speaking';
     if (engine.value === 'kokoro') {
       // Mid-sentence (or one made while paused): play on. Between sentences: the next one.
@@ -409,6 +476,7 @@ export function useReadAloud(server?: ServerVoice) {
 
   return {
     canSpeak,
+    noVoice,
     state,
     engine,
     voiceName,

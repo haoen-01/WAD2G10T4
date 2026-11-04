@@ -61,7 +61,7 @@ class _SlowProvider:
         return SimpleNamespace(stop_reason="tool_use", content=[block])
 
 
-def _run(settings: Settings, provider: _SlowProvider) -> agent_loop.LoopOutcome:
+def _run(settings: Settings, provider: Any) -> agent_loop.LoopOutcome:
     return run_tool_loop(
         settings=settings,
         system="s",
@@ -107,3 +107,93 @@ def test_a_quick_provider_is_not_cut_off(monkeypatch: pytest.MonkeyPatch) -> Non
     # Four quick turns all run; the budget only ran out of iterations.
     assert provider.turns == 4
     assert outcome.status == "no_proposal"
+
+
+class _RateLimitedProvider:
+    """Answers each call with a 429 carrying `retry_after` seconds, until `failures` calls have
+    failed; then asks for the submit tool. Each call takes `seconds` on the fake clock."""
+
+    def __init__(self, clock: _Clock, *, retry_after: str, failures: int, seconds: float) -> None:
+        self.clock = clock
+        self.retry_after = retry_after
+        self.failures = failures
+        self.seconds = seconds
+        self.calls = 0
+        self.messages = SimpleNamespace(create=self._create)
+
+    def _create(self, **_: Any) -> SimpleNamespace:
+        import anthropic
+        import httpx
+
+        self.calls += 1
+        self.clock.now += self.seconds
+        if self.calls <= self.failures:
+            response = httpx.Response(
+                429,
+                headers={"retry-after": self.retry_after},
+                request=httpx.Request("POST", "https://provider.invalid/v1/messages"),
+            )
+            raise anthropic.RateLimitError("rate limited", response=response, body=None)
+        block = SimpleNamespace(type="tool_use", id="s1", name="submit", input={"ok": True})
+        return SimpleNamespace(stop_reason="tool_use", content=[block])
+
+
+def _patch_clock(monkeypatch: pytest.MonkeyPatch) -> tuple[_Clock, list[float]]:
+    clock = _Clock()
+    slept: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        slept.append(seconds)
+        clock.now += seconds
+
+    monkeypatch.setattr(agent_loop.time, "monotonic", clock)
+    monkeypatch.setattr(agent_loop.time, "sleep", sleep)
+    return clock, slept
+
+
+def test_a_long_retry_after_is_not_waited_out_past_the_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A 429 with retry-after: 45 after 1 s: waiting it out and trying again (20 s) would end at
+    # 66 s, past the browser's 60 s. The loop falls back at once instead of sleeping.
+    clock, slept = _patch_clock(monkeypatch)
+    provider = _RateLimitedProvider(clock, retry_after="45", failures=1, seconds=1.0)
+    start = clock.now
+    outcome = _run(_settings(), provider)
+
+    assert outcome.status == "error"
+    assert outcome.reason == "RateLimitError"
+    assert provider.calls == 1
+    assert slept == []
+    assert clock.now - start <= REQUEST_BUDGET_SECONDS < BROWSER_TIMEOUT_SECONDS
+
+
+def test_a_short_retry_after_is_retried_inside_the_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock, slept = _patch_clock(monkeypatch)
+    provider = _RateLimitedProvider(clock, retry_after="3", failures=1, seconds=1.0)
+    outcome = _run(_settings(), provider)
+
+    assert outcome.status == "submitted"
+    assert provider.calls == 2
+    assert slept == [3.0]
+
+
+def test_retries_stop_at_llm_max_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock, slept = _patch_clock(monkeypatch)
+    provider = _RateLimitedProvider(clock, retry_after="1", failures=5, seconds=1.0)
+    outcome = _run(_settings(llm_max_retries=1), provider)
+
+    assert outcome.status == "error"
+    assert provider.calls == 2
+    assert slept == [1.0]
+
+
+def test_the_agent_client_has_sdk_retries_switched_off() -> None:
+    # The SDK would honour a retry-after of up to 60 s on its own; the loop's client must not.
+    settings = _settings(llm_provider="anthropic", llm_api_key="synthetic-not-a-key")
+    client, unavailable = agent_loop.default_client(settings)
+    assert unavailable is None
+    assert client.max_retries == 0
+    assert settings.llm_max_retries == 1  # the caller's settings are left as they were

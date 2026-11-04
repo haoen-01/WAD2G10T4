@@ -245,16 +245,29 @@ export default defineComponent({
     gap: 0.6rem 1rem;
   }
 
+  /* The caption beside the number while it fits on one line; when it would not (a narrow phone
+     at a large text size), it drops whole under the number instead of wrapping beside it.
+     `wrap-reverse` keeps the number on the upper line, as the caption comes first in the list. */
   .fact-focal {
     grid-column: 1 / -1;
-    flex-direction: row-reverse;
+    flex-flow: row-reverse wrap-reverse;
     justify-content: flex-end;
     align-items: baseline;
-    gap: 0.5rem;
+    gap: 0 0.5rem;
+  }
+
+  .fact-focal dt {
+    white-space: nowrap;
   }
 
   .ring-facts .focal-num {
     font-size: 2.6rem;
+  }
+
+  /* The watch's hint lays itself out by the card's width (see `HeroWatch`). Phones only: there
+     the card is full width, so measuring it never changes its size. */
+  .hero-card {
+    container: hero-card / inline-size;
   }
 }
 </style>

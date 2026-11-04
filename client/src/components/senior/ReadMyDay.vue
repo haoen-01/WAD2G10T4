@@ -25,7 +25,9 @@ const speech = useReadAloud({
 });
 // Kokoro's voices and the browser's, in one list; grouped only when there are both.
 const voiceCount = computed(() => speech.serverVoices.value.length + speech.voices.value.length);
-const { canSpeak } = speech;
+// True once it is known that nothing can be read aloud here (no Kokoro, and no voice of the
+// device's own): the card then says so up front, and the button shows the day instead.
+const { noVoice } = speech;
 const day = ref<MyDay | null>(null);
 const loading = ref(false);
 const failed = ref(false);
@@ -56,11 +58,14 @@ function pickVoiceFrom(event: Event) {
 
 /** What the short status line says (announced, so kept to a few words). */
 const status = computed(() => {
+  if (loading.value) return 'Getting your day.';
   if (paused.value) return 'Reading paused.';
   if (reading.value) return 'Reading your day.';
-  if (day.value && !canSpeak) return 'Your day is shown below.';
+  if (day.value && noVoice.value) return 'Your day is shown below, to read.';
   return '';
 });
+
+const noVoiceId = useId();
 
 function togglePause() {
   if (paused.value) speech.resume();
@@ -81,10 +86,11 @@ function togglePause() {
         type="button"
         class="btn btn-primary btn-lg read-btn"
         :disabled="loading"
+        :aria-describedby="noVoice ? noVoiceId : undefined"
         @click="readMyDay"
       >
-        <Icon :name="reading ? 'stop' : 'speaker'" class="me-2" />{{
-          loading ? 'Getting your day…' : readButtonLabel(canSpeak, reading)
+        <Icon :name="reading ? 'stop' : noVoice ? 'eye' : 'speaker'" class="read-icon" />{{
+          loading ? 'One moment…' : readButtonLabel(!noVoice, reading)
         }}
       </button>
       <button
@@ -94,13 +100,19 @@ function togglePause() {
         data-testid="read-my-day-pause"
         @click="togglePause"
       >
-        <Icon :name="paused ? 'play' : 'pause'" class="me-2" />{{ paused ? 'Resume' : 'Pause' }}
+        <Icon :name="paused ? 'play' : 'pause'" class="read-icon" />{{
+          paused ? 'Resume' : 'Pause'
+        }}
       </button>
     </div>
     <!-- A short line for screen readers as the reading starts, pauses or ends: never the whole
          script, which is on screen to read. -->
     <p class="visually-hidden" role="status" data-testid="my-day-status">{{ status }}</p>
-    <div v-if="canSpeak && speech.voiceText.value" class="text-body-secondary mt-2">
+    <!-- Nothing can be read aloud here: said once, before the press, in place of the voice line. -->
+    <p v-if="noVoice" :id="noVoiceId" class="mt-2 mb-0" data-testid="my-day-no-voice">
+      This device has no reading voice of its own, so your day is shown here to read instead.
+    </p>
+    <div v-else-if="speech.voiceText.value" class="text-body-secondary mt-2">
       <p class="mb-0" :title="speech.voiceName.value ?? undefined" data-testid="my-day-voice">
         Voice: {{ speech.voiceText.value }}
       </p>
@@ -171,10 +183,34 @@ function togglePause() {
   font-weight: 700;
 }
 
+.read-icon {
+  margin-inline-end: 0.5rem;
+}
+
 /* A phone: full width, with slimmer sides so the label stays on one line at the largest text size. */
 @media (max-width: 575.98px) {
   .read-btn {
     padding-inline: 0.75rem;
+  }
+}
+
+/* The card itself is measured (it is full width, so measuring never changes its size). */
+.read-my-day {
+  container: read-my-day / inline-size;
+}
+
+/* Too narrow for the icon and the words side by side (a small phone at the largest text size):
+   the icon sits above the words, so the words stay whole on one line at their full size. */
+@container read-my-day (max-width: 11.25rem) {
+  .read-btn {
+    flex-direction: column;
+    gap: 0.15rem;
+    padding-block: 0.5rem;
+    white-space: nowrap;
+  }
+
+  .read-icon {
+    margin-inline-end: 0;
   }
 }
 /* The senior screen's touch targets: at least 48 px for the folds and the voice list. */

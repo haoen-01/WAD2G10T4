@@ -15,7 +15,7 @@ vi.mock('@/composables/useViewMode', () => ({
   setDemoMember: vi.fn(),
   useViewMode: () => ({ mode: { value: 'family' } }),
 }));
-vi.mock('@/composables/useMe', () => ({ viewerKey: async () => 'demo-family' }));
+vi.mock('@/composables/useMe', () => ({ viewerKey: () => 'demo-family' }));
 vi.mock('@/composables/useAuth', () => ({ getAccessToken: async () => null }));
 vi.mock('@/composables/useToast', () => ({ showToast: vi.fn() }));
 vi.mock('@/services/careApi', () => ({

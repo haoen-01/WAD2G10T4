@@ -18,6 +18,7 @@ import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from email.utils import parsedate_to_datetime
 from typing import Any, Literal
 
 from silverloop.agent.constants import resolve_model
@@ -37,10 +38,15 @@ ClientFactory = Callable[[], tuple[Any, str | None]]
 # `client/src/services/careApi.ts`) so the person always gets an answer, never a timeout.
 DEADLINE_SECONDS = 40.0
 # The most one whole request may take, worst case, so it ends before the browser gives up (60 s),
-# with a margin for the reads, the check and the SDK's back-off between retries. A turn is only
-# started when even its worst case (every attempt timing out) still ends inside this, and each
-# attempt's timeout is clamped so that one turn's worst case always fits.
+# with a margin for the reads and the check. A turn is only started when even its worst case
+# (every attempt timing out) still ends inside this, and each attempt's timeout is clamped so that
+# one turn's worst case always fits. The SDK's own retries are switched off for these loops (the
+# Anthropic SDK honours a `retry-after` of up to 60 s, which alone would outlast the browser): the
+# loop retries itself, and only when the wait plus another attempt still ends inside this budget.
 REQUEST_BUDGET_SECONDS = 55.0
+# The SDK's back-off when the provider gives no usable `retry-after` (`anthropic._constants`).
+INITIAL_RETRY_DELAY = 0.5
+MAX_RETRY_DELAY = 8.0
 # Reading a few facts and writing a short, checked answer needs little reasoning; a deterministic
 # check approves every result. Low effort keeps each turn to a few seconds (measured with
 # gpt-5-mini: about 9-13 s for the four turns of a typed appointment, against 22-25 s at medium).
@@ -84,9 +90,78 @@ def turn_worst_case(settings: Settings) -> float:
 
 
 def default_client(settings: Settings) -> tuple[Any, str | None]:
+    """The planner's client with the SDK's retries off: `run_tool_loop` retries itself, within
+    the request budget. The outreach planner keeps building its own client with SDK retries."""
     from silverloop.agent.planner import _build_client
 
-    return _build_client(settings, attempt_timeout(settings))
+    return _build_client(
+        settings.model_copy(update={"llm_max_retries": 0}), attempt_timeout(settings)
+    )
+
+
+def _retry_after_seconds(headers: Any) -> float | None:
+    """The provider's requested wait (`retry-after-ms`, then `retry-after` as seconds or an HTTP
+    date), parsed as the Anthropic SDK does; None when absent or unreadable."""
+    if headers is None:
+        return None
+    raw_ms = headers.get("retry-after-ms")
+    if raw_ms is not None:
+        try:
+            return float(raw_ms) / 1000
+        except (TypeError, ValueError):
+            pass
+    raw = headers.get("retry-after")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return parsedate_to_datetime(str(raw)).timestamp() - time.time()
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return None
+
+
+def retry_wait(error: BaseException, retries_done: int) -> float | None:
+    """How long to wait before retrying `error`, or None when it is not worth retrying.
+
+    The same rule the Anthropic SDK applies (it covers the Bedrock clients too): connection errors
+    and timeouts, and 408 / 409 / 429 / 5xx unless `x-should-retry` says otherwise; the wait is
+    the provider's `retry-after` when it is between 0 and 60 s, otherwise exponential back-off.
+    Errors from other clients (OpenAI, the recorded replay) are never retried, as before.
+    """
+    try:
+        import anthropic
+    except ImportError:
+        return None
+
+    response: Any = None
+    retryable = False
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, anthropic.APIStatusError):
+            response = current.response
+            should = response.headers.get("x-should-retry")
+            if should in ("true", "false"):
+                retryable = should == "true"
+            else:
+                status = response.status_code
+                retryable = status in (408, 409, 429) or status >= 500
+            break
+        if isinstance(current, anthropic.APIConnectionError):
+            retryable = True
+            break
+        current = current.__cause__
+    if not retryable:
+        return None
+
+    after = _retry_after_seconds(getattr(response, "headers", None))
+    if after is not None and 0 < after <= 60:
+        return after
+    return min(INITIAL_RETRY_DELAY * pow(2.0, retries_done), MAX_RETRY_DELAY)
 
 
 def unknown_tool(name: str) -> tuple[str, str, bool]:
@@ -155,6 +230,30 @@ def run_tool_loop(
         )
 
     worst_turn = turn_worst_case(settings)
+    attempts = max(0, settings.llm_max_retries) + 1
+    per_attempt = attempt_timeout(settings)
+
+    def create() -> Any:
+        """One model turn: up to `attempts` calls, retrying only while the wait plus another
+        attempt still ends inside the request budget. Raises the last error otherwise."""
+        for attempt in range(attempts):
+            try:
+                return client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    system=[{"type": "text", "text": system}],
+                    tools=tools,
+                    messages=messages,
+                    **extras,
+                )
+            except Exception as error:
+                wait = retry_wait(error, attempt) if attempt + 1 < attempts else None
+                elapsed = time.monotonic() - started
+                if wait is None or elapsed + wait + per_attempt > REQUEST_BUDGET_SECONDS:
+                    raise
+                time.sleep(wait)
+        raise AssertionError("unreachable")  # pragma: no cover - the loop returns or raises
+
     for iteration in range(1, max(1, settings.llm_max_iterations) + 1):
         elapsed = time.monotonic() - started
         if iteration > 1 and (
@@ -163,14 +262,7 @@ def run_tool_loop(
             # Another turn could run past the browser's wait: answer now, without a model.
             return end("error", "DeadlineExceeded")
         try:
-            response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                system=[{"type": "text", "text": system}],
-                tools=tools,
-                messages=messages,
-                **extras,
-            )
+            response = create()
         except Exception as error:  # noqa: BLE001 - provider errors must degrade, never raise
             return end("error", type(error).__name__)
 

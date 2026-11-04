@@ -292,6 +292,53 @@ describe('the activity store', () => {
     expect(activity.history).toBeNull();
   });
 
+  it('picking another senior while the first read is still on its way reads the new one', async () => {
+    // The Watch page opened first: its read of Mdm Lim is still on its way when Mr Tan is picked.
+    mocked.getMe.mockResolvedValue(meWith(group('g1', 'mdm-lim'), group('g2', 'mr-tan')));
+    const first = deferred<PersonState>();
+    mocked.getPersonState
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementation(async (id: string) => ({
+        ...person(id === 'mr-tan' ? 3000 : 5720, 5747),
+        person_id: id,
+      }));
+    const activity = useActivityStore();
+    const opening = activity.load();
+    await settle();
+    expect(mocked.getPersonState).toHaveBeenCalledWith('mdm-lim');
+    expect(activity.loaded).toBe(false);
+
+    useSessionStore().selectGroup('g2');
+    await settle();
+    first.resolve({ ...person(5720, 5747), person_id: 'mdm-lim' });
+    await opening;
+    await settle();
+
+    expect(mocked.getPersonState).toHaveBeenCalledTimes(2);
+    expect(mocked.getPersonState).toHaveBeenLastCalledWith('mr-tan');
+    expect(activity.personId).toBe('mr-tan');
+    expect(activity.person?.person_id).toBe('mr-tan');
+    expect(activity.steps).toBe(3000);
+    expect(mocked.getWearable).toHaveBeenLastCalledWith('mr-tan');
+  });
+
+  it('a read in flight when reset runs, then a pick, reads nothing', async () => {
+    mocked.getMe.mockResolvedValue(meWith(group('g1', 'mdm-lim'), group('g2', 'mr-tan')));
+    const first = deferred<PersonState>();
+    mocked.getPersonState.mockImplementationOnce(() => first.promise);
+    const activity = useActivityStore();
+    const opening = activity.load();
+    await settle();
+    activity.reset();
+    useSessionStore().selectGroup('g2');
+    await settle();
+    first.resolve(person(5720, 5747));
+    await opening;
+    await settle();
+    expect(mocked.getPersonState).toHaveBeenCalledTimes(1);
+    expect(activity.person).toBeNull();
+  });
+
   it('after reset, picking another senior reads nothing', async () => {
     mocked.getMe.mockResolvedValue(meWith(group('g1', 'mdm-lim'), group('g2', 'mr-tan')));
     const activity = useActivityStore();

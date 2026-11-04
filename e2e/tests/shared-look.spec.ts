@@ -165,6 +165,31 @@ test.describe('the family tab bar at the largest text size', () => {
     );
     const bar = (await menu(page).boundingBox())!;
     expect(padding, where).toBeGreaterThanOrEqual(bar.height - 1);
+    // Labels side by side keep a little room between them (or the bar takes another row), and the
+    // highlight pill never runs past either edge of the screen.
+    const gaps = await menu(page).evaluate((nav) => {
+      const boxes = [...nav.querySelectorAll('.mainnav-label')].map((label) =>
+        label.getBoundingClientRect(),
+      );
+      return boxes
+        .slice(1)
+        .flatMap((box, i) =>
+          Math.abs(box.top - boxes[i].top) < 2 ? [box.left - boxes[i].right] : [],
+        );
+    });
+    for (const gap of gaps) expect(gap, where).toBeGreaterThanOrEqual(12);
+    // Polled: the pill springs to its new place when the text size changes.
+    await expect
+      .poll(
+        () =>
+          menu(page).evaluate((nav) => {
+            const pill = nav.querySelector('.mainnav-indicator')!.getBoundingClientRect();
+            const edge = nav.getBoundingClientRect();
+            return pill.left >= edge.left - 0.5 && pill.right <= edge.right + 0.5;
+          }),
+        { message: `the highlight stays inside the bar ${where}` },
+      )
+      .toBe(true);
     return Math.min(...sizes);
   }
 
@@ -182,6 +207,8 @@ test.describe('the family tab bar at the largest text size', () => {
         await page.setViewportSize({ width, height: 700 });
         await page.evaluate(() => (document.documentElement.style.fontSize = '100%'));
         const normal = await checkTabs(page, `at ${width}px, 100%`);
+        await page.evaluate(() => (document.documentElement.style.fontSize = '125%'));
+        await checkTabs(page, `at ${width}px, 125%`);
         await page.evaluate(() => (document.documentElement.style.fontSize = '150%'));
         const large = await checkTabs(page, `at ${width}px, 150%`);
         // The zoom setting is never undone by squeezing the labels to fit.

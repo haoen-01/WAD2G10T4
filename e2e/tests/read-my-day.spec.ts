@@ -177,6 +177,33 @@ test('the reading can be paused, resumed and stopped', async ({ page }) => {
   await expect(pause).toHaveCount(0);
 });
 
+test('on a small phone at the largest text size, the button’s words stay on one line', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.addInitScript(() => window.localStorage.setItem('careplus.zoom.v1', '150'));
+  await fakeSpeech(page);
+  await page.goto('/login/senior');
+  await page.getByTestId('continue-senior').click();
+  const button = page.getByTestId('read-my-day').getByRole('button', { name: 'Read my day' });
+  await expect(button).toBeVisible();
+  const { lines, size } = await button.evaluate((el) => {
+    const words = [...el.childNodes].find(
+      (node) => node.nodeType === 3 && node.textContent?.trim(),
+    );
+    const range = document.createRange();
+    range.selectNodeContents(words!);
+    return {
+      lines: range.getClientRects().length,
+      size: parseFloat(getComputedStyle(el).fontSize),
+    };
+  });
+  expect(lines).toBe(1);
+  // At the senior screen's full size (1.25rem at 150%), not shrunk to fit.
+  expect(size).toBeCloseTo(30, 0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
 // Online browser voices (Edge's "Online (Natural)" ones, Chrome's "Google …" ones) are spoken by
 // Microsoft's or Google's servers, so the senior's day would leave the device: they are never used.
 
@@ -282,22 +309,34 @@ test('the voice can be chosen by hand from the device’s own voices', async ({ 
   );
 });
 
-test('with only online voices, nothing is read aloud and the card says why', async ({ page }) => {
+test('with only online voices, the card says up front that it will show the day instead', async ({
+  page,
+}) => {
   await fakeSpeech(page, { first: [], late: EDGE_ONLINE });
   await page.goto('/login/senior');
   await page.getByTestId('continue-senior').click();
   const card = page.getByTestId('read-my-day');
-  await card.getByRole('button', { name: 'Read my day' }).click();
-  await expect(card.getByTestId('my-day-voice-hint')).toHaveText(
-    'This device has no reading voice of its own, so Care+ cannot read your day aloud here.',
+  // Before any press, once the browser has listed its voices: said once, with the button offering
+  // to show the day rather than read it (and described by the same words).
+  const noVoice = card.getByTestId('my-day-no-voice');
+  await expect(noVoice).toHaveText(
+    'This device has no reading voice of its own, so your day is shown here to read instead.',
     { timeout: 15_000 },
   );
-  await expect(card.getByTestId('my-day-voice')).toHaveText(
-    'Voice: No reading voice on this device',
+  const show = card.getByRole('button', { name: 'Show my day' });
+  await expect(show).toHaveAccessibleDescription(
+    'This device has no reading voice of its own, so your day is shown here to read instead.',
   );
-  // The words are still on screen to read, and the browser said nothing.
+  // Not repeated by a voice line or a second hint.
+  await expect(card.getByTestId('my-day-voice')).toHaveCount(0);
+  await expect(card.getByTestId('my-day-voice-hint')).toHaveCount(0);
+  await expect(card.getByRole('button', { name: 'Read my day' })).toHaveCount(0);
+
+  await show.click();
+  // The words are on screen to read, a screen reader hears where they are, and nothing was said.
   await expect(card.getByTestId('my-day-script')).toContainText('Mdm Lim');
-  await expect(card.getByRole('button', { name: 'Read my day' })).toBeVisible();
+  await expect(card.getByTestId('my-day-status')).toHaveText('Your day is shown below, to read.');
+  await expect(show).toBeVisible();
   expect(await said(page)).toHaveLength(0);
 });
 

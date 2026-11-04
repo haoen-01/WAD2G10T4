@@ -49,6 +49,9 @@ export const useActivityStore = defineStore('activity', () => {
   // the watch below): a screen reacting to the same pick then shares it rather than reading twice.
   let inFlightWanted: string | null = null;
   let inFlightFromPick = false;
+  // The senior the read in flight is actually reading, once it has looked at the chosen group
+  // (after `loadMe`); `undefined` until then, when it will still read whoever is chosen by then.
+  let inFlightReading: string | null | undefined = undefined;
   // Bumped by every read and by `reset`: a read that is no longer the latest writes nothing, so an
   // older answer landing last can never show the previous senior (or the previous person's view).
   let generation = 0;
@@ -88,6 +91,7 @@ export const useActivityStore = defineStore('activity', () => {
     loadedAt = 0;
     inFlight = null;
     inFlightFromPick = false;
+    inFlightReading = undefined;
     generation += 1;
   }
 
@@ -153,6 +157,7 @@ export const useActivityStore = defineStore('activity', () => {
         await session.loadMe().catch(() => null);
         if (mine !== generation) return;
         const id = homeSeniorOf(session.currentGroup, DEMO_PERSON_ID);
+        inFlightReading = id;
         if (id !== personId.value) {
           person.value = null;
           history.value = null;
@@ -182,10 +187,12 @@ export const useActivityStore = defineStore('activity', () => {
     inFlight = run;
     inFlightWanted = wanted;
     inFlightFromPick = fromPick;
+    inFlightReading = undefined;
     void run.finally(() => {
       if (inFlight === run) {
         inFlight = null;
         inFlightFromPick = false;
+        inFlightReading = undefined;
       }
     });
     return run;
@@ -193,13 +200,19 @@ export const useActivityStore = defineStore('activity', () => {
 
   // Picking another senior ("Whose care to show", on every page) reads theirs, whichever screen
   // is open, so the Watch page never keeps showing the first senior. Only once something has been
-  // read: a store nobody has used yet reads nothing, and after `reset` (signing out) nothing either.
+  // read or is being read: a store nobody has used yet reads nothing, and after `reset` (signing
+  // out) nothing either. A pick while the first read is still on its way (the Watch page opened
+  // first) reads the new senior too, rather than leaving the old one showing.
   watch(
     () => homeSeniorOf(session.currentGroup, DEMO_PERSON_ID),
     (next) => {
-      if (!loaded.value || next === personId.value) return;
-      // A screen already reading for this pick (Home's own watch) is enough.
-      if (inFlight && inFlightWanted === next) return;
+      if (inFlight) {
+        // A read already on its way for this senior (Home's own watch), or one that has not yet
+        // looked at the chosen group and so will read this one, is enough.
+        if (inFlightReading === undefined || inFlightReading === next) return;
+      } else if (!loaded.value || next === personId.value) {
+        return;
+      }
       void start(true, true);
     },
   );

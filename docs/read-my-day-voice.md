@@ -54,8 +54,10 @@ Then restart `pnpm dev`. The card should show **"Voice: Heart · Kokoro natural 
   speed and words, never the words themselves. At most 128 sentences are kept. Nothing is written
   to disk and nothing is logged, so an unchanged narration is not made twice.
 - **Fair use:** one sentence is spoken at a time. A sentence waits at most
-  `TTS_BUSY_WAIT_SECONDS` (3 s) for its turn, then the route answers 503 (busy) and the browser
-  reads on with its own on-device voice. One person may have `TTS_RATE_PER_10_MIN` (240) sentences
+  `TTS_BUSY_WAIT_SECONDS` (3 s) for its turn, then the route answers 503 marked busy
+  (`code: "speech_busy"`). The browser asks for that sentence again (twice, half a second apart)
+  and keeps the Kokoro voice; still busy, that one reading goes on in the on-device voice and the
+  next reading tries Kokoro again. Only a 503 that is not busy (Kokoro cannot speak) drops it. One person may have `TTS_RATE_PER_10_MIN` (240) sentences
   spoken in 10 minutes; past that the route answers 429. Asking whether Kokoro is available never
   waits on a sentence being spoken.
 - **Speed** (16-core laptop CPU): the model loads in about 2 s. The first sentence is ready in

@@ -250,8 +250,10 @@ voices}`; `available` is false when Kokoro or its model files are not installed.
   WAV sentence (`Cache-Control: private`); 422 for an unknown `voice` or `text` over 500
   characters; 429 past `TTS_RATE_PER_10_MIN` (240) sentences per person in 10 minutes; 503 when
   Kokoro is not installed (the opt-in `tts` group), could not speak, or is busy with another
-  sentence for longer than `TTS_BUSY_WAIT_SECONDS` (3 s). The browser then reads with its own
-  on-device voice.
+  sentence for longer than `TTS_BUSY_WAIT_SECONDS` (3 s). A busy 503 says so
+  (`{"code": "speech_busy", "detail"}`, `Retry-After: 1`): the browser asks for that sentence
+  again a couple of times and keeps the Kokoro voice. Any other 503 means it cannot speak, and the
+  browser reads with its own on-device voice.
 
 **Fair use for the agents.** With `LLM_ENABLED=true`, one person may send
 `AGENT_RATE_PER_10_MIN` (30) agent requests to the provider in 10 minutes, across the three agent

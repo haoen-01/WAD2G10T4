@@ -333,6 +333,25 @@ def test_the_route_answers_503_when_the_voice_is_busy(
     response = _speech(client, person_id, "senior-1")
     assert response.status_code == 503
     assert "busy" in response.json()["detail"]
+    # Marked as busy, so the browser asks again rather than dropping the Kokoro voice.
+    assert response.json()["code"] == tts_engine.SPEECH_BUSY_CODE == "speech_busy"
+    assert response.headers["retry-after"] == "1"
+
+
+def test_a_voice_that_cannot_speak_is_not_marked_busy(
+    client: TestClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken(text: str, settings: Settings, voice: str | None = None) -> bytes:
+        raise tts_engine.SpeechUnavailable("Kokoro could not speak: RuntimeError.")
+
+    monkeypatch.setattr("silverloop.family_routes.speak", broken)
+    _group_with_owner(client)
+    person_id = client.get("/v1/me", headers=_headers("senior-1")).json()["person_id"]
+    response = _speech(client, person_id, "senior-1")
+    assert response.status_code == 503
+    assert "code" not in response.json()
+    assert "retry-after" not in response.headers
 
 
 def test_a_senior_cannot_hear_or_check_another_seniors_voice(

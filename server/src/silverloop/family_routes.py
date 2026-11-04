@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 
 from silverloop.assistant import RateLimiter
 from silverloop.auth import Family, PersonReader, Senior, SignedIn
@@ -69,6 +70,7 @@ from silverloop.models import (
 from silverloop.senior_day import build_context as build_my_day_context
 from silverloop.senior_day import my_day
 from silverloop.tts import (
+    SPEECH_BUSY_CODE,
     VOICES,
     SpeechBusy,
     SpeechUnavailable,
@@ -854,7 +856,13 @@ def register_family_routes(application: FastAPI) -> None:
         try:
             audio = speak(body.text, settings, body.voice)
         except SpeechBusy as error:
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
+            # Busy is a moment's wait, not "cannot speak": `code` (and `Retry-After`) let the
+            # browser ask for this sentence again instead of dropping the Kokoro voice.
+            return JSONResponse(
+                {"code": SPEECH_BUSY_CODE, "detail": str(error)},
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                headers={"Retry-After": "1"},
+            )
         except SpeechUnavailable as error:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
         # Private: the audio is one person's day. The browser may keep it for this session.
