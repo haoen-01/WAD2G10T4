@@ -88,10 +88,14 @@ test.describe('saying today', () => {
     await showMoreOnHome(page);
     await page.goto('/');
     await expect(page.getByTestId('home-sample')).toBeVisible();
+    await expect(page.getByTestId('fortnight-sample')).toBeVisible();
     // Today's date comes first; the steps carry their own day.
     await expect(page.locator('.hero-date')).toHaveText('Sunday, 1 November');
     await expect(page.getByTestId('hero-steps-label')).toHaveText('Steps from Tue, 18 Aug');
     await expect(page.locator('.hero-lede')).toContainText(/\d[\d,]* steps/);
+    await expect(page.locator('.hero-lede')).toContainText(/of Mdm Lim’s usual day/);
+    // Care+ does not record gender: the senior is named, never "she" or "he".
+    await expect(page.locator('.hero')).not.toContainText(/\b(she|her|he|his)\b/i);
     await expect(page.locator('.hero')).not.toContainText(/today|so far/i);
     // No jargon up front: the policy's own reason waits behind "Why?".
     await expect(page.locator('.hero')).not.toContainText(/Stable|No action needed/);

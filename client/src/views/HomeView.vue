@@ -28,6 +28,7 @@ import { needingHelp, stillNeedsHelper, upcomingWithin } from '@/lib/coverage';
 import type { Appointment, FamilyMember } from '@/lib/family';
 import { homeSeniorOf } from '@/lib/family-group';
 import { formatIsoDay } from '@/lib/format-date';
+import { sampleNotice } from '@/lib/home';
 import { DEMO_PERSON_ID } from '@/lib/labels';
 import {
   buildSummary,
@@ -216,6 +217,10 @@ const summary = computed(() => {
   });
 });
 const summarySample = computed(() => isSampleSource(person.value?.signal.quality.source));
+// The hero's one sample-data notice, for the steps; the family feed labels its own sample rows.
+const sampleNote = computed(() =>
+  sampleNotice(elder.value, { steps: summarySample.value, feed: false }),
+);
 
 function openSummaryOnceToday() {
   const id = personId.value;
@@ -238,6 +243,8 @@ function openSummaryOnceToday() {
       :greeting="greeting"
       :viewer="viewer"
       :elder="elder"
+      :history="history"
+      :sample-note="sampleNote"
     />
 
     <div v-if="summary && currentGroup" class="mb-4">
@@ -295,6 +302,7 @@ function openSummaryOnceToday() {
           :failed="historyFailed"
           :has-person="person !== null"
           :usual="usual"
+          :elder="elder"
           @retry="loadHistory"
         />
         <NeedsHelperList

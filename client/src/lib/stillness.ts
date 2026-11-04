@@ -14,7 +14,7 @@
  *    wobble does not restart the clock. The clock starts no earlier than when she turned the
  *    check-in on, and "I'm OK" from the senior restarts it.
  * 3. No alert at home, at a usual place that never alerts, during a calendar appointment, or for a
- *    stop the family has already marked "She's fine". A usual place may instead give extra time.
+ *    stop the family has already marked "{name} is fine". A usual place may instead give extra time.
  * 4. Otherwise `soon` from `promptLeadMs` before the limit (the senior's page asks "Are you OK?"),
  *    and `alert` at the limit (the family is told), but only once she has been asked for at least
  *    `promptLeadMs`. The senior is always asked first, even after a gap or a late start.
@@ -96,7 +96,7 @@ export interface StillnessInput {
   consentAt: number | null;
   /** When the senior was first asked "Are you OK?" about this stop, or null if not yet. */
   askedAt: number | null;
-  /** Where and when the family last said "She's fine": quiet for the rest of that stop. */
+  /** Where and when the family last said "{name} is fine": quiet for the rest of that stop. */
   dismissed: { lng: number; lat: number; at: number } | null;
 }
 

@@ -37,7 +37,7 @@ describe('sampleNotice', () => {
     );
     assert.equal(
       sampleNotice('Mdm Lim', { steps: true, feed: false }),
-      'Mdm Lim’s steps are sample data, not her own.',
+      'Mdm Lim’s steps are sample data, not real.',
     );
     assert.match(sampleNotice('Mdm Lim', { steps: false, feed: true }) ?? '', /family updates/);
   });

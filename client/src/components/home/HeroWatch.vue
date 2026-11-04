@@ -131,7 +131,7 @@ const turned = computed(() => Math.round((wrapAngle(yaw.value - REST_YAW) + 360)
       :class="{ dragging }"
       tabindex="0"
       role="slider"
-      aria-label="Turn her watch"
+      aria-label="Turn the watch"
       aria-valuemin="0"
       aria-valuemax="359"
       :aria-valuenow="turned"
@@ -166,7 +166,7 @@ const turned = computed(() => Math.round((wrapAngle(yaw.value - REST_YAW) + 360)
       </div>
     </div>
     <figcaption class="watch-caption">
-      <Icon name="hand" class="watch-hint-icon" />Drag to turn her watch
+      <Icon name="hand" class="watch-hint-icon" />Drag to turn the watch
     </figcaption>
   </figure>
 </template>

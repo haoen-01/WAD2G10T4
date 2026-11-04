@@ -23,8 +23,8 @@ const other = computed<ViewMode>(() => (audience.value === 'family' ? 'senior' :
 const COPY: Record<ViewMode, { title: string; lead: string; side: string }> = {
   family: {
     title: 'Family sign-in',
-    lead: 'See how she is doing, share the calendar and arrange who goes along.',
-    side: 'Everyday activity, shared only with the people she chooses.',
+    lead: 'See how your family member is doing, share the calendar and arrange who goes along.',
+    side: 'Everyday activity, shared only with the people they choose.',
   },
   senior: {
     title: 'Welcome back.',

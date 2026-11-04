@@ -28,7 +28,7 @@ export function sampleNotice(
   if (parts.steps && parts.feed) {
     return `${elder}’s steps and the older family updates are sample data, not real.`;
   }
-  if (parts.steps) return `${elder}’s steps are sample data, not her own.`;
+  if (parts.steps) return `${elder}’s steps are sample data, not real.`;
   if (parts.feed) return 'The older family updates are sample data, not real.';
   return null;
 }

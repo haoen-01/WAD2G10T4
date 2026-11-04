@@ -127,8 +127,8 @@ watch(() => [props.loading, props.person] as const, markEntered);
           }}<template v-if="summary.comparable"
             >: <strong class="tabular">{{ formatSteps(person.signal.current_steps) }}</strong
             ><template v-if="percent !== null"
-              >, <strong class="tabular"><NumberTicker :value="percent" />%</strong> of her usual
-              day</template
+              >, <strong class="tabular"><NumberTicker :value="percent" />%</strong> of
+              {{ elder }}’s usual day</template
             ></template
           >.
         </p>
@@ -144,7 +144,7 @@ watch(() => [props.loading, props.person] as const, markEntered);
           <RouterLink to="/family">Family page</RouterLink>.
         </p>
         <p v-else class="hero-lede">
-          Her activity can’t be shown right now. The rest of Home still works.
+          {{ elder }}’s activity can’t be shown right now. The rest of Home still works.
         </p>
       </template>
 
@@ -169,7 +169,7 @@ watch(() => [props.loading, props.person] as const, markEntered);
         </button>
       </div>
 
-      <!-- The quiet facts: who is looking, today, the steps' own day, Why?, and her walk. -->
+      <!-- The quiet facts: who is looking, today, the steps' own day, Why?, and the senior's walk. -->
       <div v-if="!loading" class="hero-meta">
         <p class="hero-greeting mb-0">
           {{ greeting }}<template v-if="viewer">, {{ viewer }}</template
