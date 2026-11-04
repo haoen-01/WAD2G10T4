@@ -1010,3 +1010,139 @@ main:focus {
     transform: none !important;
   }
 }
+
+/* =============================================================================================
+ * Editorial world: family Home and the family header only.
+ *
+ * Deep plum and warm cream, a soft lime for the one action that matters, pastel fields for
+ * cards, and an orange cross as the mark. Headings are set in Instrument Serif (SIL OFL 1.1,
+ * served from /public/fonts like Atkinson, so the offline demo needs no network); body text stays
+ * Atkinson Hyperlegible Next. These are their own `--ed-*` tokens: nothing above is changed, so
+ * the senior screen, the sign-in screens and the other family pages keep their look.
+ * ============================================================================================= */
+
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/instrument-serif-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/instrument-serif-latin-400-italic.woff2') format('woff2');
+}
+
+:root {
+  --ed-serif: 'Instrument Serif', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --ed-plum: #3b1430; /* the hero and the band; cream on it 14.2:1 */
+  --ed-plum-deep: #2c0e24;
+  --ed-cream: #f7f2ec; /* the page */
+  --ed-card: #fffdfa;
+  --ed-ink: #3b1430; /* 14.2:1 on cream */
+  --ed-ink-soft: #6e4d62; /* 6.5:1 on cream */
+  --ed-on-plum: #f7f2ec;
+  --ed-on-plum-soft: #dcc7d2; /* 9.9:1 on plum */
+  --ed-lime: #eef38a; /* the one action; plum on it 13.4:1 */
+  --ed-lime-ink: #3b1430;
+  --ed-cross: #f2703a; /* the mark, decoration only (5.4:1 on plum) */
+  --ed-blush: #f9dce2;
+  --ed-peach: #fbe7d6;
+  --ed-mist: #e2eaee;
+  --ed-butter: #f3f5c4;
+  --ed-line: #e6dbd3;
+  --ed-line-on-plum: rgb(247 242 236 / 18%);
+  --ed-disc: rgb(247 242 236 / 7%);
+  --ed-radius: 16px;
+}
+
+:root[data-bs-theme='dark'] {
+  --ed-plum: #2a0f22;
+  --ed-plum-deep: #1f0a19;
+  --ed-cream: #1b0c17;
+  --ed-card: #2a1424;
+  --ed-ink: #f3e9e2; /* 15.8:1 on the page */
+  --ed-ink-soft: #c9b3c0; /* 9.6:1 */
+  --ed-on-plum: #f3e9e2;
+  --ed-on-plum-soft: #d4c0cb;
+  --ed-lime: #e3ec78; /* the page's ink on it 14.9:1 */
+  --ed-lime-ink: #1b0c17;
+  --ed-cross: #f2814f;
+  --ed-blush: #4a2234;
+  --ed-peach: #47291c;
+  --ed-mist: #23303a;
+  --ed-butter: #3a3a17;
+  --ed-line: #3d2335;
+  --ed-line-on-plum: rgb(243 233 226 / 16%);
+  --ed-disc: rgb(243 233 226 / 6%);
+}
+
+/* The page behind family Home (set on <html> by HomeView while it is open). */
+html.ed-home,
+html.ed-home body {
+  background: var(--ed-cream);
+}
+
+html.ed-home ::selection {
+  background: var(--ed-lime);
+  color: var(--ed-lime-ink);
+}
+
+.ed-serif {
+  font-family: var(--ed-serif);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+/* The pill that carries the one action, and its quieter sibling. */
+.ed-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 3rem;
+  padding: 0.65rem 1.4rem;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  transition:
+    transform var(--sl-dur-base) var(--sl-ease-out),
+    background-color var(--sl-dur-base) ease,
+    border-color var(--sl-dur-base) ease;
+}
+
+.ed-pill--lime {
+  background: var(--ed-lime);
+  color: var(--ed-lime-ink);
+}
+
+.ed-pill--outline {
+  border-color: currentcolor;
+  background: transparent;
+  color: inherit;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ed-pill:hover {
+    transform: translateY(-1px);
+  }
+
+  .ed-pill--outline:hover {
+    background: var(--ed-disc);
+  }
+}
+
+.ed-pill:focus-visible {
+  outline: 3px solid currentcolor;
+  outline-offset: 3px;
+}
+
+.ed-pill .sl-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}

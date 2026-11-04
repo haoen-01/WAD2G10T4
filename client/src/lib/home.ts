@@ -47,3 +47,23 @@ export function readingStamp(day: string, today: string): string {
 export function longToday(today: string): string {
   return formatIsoDay(today, { style: 'long' });
 }
+
+/**
+ * Where the hero's orange cross sits inside her headline, so it reads like the reference's
+ * "life's ✚ best": before "for {elder}" ("A usual day ✚ for Mdm Lim"), else straight after her
+ * name when the headline starts with it, else nowhere. The words themselves are never changed.
+ */
+export function crossSplit(
+  headline: string,
+  elder: string,
+): { before: string; after: string } | null {
+  if (!elder) return null;
+  const forElder = headline.lastIndexOf(` for ${elder}`);
+  if (forElder > 0) {
+    return { before: headline.slice(0, forElder), after: headline.slice(forElder + 1) };
+  }
+  if (headline.startsWith(`${elder} `)) {
+    return { before: elder, after: headline.slice(elder.length + 1) };
+  }
+  return null;
+}

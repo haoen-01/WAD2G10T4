@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { DailyMetric, PersonState, WearableStatus } from '@silverloop/api-client';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import type { CatchUp, DailyMetric, PersonState, WearableStatus } from '@silverloop/api-client';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 
 import ErrorAlert from '@/components/ErrorAlert.vue';
+import MemberAvatar from '@/components/family/MemberAvatar.vue';
 import ActivityFeed from '@/components/home/ActivityFeed.vue';
 import CatchUpCard from '@/components/home/CatchUpCard.vue';
 import CheckInCard from '@/components/home/CheckInCard.vue';
@@ -21,6 +22,7 @@ import { useFamily } from '@/composables/useFamily';
 import { useFamilyActivity } from '@/composables/useFamilyActivity';
 import { currentGroup, loadMe } from '@/composables/useMe';
 import { useNow } from '@/composables/useNow';
+import { useReadAloud } from '@/composables/useReadAloud';
 import { useTasks } from '@/composables/useTasks';
 import { showToast } from '@/composables/useToast';
 import { addDays } from '@/lib/calendar';
@@ -32,14 +34,22 @@ import { DEMO_PERSON_ID } from '@/lib/labels';
 import { isSampleSource } from '@/lib/reading-days';
 import { oneOffTasksByDay, repeatingCountByDay } from '@/lib/tasks';
 import { greetingFor, visitWhen } from '@/lib/today';
-import { getPersonMetrics, getPersonState, getWearable } from '@/services/careApi';
+import {
+  getMyDaySpeech,
+  getMyDayVoice,
+  getPersonMetrics,
+  getPersonState,
+  getWearable,
+} from '@/services/careApi';
 
 /**
- * Family Home answers one question: "Is she okay today, and is there anything I need to do?"
- * Three zones, in that order: the hero (her day in one plain sentence), "Needs you" (visits that
- * need someone, the check-in, today's tasks) and "Recently" (the family feed). Everything else
- * about the week (the day by the hour, two weeks of steps, the weather, the week ahead) is one
- * click away under "See more about this week".
+ * Family Home answers one question: "Is she okay today, and is there anything I need to do?" It
+ * reads like an editorial page rather than a dashboard, in a few large sections that alternate
+ * plum and cream: the hero (her day as one serif headline, beside her watch, live in 3D), the
+ * family's catch-up (the AI companion's own words, set as the page's statement), "What needs you"
+ * (visits that need someone, the check-in, today's tasks) on a plum band, and "Recently" (the
+ * family feed). The rest of the week (the day by the hour, two weeks of steps, the weather, the
+ * week ahead) is one click away under "See more about this week".
  */
 const { error, run } = useAction();
 const family = useFamily();
@@ -97,6 +107,11 @@ async function loadHistory() {
 }
 
 onMounted(load);
+
+// The editorial page sits on cream; the other screens keep their own ground.
+onMounted(() => document.documentElement.classList.add('ed-home'));
+onBeforeUnmount(() => document.documentElement.classList.remove('ed-home'));
+
 watch(
   () => currentGroup.value?.group_id,
   (next, previous) => {
@@ -169,6 +184,32 @@ const sampleNote = computed(() =>
   }),
 );
 
+// The family's catch-up, handed up by its card so the hero can offer to read it aloud: in the
+// Kokoro voice on the Care+ server when it is there, else the browser's own (`useReadAloud`).
+const catchUp = ref<CatchUp | null>(null);
+const catchUpState = ref<'loading' | 'ready' | 'none'>('loading');
+function onCatchUp(result: CatchUp | null) {
+  catchUp.value = result;
+  catchUpState.value = result ? 'ready' : 'none';
+}
+const speech = useReadAloud({
+  status: () =>
+    personId.value
+      ? getMyDayVoice(personId.value)
+      : Promise.resolve({ available: false, label: null }),
+  audio: (sentence) => getMyDaySpeech(personId.value!, sentence),
+});
+const listen = computed(() => ({
+  available: speech.canSpeak && catchUp.value !== null,
+  reading: speech.state.value !== 'idle',
+}));
+function toggleListen() {
+  if (speech.state.value !== 'idle') return speech.stop();
+  if (!catchUp.value) return;
+  speech.prime();
+  void speech.speak([catchUp.value.summary, ...catchUp.value.highlights].join(' '));
+}
+
 // "See more about this week": the day by the hour, two weeks of steps, the weather and the week
 // ahead, one click away. Remembered in this browser; a link to one of its parts opens it.
 const MORE_KEY = 'careplus.home.more.v1';
@@ -203,67 +244,94 @@ watch(
 
 <template>
   <div class="home">
-    <!-- 1. Is she okay today? Her day in one sentence, warm and personal. -->
+    <!-- 1. Is she okay today? Her day as one headline, beside her watch. -->
     <HomeHero
       :person="person"
       :loading="loading"
       :wearable="wearable"
       :wearable-failed="wearableFailed"
+      :history="history"
       :now="now"
       :greeting="greeting"
       :viewer="viewer"
       :elder="elder"
       :no-senior="!loading && personId === null"
       :sample-note="sampleNote"
+      :listen="listen"
+      @listen="toggleListen"
     />
 
-    <ErrorAlert v-if="error" :message="error" class="mb-4" @retry="load" />
+    <ErrorAlert v-if="error" :message="error" class="mt-4" @retry="load" />
 
-    <!-- 2. Is there anything I need to do? Visits that need someone, the check-in, today's tasks.
-         Wide screens: visits and the check-in on the left, tasks on the right. Phones: one column,
-         in that order. -->
-    <section id="home-needs-you" class="home-zone home-band" aria-labelledby="needs-you-heading">
-      <h2 id="needs-you-heading" class="sl-section-title needs-you-title">
-        <span v-if="unhelped.length" class="needs-you-dot" aria-hidden="true"></span>Needs you
-      </h2>
-      <div v-if="loading" class="row g-4" aria-hidden="true">
-        <div v-for="n in 2" :key="n" class="col-12" :class="n === 1 ? 'col-lg-7' : 'col-lg-5'">
-          <div class="sl-panel">
-            <span class="sl-skeleton sk-heading"></span>
-            <span class="sl-skeleton sk-row"></span>
-            <span class="sl-skeleton sk-row"></span>
-          </div>
+    <!-- 2. What the family has been doing, in the AI companion's own words. -->
+    <section
+      v-if="!loading && currentGroup && catchUpState !== 'none'"
+      id="home-companion"
+      class="home-section companion"
+    >
+      <figure class="family-frame mb-0" aria-hidden="true">
+        <span class="family-faces">
+          <MemberAvatar :name="elder" colour="senior" size="xl" class="family-face" />
+          <MemberAvatar
+            v-for="member in state.members.slice(0, 4)"
+            :key="member.id"
+            :name="member.name"
+            :colour="member.colour"
+            size="xl"
+            class="family-face"
+          />
+        </span>
+        <figcaption class="family-frame-words ed-serif">
+          {{ elder
+          }}<span class="family-frame-count"
+            >{{ state.members.length }}
+            {{ state.members.length === 1 ? 'person' : 'people' }} looking after her</span
+          >
+        </figcaption>
+      </figure>
+      <CatchUpCard :group-id="currentGroup.group_id" @loaded="onCatchUp" />
+    </section>
+
+    <!-- 3. Is there anything I need to do? On the plum band: the words, then the three things. -->
+    <section id="home-needs-you" class="home-band" aria-labelledby="needs-you-heading">
+      <div class="band-intro">
+        <h2 id="needs-you-heading" class="band-title ed-serif">What needs you</h2>
+        <p v-if="!loading" class="band-line mb-0">
+          Take a visit, tell the family you were in touch, and tick off today’s tasks.
+        </p>
+      </div>
+      <div v-if="loading" class="band-cards" aria-hidden="true">
+        <div v-for="n in 2" :key="n" class="sl-panel">
+          <span class="sl-skeleton sk-heading"></span>
+          <span class="sl-skeleton sk-row"></span>
+          <span class="sl-skeleton sk-row"></span>
         </div>
       </div>
-      <div v-else class="row g-4">
-        <div class="col-12 col-lg-7 d-flex flex-column gap-4">
-          <NeedsHelperList
-            id="home-needs"
-            :appointments="unhelped"
-            :elder="elder"
-            :can-volunteer="canVolunteer"
-            :helper="family.currentMember.value"
-            :members="state.members"
-            :availability="state.availability"
-            :current-member-id="state.currentMemberId"
-            @volunteer="goWith"
-          />
-          <CheckInCard v-if="currentGroup" :elder="elder" :actor="checkInActor" />
-        </div>
-        <div class="col-12 col-lg-5">
-          <TaskPanel id="home-tasks" :can-manage="true" />
-        </div>
+      <div v-else class="band-cards">
+        <NeedsHelperList
+          id="home-needs"
+          class="band-wide"
+          :appointments="unhelped"
+          :elder="elder"
+          :can-volunteer="canVolunteer"
+          :helper="family.currentMember.value"
+          :members="state.members"
+          :availability="state.availability"
+          :current-member-id="state.currentMemberId"
+          @volunteer="goWith"
+        />
+        <CheckInCard v-if="currentGroup" :elder="elder" :actor="checkInActor" />
+        <TaskPanel id="home-tasks" :can-manage="true" />
       </div>
     </section>
 
-    <!-- 3. Recently: what the family has done. -->
-    <div v-if="!loading && currentGroup" class="home-zone d-flex flex-column gap-4">
-      <CatchUpCard :group-id="currentGroup.group_id" />
+    <!-- 4. Recently: what the family has done. -->
+    <section v-if="!loading && currentGroup" class="home-section recently">
       <ActivityFeed :elder="elder" :members="state.members" />
-    </div>
+    </section>
 
-    <!-- 4. More about this week, one click away. -->
-    <section v-if="!loading" id="home-more" class="home-zone" aria-labelledby="more-heading">
+    <!-- 5. More about this week, one click away. -->
+    <section v-if="!loading" id="home-more" class="home-section" aria-labelledby="more-heading">
       <h2 id="more-heading" class="visually-hidden">More about this week</h2>
       <button
         type="button"
@@ -274,14 +342,16 @@ watch(
         @click="toggleMore"
       >
         <span class="more-words">
-          <span class="more-title">{{
+          <span class="more-title ed-serif">{{
             moreOpen ? 'Less about this week' : 'See more about this week'
           }}</span>
           <span class="more-hint"
             >Her day by the hour, her last two weeks, the weather and the week ahead</span
           >
         </span>
-        <Icon name="chevron-right" class="more-chevron" :class="{ open: moreOpen }" />
+        <span class="more-disc" aria-hidden="true">
+          <Icon name="chevron-right" class="more-chevron" :class="{ open: moreOpen }" />
+        </span>
       </button>
 
       <div v-if="moreOpen" id="home-more-panel" class="more-panel">
@@ -326,7 +396,7 @@ watch(
       </div>
     </section>
 
-    <p class="mt-5 mb-0 sl-note d-flex align-items-center gap-2">
+    <p class="home-boundary sl-note d-flex align-items-center gap-2 mb-0">
       <Icon name="shield-check" class="flex-shrink-0" />
       Care+ does not diagnose, predict illness, detect falls, or contact anyone without consent.
     </p>
@@ -334,6 +404,18 @@ watch(
 </template>
 
 <style scoped>
+/* The hero meets the header: no gap from <main>'s top padding. */
+.home {
+  margin-top: -1.5rem;
+  color: var(--ed-ink);
+}
+
+@media (min-width: 768px) {
+  .home {
+    margin-top: -3rem;
+  }
+}
+
 /* Phones: room at the end so nothing on Home has to rest under Kaki's floating button. */
 @media (max-width: 767.98px) {
   .home {
@@ -341,80 +423,276 @@ watch(
   }
 }
 
-.home-zone + .home-zone {
-  margin-top: var(--sl-zone-gap);
+/* Cream sections: wide, quiet spacing between them, as in an editorial page. */
+.home-section {
+  padding-top: 4.5rem;
 }
 
-/* "Needs you" sits on its own pale-sky band, the full width of the window (the shadow paints the
-   band past the container; the clip keeps it from making the page scroll sideways). */
+@media (max-width: 767.98px) {
+  .home-section {
+    padding-top: 3rem;
+  }
+}
+
+/* ---- 2. The family's catch-up: a framed "portrait" of the family beside the statement ---- */
+.companion {
+  display: grid;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+@media (min-width: 992px) {
+  .companion {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 4rem;
+  }
+}
+
+.family-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2.5rem;
+  min-height: 22rem;
+  padding: 2.25rem 2rem 2.5rem;
+  border-radius: var(--ed-radius) var(--ed-radius) 0 0;
+  background: var(--ed-blush);
+  /* A torn bottom edge, as on the reference's photographs. */
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 96%,
+    93% 99%,
+    85% 96.5%,
+    76% 99.5%,
+    66% 97%,
+    57% 99.6%,
+    46% 96.8%,
+    36% 99.3%,
+    25% 97%,
+    15% 99.5%,
+    7% 97.2%,
+    0 99%
+  );
+}
+
+/* Her face first, then the family's, overlapping like a group photograph. */
+.family-faces {
+  display: flex;
+}
+
+.family-face {
+  box-shadow: 0 0 0 4px var(--ed-blush);
+}
+
+.family-face + .family-face {
+  margin-left: -1.1rem;
+}
+
+.family-frame-words {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  color: var(--ed-ink);
+  font-size: clamp(2.25rem, 3.5vw, 3rem);
+  line-height: 1;
+}
+
+.family-frame-count {
+  color: var(--ed-ink-soft);
+  font-family: var(--bs-body-font-family);
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+@media (max-width: 991.98px) {
+  .family-frame {
+    min-height: 0;
+    padding: 1.5rem 1.5rem 2rem;
+  }
+}
+
+/* ---- 3. "What needs you": the plum band, the full width of the window ---- */
 .home-band {
-  padding-block: 1.75rem 2rem;
-  background: var(--sl-band);
-  box-shadow: 0 0 0 100vmax var(--sl-band);
+  display: grid;
+  gap: 2rem;
+  margin-top: 4.5rem;
+  padding-block: 4rem;
+  background: var(--ed-plum);
+  box-shadow: 0 0 0 100vmax var(--ed-plum);
   clip-path: inset(0 -100vmax);
 }
 
-.home-band + .home-zone {
-  margin-top: 2rem;
+@media (min-width: 992px) {
+  .home-band {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+    gap: 3.5rem;
+    padding-block: 5rem;
+  }
 }
 
-.needs-you-title {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
+@media (max-width: 767.98px) {
+  .home-band {
+    margin-top: 3rem;
+    padding-block: 3rem;
+  }
 }
 
-.needs-you-dot {
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
-  background: var(--sl-coral);
+.band-intro {
+  color: var(--ed-on-plum);
 }
 
-/* A whole-width row that opens the section below: words on the left, a chevron that turns. */
+.band-title {
+  margin: 0 0 1rem;
+  color: var(--ed-on-plum);
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  line-height: 0.98;
+}
+
+.band-line {
+  max-width: 22rem;
+  color: var(--ed-on-plum-soft);
+  font-size: 1.15rem;
+  line-height: 1.5;
+}
+
+.band-cards {
+  display: grid;
+  align-items: start;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+/* Inside the band, the cards' buttons speak the page's colours: plum for the one action of each
+   row ("I'll go"), plum outlines for the rest. */
+.band-cards :deep(.btn-primary) {
+  --bs-btn-bg: var(--ed-plum);
+  --bs-btn-border-color: var(--ed-plum);
+  --bs-btn-color: var(--ed-on-plum);
+  --bs-btn-hover-bg: var(--ed-plum-deep);
+  --bs-btn-hover-border-color: var(--ed-plum-deep);
+  --bs-btn-hover-color: var(--ed-on-plum);
+  --bs-btn-active-bg: var(--ed-plum-deep);
+  --bs-btn-active-border-color: var(--ed-plum-deep);
+  --bs-btn-active-color: var(--ed-on-plum);
+}
+
+.band-cards :deep(.btn-outline-primary),
+.band-cards :deep(.btn-outline-secondary) {
+  --bs-btn-color: var(--ed-ink);
+  --bs-btn-border-color: var(--ed-ink);
+  --bs-btn-hover-bg: var(--ed-ink);
+  --bs-btn-hover-border-color: var(--ed-ink);
+  --bs-btn-hover-color: var(--ed-card);
+  --bs-btn-active-bg: var(--ed-ink);
+  --bs-btn-active-border-color: var(--ed-ink);
+  --bs-btn-active-color: var(--ed-card);
+}
+
+/* The cards' own headings join the page's serif. */
+.band-cards :deep(h2),
+.band-cards :deep(h3) {
+  font-family: var(--ed-serif);
+  font-size: 1.85rem;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+@media (min-width: 768px) {
+  .band-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .band-wide {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The band's cards are cream paper on the plum: one elevation, no border. */
+.band-cards > :deep(*) {
+  border: 0;
+  border-radius: var(--ed-radius);
+  background: var(--ed-card);
+  box-shadow: none;
+}
+
+/* ---- 4. Recently ---- */
+.recently :deep(h2),
+.recently :deep(h3) {
+  font-family: var(--ed-serif);
+  font-size: clamp(2.25rem, 4vw, 3rem);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.recently > :deep(*) {
+  border: 0;
+  border-radius: var(--ed-radius);
+  background: var(--ed-card);
+  box-shadow: none;
+}
+
+/* ---- 5. "See more": a quiet serif line with a round arrow, not a panel ---- */
 .more-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.5rem;
   width: 100%;
   min-height: 3.5rem;
-  padding: 1rem 1.25rem;
+  padding: 1.5rem 0;
   border: 0;
-  border-radius: var(--sl-radius);
-  background: var(--sl-surface);
-  box-shadow: var(--sl-rest);
-  color: var(--sl-ink);
+  border-top: 1px solid var(--ed-line);
+  border-bottom: 1px solid var(--ed-line);
+  background: none;
+  color: var(--ed-ink);
   text-align: left;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .more-toggle:hover .more-title {
-    text-decoration: underline;
-  }
+.more-toggle:focus-visible {
+  outline: 3px solid var(--ed-ink);
+  outline-offset: 4px;
 }
 
 .more-words {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.35rem;
   min-width: 0;
 }
 
 .more-title {
-  font-size: 1.2rem;
-  font-weight: 700;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  line-height: 1.05;
 }
 
 .more-hint {
-  color: var(--sl-ink-soft);
-  font-size: 0.95rem;
+  color: var(--ed-ink-soft);
+  font-size: 1rem;
+}
+
+.more-disc {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--ed-lime);
+  color: var(--ed-lime-ink);
+  transition: transform var(--sl-dur-base) var(--sl-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .more-toggle:hover .more-disc {
+    transform: scale(1.06);
+  }
 }
 
 .more-chevron {
-  width: 1.5rem;
-  height: 1.5rem;
-  color: var(--sl-link);
+  width: 1.25rem;
+  height: 1.25rem;
   transition: transform var(--sl-dur-base) var(--sl-ease);
 }
 
@@ -425,16 +703,23 @@ watch(
 .more-panel {
   display: grid;
   gap: 1.5rem;
-  margin-top: 1.5rem;
+  margin-top: 2rem;
+}
+
+.home-boundary {
+  margin-top: 4rem;
+  color: var(--ed-ink-soft);
 }
 
 .sk-heading {
+  display: block;
   width: 55%;
   height: 1.5rem;
   margin-bottom: 1.25rem;
 }
 
 .sk-row {
+  display: block;
   height: 2.75rem;
   margin-top: 0.75rem;
 }

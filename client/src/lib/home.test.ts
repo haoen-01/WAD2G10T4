@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  crossSplit,
   HOME_LIST_CAP,
   capRows,
   longToday,
@@ -59,5 +60,30 @@ describe('the reading’s day', () => {
 
   it('writes today’s date out in full', () => {
     assert.equal(longToday('2026-11-02'), 'Monday, 2 November');
+  });
+});
+
+describe('crossSplit', () => {
+  it('puts the cross before "for {elder}"', () => {
+    assert.deepEqual(crossSplit('A usual day for Mdm Lim', 'Mdm Lim'), {
+      before: 'A usual day',
+      after: 'for Mdm Lim',
+    });
+    assert.deepEqual(crossSplit('Tue, 18 Aug was a quieter day than usual for Mr Tan', 'Mr Tan'), {
+      before: 'Tue, 18 Aug was a quieter day than usual',
+      after: 'for Mr Tan',
+    });
+  });
+
+  it('puts it after her name when the headline starts with it', () => {
+    assert.deepEqual(
+      crossSplit('Mdm Lim has been less active than usual for a few days', 'Mdm Lim'),
+      { before: 'Mdm Lim', after: 'has been less active than usual for a few days' },
+    );
+  });
+
+  it('leaves a headline without her name alone', () => {
+    assert.equal(crossSplit('Not enough watch data today', 'Mdm Lim'), null);
+    assert.equal(crossSplit('A usual day', ''), null);
   });
 });

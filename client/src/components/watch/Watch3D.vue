@@ -35,6 +35,8 @@ const props = defineProps<{
   docked: boolean;
   /** Fades out the back of the band, so the back of the watch can be seen. */
   bandOpen?: boolean;
+  /** The day the figures are from, under the step count. "Today" unless they are older. */
+  dayLabel?: string;
 }>();
 
 // ---- Sizes, in px (the page scales the whole scene) ----
@@ -243,7 +245,7 @@ const stepsText = computed(() =>
                   />
                 </svg>
                 <Icon name="walk" class="ring-icon" />
-                <span class="small">Today</span>
+                <span class="small">{{ dayLabel ?? 'Today' }}</span>
                 <strong class="big">{{ stepsText }}</strong>
                 <span class="small">steps</span>
                 <span class="bars">

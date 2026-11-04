@@ -186,6 +186,9 @@ onBeforeUnmount(() => {
 
     <header ref="header" class="topbar">
       <div class="container topbar-inner">
+        <!-- The family's menu sits to the left of the centred brand on a wide screen. -->
+        <MainNav v-if="showTabs && wide" variant="pill" :links="links" :dots="navDots" />
+
         <RouterLink class="brand" :to="brandTo">
           <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
             <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="5" />
@@ -212,7 +215,6 @@ onBeforeUnmount(() => {
           :links="links"
           :dots="navDots"
         />
-        <MainNav v-else-if="showTabs && wide" variant="pill" :links="links" :dots="navDots" />
 
         <div class="topbar-tools">
           <template v-if="showTabs">
@@ -520,5 +522,135 @@ main {
   border-top: 1px solid var(--sl-line);
   color: var(--sl-ink-soft);
   font-size: 0.9rem;
+}
+/* ===== The family's header: the editorial look of family Home =====
+   Cream, with the menu on the left, the serif "Care+" in the middle and the tools on the right.
+   The current page is underlined in plum rather than filled. Scoped to `.shell--tabs` (the family
+   layout), so the senior's header and the sign-in screens keep their own. */
+.shell--tabs .topbar {
+  border-bottom-color: var(--ed-line);
+  background: var(--ed-cream);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.shell--tabs .topbar-inner {
+  min-height: 4.5rem;
+}
+
+.shell--tabs .brand {
+  gap: 0.5rem;
+  color: var(--ed-ink);
+  font-family: var(--ed-serif);
+  font-size: 1.9rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.shell--tabs .brand:hover {
+  color: var(--ed-ink);
+}
+
+.shell--tabs .brand-mark {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.shell--tabs .brand-mark circle:last-child {
+  stroke: var(--ed-cross);
+}
+
+.shell--tabs .brand-plus {
+  color: var(--ed-cross);
+}
+
+:root[data-bs-theme='dark'] .shell--tabs .brand,
+:root[data-bs-theme='dark'] .shell--tabs .brand:hover {
+  color: var(--ed-ink);
+}
+
+@media (min-width: 768px) {
+  /* Menu and tools share the row equally, so the brand is centred between them. */
+  .shell--tabs .brand {
+    flex: 0 0 auto;
+    justify-content: center;
+  }
+
+  .shell--tabs :deep(.mainnav--pill) {
+    flex: 1 1 0;
+    min-width: max-content;
+  }
+}
+
+.shell--tabs :deep(.mainnav--pill .mainnav-list) {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.shell--tabs :deep(.mainnav--pill .mainnav-link) {
+  color: var(--ed-ink-soft);
+  font-weight: 600;
+}
+
+.shell--tabs :deep(.mainnav--pill .mainnav-link:hover:not(.active)) {
+  background: var(--ed-line);
+  color: var(--ed-ink);
+}
+
+.shell--tabs :deep(.mainnav--pill .mainnav-link.active) {
+  color: var(--ed-ink);
+  font-weight: 700;
+}
+
+/* The highlight that slides to the current page becomes a short plum rule under its name. */
+.shell--tabs :deep(.mainnav--pill .mainnav-indicator) {
+  top: auto;
+  bottom: 0.2rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ed-ink);
+}
+
+.shell--tabs :deep(.mainnav-dot) {
+  border-color: var(--ed-cream);
+  background: var(--ed-cross);
+}
+
+/* The phone's tab bar: cream, with the current tab's icon on a plum pill. */
+.shell--tabs :deep(.mainnav--tabs) {
+  border-top-color: var(--ed-line);
+  background: var(--ed-cream);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.shell--tabs :deep(.mainnav--tabs .mainnav-link) {
+  color: var(--ed-ink-soft);
+}
+
+.shell--tabs :deep(.mainnav--tabs .mainnav-link.active) {
+  color: var(--ed-ink);
+}
+
+.shell--tabs :deep(.mainnav--tabs .mainnav-link.active .mainnav-icon) {
+  color: var(--ed-on-plum);
+}
+
+.shell--tabs :deep(.mainnav--tabs .mainnav-indicator) {
+  background: var(--ed-plum);
+}
+
+/* Full-width fields (Home's hero edge and bands) never make the page scroll sideways. `clip`,
+   unlike `hidden`, makes no scroll container, so the sticky header still sticks. */
+.shell--tabs {
+  overflow-x: clip;
+}
+
+/* The footer under family screens takes the same cream and rule. */
+.shell--tabs .site-footer {
+  border-top-color: var(--ed-line);
+  background: var(--ed-cream);
+  color: var(--ed-ink-soft);
 }
 </style>
