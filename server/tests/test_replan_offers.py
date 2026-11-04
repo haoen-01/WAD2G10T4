@@ -16,15 +16,22 @@ the notice read view over the offers, went in step 7. What `advance` writes is u
 
 from __future__ import annotations
 
-from datetime import date
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy import select
 
+from silverloop.context import ContextEvidence, ExternalContext
 from silverloop.db_models import ActivityCandidateRow, ReplanOfferRow, WeekPlanEntryRow
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.local_time import local_date
-from silverloop.models import ActivityAvailability, ReplanReason, ReplanResolution
+from silverloop.models import (
+    ActivityAvailability,
+    ContextSignal,
+    ReplanReason,
+    ReplanResolution,
+)
 from silverloop.sql_repository import SqlAlchemyRepository
 from tests.row_fixtures import active_run_id, audit_events, plan_activity
 
@@ -228,6 +235,94 @@ def test_weather_leaves_an_indoor_plan_alone(repo: SqlAlchemyRepository) -> None
 
     assert _offers(repo) == []
     assert _open_offers(repo) == []
+
+
+# ── Live rain only moves the sessions its reading or forecast covers ───────────────────────────
+
+# activity-gardening-1 starts 2026-08-19 01:00 UTC (9 am in Singapore).
+GARDENING_STARTS = datetime(2026, 8, 19, 1, 0, tzinfo=UTC)
+# The real clock: 8:30 am in Singapore on that same day, so live weather speaks for it.
+LIVE_MORNING = datetime(2026, 8, 19, 0, 30, tzinfo=UTC)
+
+
+@dataclass
+class _LiveRain:
+    """A stand-in context provider reporting current live rain until `until`."""
+
+    until: datetime
+
+    def fetch(self, as_of: datetime) -> ExternalContext:
+        return ExternalContext(
+            signal=ContextSignal(
+                rainy=True,
+                note="Live rain (test).",
+                weather_source="live",
+                weather_valid_until=self.until,
+            ),
+            evidence=[
+                ContextEvidence(
+                    source="nea_weather_live",
+                    observed_at=LIVE_MORNING,
+                    expires_at=self.until,
+                    confidence=0.95,
+                    evidence_id="E-TEST-LIVE-RAIN",
+                    payload={"available": True},
+                )
+            ],
+        )
+
+
+def _live_repo(monkeypatch: pytest.MonkeyPatch, until: datetime) -> SqlAlchemyRepository:
+    monkeypatch.setattr("silverloop.sql_repository._utcnow", lambda: LIVE_MORNING)
+    instance = SqlAlchemyRepository(
+        "sqlite+pysqlite:///:memory:", context_provider=_LiveRain(until)
+    )
+    instance.create_schema_for_tests()
+    instance.reset()
+    _plan(instance, "activity-gardening-1", GARDENING_DAY)
+    return instance
+
+
+@pytest.mark.parametrize(
+    ("until", "offered"),
+    [
+        (datetime(2026, 8, 19, 0, 45, tzinfo=UTC), False),  # the rain is over before it starts
+        (GARDENING_STARTS, True),  # it starts the very moment the reading stops speaking
+        (datetime(2026, 8, 19, 2, 0, tzinfo=UTC), True),  # the rain runs into it
+    ],
+)
+def test_live_rain_offers_a_replan_only_for_an_outdoor_session_it_covers(
+    monkeypatch: pytest.MonkeyPatch, until: datetime, offered: bool
+) -> None:
+    repository = _live_repo(monkeypatch, until)
+
+    response = repository.advance("activity_declines", event_id="live-rain-replan")
+
+    context = response.state.signal.context
+    assert (context.rainy, context.weather_source, context.weather_valid_until) == (
+        True,
+        "live",
+        until,
+    )
+    expected = [ReplanReason.WEATHER.value] if offered else []
+    assert [offer.reason for offer in _offers(repository)] == expected
+
+
+def test_simulated_rain_still_covers_the_whole_day_whatever_live_weather_says(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Live rain that ended before the session would not move it; the scripted rain does.
+    repository = _live_repo(monkeypatch, datetime(2026, 8, 19, 0, 45, tzinfo=UTC))
+
+    response = repository.advance("weather_turns", event_id="simulated-rain-replan")
+
+    context = response.state.signal.context
+    assert (context.rainy, context.weather_source, context.weather_valid_until) == (
+        True,
+        "simulated",
+        None,
+    )
+    assert [offer.reason for offer in _offers(repository)] == [ReplanReason.WEATHER.value]
 
 
 # ── A dead run's plan is not the live run's business ──────────────────────────────────────────

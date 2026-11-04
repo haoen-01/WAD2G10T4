@@ -25,6 +25,7 @@ from uuid import uuid4
 import httpx
 from pydantic import BaseModel
 
+from silverloop.local_time import PROJECT_TIMEZONE
 from silverloop.models import ContextSignal
 
 logger = logging.getLogger("silverloop.context")
@@ -81,6 +82,17 @@ class ContextEvidence(BaseModel):
 class ExternalContext:
     signal: ContextSignal
     evidence: list[ContextEvidence]
+
+
+def _nea_time(value: object) -> datetime:
+    """An NEA timestamp as an aware datetime. NEA publishes Singapore time with its +08:00 offset;
+    one that arrives without an offset is read as Singapore time, the only zone NEA reports in.
+    Anything that is not an ISO string raises (a `_LOOKUP_ERRORS` member), so the caller treats
+    that part of the body as unavailable."""
+    if not isinstance(value, str):
+        raise TypeError(f"expected an ISO timestamp string, got {type(value).__name__}")
+    moment = datetime.fromisoformat(value)
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=PROJECT_TIMEZONE)
 
 
 def _evidence_id(prefix: str) -> str:
@@ -155,9 +167,10 @@ class ExternalContextProvider:
             readings = payload.get("readings") or []
             if readings:
                 latest = readings[-1]
-                reading_ts = datetime.fromisoformat(latest["timestamp"])
+                # Parsed whole before any of it is used: a reading half-read is no reading.
+                parsed_ts = _nea_time(latest["timestamp"])
                 values = [float(entry["value"]) for entry in latest.get("data", [])]
-                max_reading = max(values) if values else 0.0
+                reading_ts, max_reading = parsed_ts, (max(values) if values else 0.0)
         except _LOOKUP_ERRORS as exc:
             reading_error = f"{type(exc).__name__}: {exc}"
             logger.warning("external_context_rainfall_unavailable: %s", exc)
@@ -173,20 +186,22 @@ class ExternalContextProvider:
             items = payload.get("items") or []
             if items:
                 latest_item = items[-1]
-                forecast_ts = datetime.fromisoformat(latest_item["timestamp"])
-                period_end = (latest_item.get("valid_period") or {}).get("end")
-                forecast_until = (
-                    datetime.fromisoformat(period_end)
-                    if period_end
-                    else forecast_ts + FORECAST_FRESH_FOR
-                )
-                forecast_rain_areas = [
+                # Parsed whole -- its time, its end and its areas -- before any of it is used: a
+                # forecast whose end cannot be read is unavailable, never current.
+                issued = _nea_time(latest_item["timestamp"])
+                period = latest_item.get("valid_period")
+                if period is not None and not isinstance(period, dict):
+                    raise TypeError(f"valid_period is a {type(period).__name__}, not an object")
+                period_end = (period or {}).get("end")
+                until = _nea_time(period_end) if period_end else issued + FORECAST_FRESH_FOR
+                areas = [
                     entry["area"]
                     for entry in latest_item.get("forecasts", [])
                     if any(
                         keyword in entry.get("forecast", "").lower() for keyword in _RAIN_KEYWORDS
                     )
                 ]
+                forecast_ts, forecast_until, forecast_rain_areas = issued, until, areas
         except _LOOKUP_ERRORS as exc:
             forecast_error = f"{type(exc).__name__}: {exc}"
             logger.warning("external_context_forecast_unavailable: %s", exc)
@@ -195,6 +210,7 @@ class ExternalContextProvider:
         # recorded as stale, never used as now (the upstream can lag, or stop updating).
         stale: list[str] = []
         reading_until = reading_ts + RAINFALL_FRESH_FOR if reading_ts is not None else None
+        # Current up to and including the moment it stops speaking.
         if reading_ts is not None and reading_until is not None and reading_until < as_of:
             stale.append(f"rainfall reading from {reading_ts.isoformat()}")
             reading_error = reading_error or "stale"
@@ -247,7 +263,8 @@ class ExternalContextProvider:
             for ts, until in ((reading_ts, reading_until), (forecast_ts, forecast_until))
             if ts is not None and until is not None
         ]
-        expires_at = max(rain_until) if rainy else min(current_until)
+        # Never empty: at least one part is current here, and every current part has an end.
+        expires_at = max(rain_until) if rain_until else min(current_until, default=as_of)
 
         observed_at = max(ts for ts in (reading_ts, forecast_ts) if ts is not None)
         payload: dict[str, Any] = {

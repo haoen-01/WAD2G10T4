@@ -154,6 +154,8 @@ def test_live_rain_context_supplements_a_scripted_decline_like_the_rain_event(
     )
     assert response.state.last_decision.value == "no_action"
     events = audit_events(repo, person_id=DEMO_PERSON_ID)
+    # The frozen `_utcnow` gives every audit row this advance writes the same `recorded_at`, so
+    # "newest first" no longer puts the decision row at index 0: find it by what it carries.
     detail = next(e.detail for e in events if "external_context_evidence" in e.detail)
     assert detail["external_context_evidence"] == [
         _fake_evidence("nea_weather_live").model_dump(mode="json")
@@ -202,6 +204,8 @@ def test_expired_context_evidence_does_not_contribute_a_true_signal(
     assert response.state.signal.context.rainy is False
     assert response.state.signal.context.weather_source == "unavailable"
     events = audit_events(repo, person_id=DEMO_PERSON_ID)
+    # The frozen `_utcnow` gives every audit row this advance writes the same `recorded_at`, so
+    # "newest first" no longer puts the decision row at index 0: find it by what it carries.
     detail = next(e.detail for e in events if "external_context_evidence" in e.detail)
     assert detail["expired_context_evidence"] == [
         {
@@ -228,12 +232,7 @@ def test_no_context_provider_leaves_behaviour_unchanged() -> None:
 
     assert response.state.signal.context.rainy is False
     events = audit_events(repo, person_id=DEMO_PERSON_ID)
-    assert (
-        next(e.detail for e in events if "external_context_evidence" in e.detail)[
-            "external_context_evidence"
-        ]
-        == []
-    )
+    assert events[0].detail["external_context_evidence"] == []
 
 
 def test_live_rain_never_speaks_for_a_simulated_day_that_is_not_today(
@@ -327,3 +326,36 @@ def test_only_a_current_live_forecast_counts_as_rain_explaining_a_decline(
     if expected_source == "unavailable":
         assert weather["payload"]["stale"] == [f"forecast issued {issued}"]
         assert weather["confidence"] == 0.0
+
+
+@pytest.mark.parametrize(
+    ("real_now", "expected_source"),
+    [
+        (datetime(2026, 8, 19, 6, 0, tzinfo=UTC), "live"),  # the moment it expires: still current
+        (datetime(2026, 8, 19, 6, 0, 1, tzinfo=UTC), "unavailable"),  # a second later: stale
+    ],
+)
+def test_live_weather_is_still_current_at_the_moment_its_evidence_expires(
+    monkeypatch: pytest.MonkeyPatch, real_now: datetime, expected_source: str
+) -> None:
+    provider = _FakeProvider(
+        signal=ContextSignal(
+            rainy=True,
+            weather_source="live",
+            weather_valid_until=datetime(2026, 8, 19, 6, 0, tzinfo=UTC),
+        ),
+        evidence=[_expired_evidence("nea_weather_live")],  # expires 2026-08-19 06:00 UTC
+    )
+    repo = SqlAlchemyRepository("sqlite+pysqlite:///:memory:", context_provider=provider)
+    repo.create_schema_for_tests()
+    repo.reset()
+    _real_clock(monkeypatch, real_now)
+
+    response = repo.advance("activity_declines", event_id=f"boundary-{expected_source}")
+
+    context = response.state.signal.context
+    assert context.weather_source == expected_source
+    assert context.rainy is (expected_source == "live")
+    assert response.state.last_decision.value == (
+        "no_action" if expected_source == "live" else "gentle_nudge"
+    )
