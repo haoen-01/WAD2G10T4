@@ -566,3 +566,65 @@ def test_a_forecast_is_still_current_at_the_end_of_its_period(now: datetime, cur
     with patch.object(httpx.Client, "get", _mock_get(forecast=forecast, raise_for={"rainfall"})):
         result = provider.fetch(now)
     assert result.signal.rainy is current
+
+
+@pytest.mark.parametrize(
+    ("rainfall", "forecast"),
+    [
+        # A gauge reading stamped in 2099, raining hard.
+        (
+            _rainfall_payload(
+                [
+                    {
+                        "timestamp": "2099-01-01T12:00:00+08:00",
+                        "data": [{"station_id": "S1", "value": 5}],
+                    }
+                ]
+            ),
+            "clear",
+        ),
+        # A rainy forecast issued long ago whose valid period claims to run until 2099.
+        (
+            None,
+            {"start": "2026-06-01T12:00:00+08:00", "end": "2099-01-01T00:00:00+08:00"},
+        ),
+        # A rainy forecast issued in the future.
+        (
+            None,
+            {"start": "2099-01-01T12:00:00+08:00", "end": "2099-01-01T14:00:00+08:00"},
+        ),
+        # A valid period that ends before it was issued.
+        (
+            None,
+            {"start": "2026-08-20T12:00:00+08:00", "end": "2026-08-20T11:00:00+08:00"},
+        ),
+    ],
+)
+def test_weather_from_the_future_or_with_a_nonsense_period_is_never_rain_now(
+    rainfall: dict | None, forecast: dict | str
+) -> None:
+    gauge_down = _rainfall_payload([])
+    if forecast == "clear":
+        forecast_body = CLEAR_FORECAST
+    else:
+        forecast_body = _forecast_with_period(forecast, timestamp=forecast["start"])
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(
+        httpx.Client, "get", _mock_get(rainfall or gauge_down, forecast_body, NO_HOLIDAYS)
+    ):
+        result = provider.fetch(AS_OF)
+    assert result.signal.rainy is False
+    weather = result.evidence[0]
+    assert weather.expires_at is None or weather.expires_at.year < 2099
+
+
+@pytest.mark.parametrize("value", ["inf", "nan", "-inf"])
+def test_a_rainfall_value_that_is_not_a_finite_number_is_no_reading(value: str) -> None:
+    rainfall = _rainfall_payload(
+        [{"timestamp": "2026-08-20T11:55:00+08:00", "data": [{"station_id": "S1", "value": value}]}]
+    )
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(httpx.Client, "get", _mock_get(rainfall, CLEAR_FORECAST, NO_HOLIDAYS)):
+        result = provider.fetch(AS_OF)
+    assert result.signal.rainy is False
+    assert "rainfall_reading_unavailable" in result.evidence[0].payload

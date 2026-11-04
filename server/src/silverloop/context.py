@@ -16,6 +16,7 @@ clear" in the decision trace.
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -40,6 +41,12 @@ _RAINFALL_THRESHOLD_MM = 0.2
 # end (`valid_period.end`); without one, two hours after it was issued.
 RAINFALL_FRESH_FOR = timedelta(minutes=30)
 FORECAST_FRESH_FOR = timedelta(hours=2)
+# A reading or forecast stamped later than now plus this (clock skew between NEA and this server)
+# is not current: weather from the future is a malformed timestamp, never rain now.
+CLOCK_SKEW = timedelta(minutes=5)
+# The longest valid period a 2-hour forecast may claim. A longer (or backwards) period is malformed
+# and the forecast is treated as unavailable rather than as rain until, say, 2099.
+MAX_FORECAST_SPAN = timedelta(hours=6)
 
 # Errors caught around each outbound call: network failures, timeouts, HTTP error statuses and
 # any shape of unexpected/malformed response body. Never a bare `except Exception` -- an
@@ -170,6 +177,8 @@ class ExternalContextProvider:
                 # Parsed whole before any of it is used: a reading half-read is no reading.
                 parsed_ts = _nea_time(latest["timestamp"])
                 values = [float(entry["value"]) for entry in latest.get("data", [])]
+                if not all(math.isfinite(value) for value in values):
+                    raise ValueError("a rainfall value is not a finite number")
                 reading_ts, max_reading = parsed_ts, (max(values) if values else 0.0)
         except _LOOKUP_ERRORS as exc:
             reading_error = f"{type(exc).__name__}: {exc}"
@@ -194,6 +203,8 @@ class ExternalContextProvider:
                     raise TypeError(f"valid_period is a {type(period).__name__}, not an object")
                 period_end = (period or {}).get("end")
                 until = _nea_time(period_end) if period_end else issued + FORECAST_FRESH_FOR
+                if not issued < until <= issued + MAX_FORECAST_SPAN:
+                    raise ValueError("valid_period does not end within hours of being issued")
                 areas = [
                     entry["area"]
                     for entry in latest_item.get("forecasts", [])
@@ -205,6 +216,14 @@ class ExternalContextProvider:
         except _LOOKUP_ERRORS as exc:
             forecast_error = f"{type(exc).__name__}: {exc}"
             logger.warning("external_context_forecast_unavailable: %s", exc)
+
+        # Weather stamped in the future is a malformed timestamp, not rain now: unavailable.
+        if reading_ts is not None and reading_ts > as_of + CLOCK_SKEW:
+            reading_error = reading_error or "timestamped in the future"
+            reading_ts, max_reading = None, 0.0
+        if forecast_ts is not None and forecast_ts > as_of + CLOCK_SKEW:
+            forecast_error = forecast_error or "timestamped in the future"
+            forecast_ts, forecast_until, forecast_rain_areas = None, None, []
 
         # Only what is still current counts. A reading or a forecast already past its time is
         # recorded as stale, never used as now (the upstream can lag, or stop updating).

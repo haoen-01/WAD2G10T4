@@ -154,8 +154,8 @@ def test_live_rain_context_supplements_a_scripted_decline_like_the_rain_event(
     )
     assert response.state.last_decision.value == "no_action"
     events = audit_events(repo, person_id=DEMO_PERSON_ID)
-    # The frozen `_utcnow` gives every audit row this advance writes the same `recorded_at`, so
-    # "newest first" no longer puts the decision row at index 0: find it by what it carries.
+    # `reset()` ran before `_utcnow` was frozen, so its audit row carries the real wall-clock time
+    # and sorts newer than this frozen-clock advance: find the decision row by what it carries.
     detail = next(e.detail for e in events if "external_context_evidence" in e.detail)
     assert detail["external_context_evidence"] == [
         _fake_evidence("nea_weather_live").model_dump(mode="json")
@@ -204,8 +204,8 @@ def test_expired_context_evidence_does_not_contribute_a_true_signal(
     assert response.state.signal.context.rainy is False
     assert response.state.signal.context.weather_source == "unavailable"
     events = audit_events(repo, person_id=DEMO_PERSON_ID)
-    # The frozen `_utcnow` gives every audit row this advance writes the same `recorded_at`, so
-    # "newest first" no longer puts the decision row at index 0: find it by what it carries.
+    # `reset()` ran before `_utcnow` was frozen, so its audit row carries the real wall-clock time
+    # and sorts newer than this frozen-clock advance: find the decision row by what it carries.
     detail = next(e.detail for e in events if "external_context_evidence" in e.detail)
     assert detail["expired_context_evidence"] == [
         {
