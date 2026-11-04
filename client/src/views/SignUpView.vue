@@ -275,7 +275,7 @@ fieldset {
   border: 2px solid var(--sl-line);
   border-radius: var(--sl-radius-sm);
   text-align: center;
-  cursor: pointer;
+  cursor: var(--sl-cur-press);
   transition: border-color var(--sl-dur-base) ease;
 }
 
@@ -338,6 +338,6 @@ fieldset {
 }
 
 .role-input:disabled + .role-card {
-  cursor: not-allowed;
+  cursor: var(--sl-cur-locked);
 }
 </style>

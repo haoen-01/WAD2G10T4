@@ -188,7 +188,7 @@ async function handleSubmit(): Promise<void> {
         <p class="mb-0">Sign-in is switched off in this demo, so there is no password to enter.</p>
         <button
           type="button"
-          class="btn btn-primary btn-lg"
+          class="btn btn-primary btn-lg sl-cta"
           :data-testid="`continue-${audience}`"
           @click="continueAsDemo"
         >
@@ -238,7 +238,7 @@ async function handleSubmit(): Promise<void> {
           <p v-if="capsLock" class="caps mb-0" role="status">Caps Lock is on.</p>
         </div>
         <div v-if="error" class="alert alert-danger mb-0" role="alert">{{ error }}</div>
-        <button type="submit" class="btn btn-primary btn-lg" :disabled="loading">
+        <button type="submit" class="btn btn-primary btn-lg sl-cta" :disabled="loading">
           <span
             v-if="loading"
             class="spinner-border spinner-border-sm me-2"

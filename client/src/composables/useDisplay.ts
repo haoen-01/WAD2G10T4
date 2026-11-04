@@ -7,6 +7,9 @@ import { ref, watch } from 'vue';
  *   rem, so every screen grows with it. Older eyes are the reason this exists.
  * - Light or dark. It sets `data-bs-theme` on <html>, which both Bootstrap and `theme.css` follow.
  *   With nothing chosen yet, it follows the device's own setting.
+ *
+ * Care+'s green cursors are not a setting: they are always on with a mouse or trackpad (see
+ * "Cursors" in `theme.css`).
  */
 export type Theme = 'light' | 'dark';
 

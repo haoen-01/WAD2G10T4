@@ -137,7 +137,11 @@ const greeting = computed(() => {
   return name ? `Hello, ${name}! I'm ${ASSISTANT_NAME}.` : `Hello! I'm ${ASSISTANT_NAME}.`;
 });
 const starters = computed(() =>
-  startingSuggestions(assistant.context().viewer, assistant.context().page),
+  startingSuggestions(
+    assistant.context().viewer,
+    assistant.context().page,
+    senior.value ? null : (currentGroup.value?.senior_name ?? null),
+  ),
 );
 
 // ---- Opening and closing: the chat grows out of the orb, and shrinks back into it ----
@@ -560,13 +564,13 @@ const orbLabel = computed(() => {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  cursor: grab;
+  cursor: var(--sl-cur-kaki);
   touch-action: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 .kaki-orb.is-dragging {
-  cursor: grabbing;
+  cursor: var(--sl-cur-grabbing);
 }
 .kaki-orb:not(.is-dragging) {
   transition: transform 0.35s var(--sl-ease-spring);

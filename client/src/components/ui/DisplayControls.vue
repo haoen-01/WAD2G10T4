@@ -2,7 +2,7 @@
 import Icon from '@/components/ui/Icon.vue';
 import { useDisplay } from '@/composables/useDisplay';
 
-/** The top bar's display settings: zoom by percentage, and light or dark. */
+/** The display settings: zoom by percentage, and light or dark. */
 const display = useDisplay();
 const { zoom, theme } = display;
 </script>

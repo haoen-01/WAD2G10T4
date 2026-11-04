@@ -356,7 +356,7 @@ function submit() {
 .kind-choice {
   --chip: var(--kind);
   min-height: 2.4rem;
-  cursor: pointer;
+  cursor: var(--sl-cur-press);
 }
 
 .kind-choice:has(input:checked) {

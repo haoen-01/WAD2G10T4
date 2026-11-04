@@ -218,7 +218,7 @@ export default defineComponent({
 }
 
 .day-task label {
-  cursor: pointer;
+  cursor: var(--sl-cur-tick);
 }
 
 .day-task-check {

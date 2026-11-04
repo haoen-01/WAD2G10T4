@@ -1,22 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useId, watch } from 'vue';
+import { computed, ref, useId, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 import TaskForm from '@/components/home/TaskForm.vue';
 import Icon from '@/components/ui/Icon.vue';
+import LoopRing from '@/components/ui/LoopRing.vue';
 import { useNow } from '@/composables/useNow';
 import { useTasks } from '@/composables/useTasks';
-import { showToast } from '@/composables/useToast';
 import { addDays, timeToMinutes, todayIso } from '@/lib/calendar';
 import { formatClockTime, formatIsoDay } from '@/lib/format-date';
-import { capRows } from '@/lib/home';
 import type { TaskInput, TaskOccurrence, TaskSchedule } from '@/lib/tasks';
 import { minutesOf, nextTask, untilWords } from '@/lib/today';
 
 /**
- * "Today's tasks" on Home: today's medicine and reminders to tick off, how many are done and what
- * is next. At most five rows show; "See all" opens the day on the calendar. Adding, editing and
- * other days wait behind "Manage tasks", so Home stays a list to act on rather than a tool.
+ * "Today's tasks": medicine and reminders that tick off, a ring for how many are done and a line
+ * for what is next. Family members in the group add, edit and delete them; anyone ticks them off.
  * Tasks are kept by the family group in the API (`useTasks`) and also show on the calendar.
  */
 const props = defineProps<{ canManage: boolean }>();
@@ -34,22 +32,7 @@ const savedDay = ref<string | null>(null);
 /** The open form: `'new'`, a task being edited, or nothing. */
 const editing = ref<TaskSchedule | 'new' | null>(null);
 const dayTasks = computed(() => tasks.tasksOn(day.value));
-/** "Manage tasks": the day stepper, Add task and Edit. Closing it goes back to today. */
-const managing = ref(false);
-const manageButton = ref<HTMLButtonElement | null>(null);
-function startManaging(addNew = false) {
-  managing.value = true;
-  if (addNew) openForm();
-}
-async function stopManaging() {
-  managing.value = false;
-  editing.value = null;
-  day.value = today();
-  await nextTick();
-  manageButton.value?.focus();
-}
 const doneCount = computed(() => dayTasks.value.filter((task) => task.completed).length);
-const rows = computed(() => capRows(dayTasks.value));
 
 // "Next": only for today, the earliest one not done that is still to come (or overdue).
 const next = computed(() => {
@@ -88,26 +71,9 @@ async function save(input: TaskInput) {
   // Not saved: the form stays open with what was typed, and a message says why.
   if (saved) done(task === 'new' ? 'Added to the calendar.' : 'Saved.', input.start_date);
 }
-/** The tick box for a task, so Undo can put focus back on it. */
-function checkFor(taskId: string) {
-  return document.getElementById(`${id}-task-${taskId}`);
-}
-async function toggle(task: TaskOccurrence) {
+function toggle(task: TaskOccurrence) {
+  void tasks.setCompleted(task.task_id, day.value, !task.completed);
   notice.value = '';
-  const onDay = day.value;
-  const completed = !task.completed;
-  const saved = await tasks.setCompleted(task.task_id, onDay, completed);
-  // Ticking off is easy to do by mistake on a phone, so it can be taken back from the toast.
-  if (!saved || !completed) return;
-  showToast(`Ticked off: ${task.title}.`, {
-    actionLabel: 'Undo',
-    action: async () => {
-      if (await tasks.setCompleted(task.task_id, onDay, false)) {
-        await nextTick();
-        checkFor(task.task_id)?.focus();
-      }
-    },
-  });
 }
 async function remove() {
   const task = editing.value;
@@ -118,48 +84,38 @@ async function remove() {
 <template>
   <section class="sl-panel task-panel" :aria-labelledby="`${id}-heading`" data-testid="task-panel">
     <div class="d-flex align-items-center gap-3 mb-3">
+      <LoopRing
+        :value="dayTasks.length ? doneCount / dayTasks.length : 0"
+        :size="64"
+        :stroke="8"
+        color="var(--sl-sun)"
+        track="var(--sl-sun-soft)"
+      >
+        <span class="fw-bold tabular">{{ doneCount }}/{{ dayTasks.length }}</span>
+      </LoopRing>
       <div class="flex-grow-1 min-w-0">
-        <h3 :id="`${id}-heading`" class="h4 mb-0">
+        <h2 :id="`${id}-heading`" class="h4 mb-0">
           {{ isToday ? 'Today’s tasks' : 'Tasks' }}
-        </h3>
-        <p v-if="dayTasks.length" class="mb-0 text-body-secondary" aria-live="polite">
-          <template v-if="doneCount === dayTasks.length">All done.</template>
+        </h2>
+        <p class="mb-0 text-body-secondary" aria-live="polite">
+          <template v-if="dayTasks.length && doneCount === dayTasks.length">All done.</template>
           <template v-else>{{ doneCount }} of {{ dayTasks.length }} done</template>
         </p>
       </div>
       <button
-        v-if="canManage && !managing"
-        ref="manageButton"
-        type="button"
-        class="btn btn-outline-primary flex-none"
-        data-testid="manage-tasks"
-        @click="startManaging()"
+        v-if="canManage"
+        :type="editing === 'new' ? 'submit' : 'button'"
+        :form="editing === 'new' ? `${id}-new-task` : undefined"
+        class="btn btn-primary flex-none sl-cur-add"
+        data-testid="add-task"
+        @click="editing === 'new' ? undefined : openForm()"
       >
-        Manage tasks
+        Add task
       </button>
-      <template v-else-if="canManage">
-        <button
-          :type="editing === 'new' ? 'submit' : 'button'"
-          :form="editing === 'new' ? `${id}-new-task` : undefined"
-          class="btn btn-primary flex-none"
-          data-testid="add-task"
-          @click="editing === 'new' ? undefined : openForm()"
-        >
-          Add task
-        </button>
-        <button
-          type="button"
-          class="btn btn-quiet flex-none"
-          data-testid="manage-done"
-          @click="stopManaging"
-        >
-          Done
-        </button>
-      </template>
     </div>
 
-    <!-- Another day: step through days instead of typing a date (while managing). -->
-    <div v-if="managing" class="day-nav mb-3" role="group" aria-label="Day">
+    <!-- Another day: step through days instead of typing a date. -->
+    <div class="day-nav mb-3" role="group" aria-label="Day">
       <button
         type="button"
         class="btn btn-sm btn-quiet"
@@ -190,7 +146,7 @@ async function remove() {
     </p>
 
     <TaskForm
-      v-if="editing && canManage && managing"
+      v-if="editing && canManage"
       :key="editing === 'new' ? 'new' : editing.task_id"
       :form-id="editing === 'new' ? `${id}-new-task` : undefined"
       class="task-form mb-3"
@@ -220,26 +176,10 @@ async function remove() {
       </button>
     </p>
     <p v-else-if="!tasks.loaded.value" class="text-body-secondary mb-0">Loading tasks…</p>
-    <div v-else-if="!dayTasks.length" class="tasks-empty" data-testid="tasks-empty">
-      <p class="mb-1 fw-semibold">
-        {{ isToday ? 'No tasks today.' : `No tasks on ${formatIsoDay(day)}.` }}
-      </p>
-      <p v-if="canManage" class="mb-0 text-body-secondary">
-        Add a reminder for {{ isToday ? 'today' : 'this day' }}, such as a call or a medicine time.
-        Everyone in the family group sees it.
-        <button
-          v-if="!managing"
-          type="button"
-          class="btn btn-link p-0 align-baseline"
-          @click="startManaging(true)"
-        >
-          Add a task
-        </button>
-      </p>
-    </div>
+    <p v-else-if="!dayTasks.length" class="text-body-secondary mb-0">No tasks.</p>
     <ul v-else class="tasks">
       <li
-        v-for="task in rows.shown"
+        v-for="task in dayTasks"
         :key="task.task_id"
         class="task-row"
         :class="{ done: task.completed }"
@@ -253,12 +193,7 @@ async function remove() {
           @change="toggle(task)"
         />
         <label :for="`${id}-task-${task.task_id}`" class="task-label">
-          <span class="task-box" aria-hidden="true">
-            <!-- The tick draws itself in when the task is done (CSS stroke, 220 ms). -->
-            <svg class="task-tick" viewBox="0 0 24 24" focusable="false">
-              <path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1" />
-            </svg>
-          </span>
+          <span class="task-box" aria-hidden="true"><Icon name="check" /></span>
           <span class="task-time tabular">{{ formatClockTime(task.time) }}</span>
           <span class="task-text">
             <span class="d-block">{{ task.title }}</span>
@@ -271,7 +206,7 @@ async function remove() {
           </span>
         </label>
         <button
-          v-if="canManage && managing"
+          v-if="canManage"
           type="button"
           class="btn btn-sm btn-quiet task-edit"
           :aria-label="`Edit ${task.title}`"
@@ -282,16 +217,7 @@ async function remove() {
       </li>
     </ul>
 
-    <RouterLink
-      v-if="rows.hidden"
-      class="see-all"
-      :to="{ path: '/calendar', query: { day } }"
-      data-testid="tasks-see-all"
-    >
-      See all {{ dayTasks.length }} on the calendar<Icon name="chevron-right" />
-    </RouterLink>
-
-    <p class="sl-note mt-3 mb-0">Saved for the whole family group, and shown on the calendar.</p>
+    <p class="sl-note mt-3 mb-0">Kept in this browser.</p>
   </section>
 </template>
 
@@ -302,21 +228,6 @@ async function remove() {
 
 .flex-none {
   flex: none;
-}
-
-.tasks-empty {
-  padding: 1rem;
-  border-radius: var(--sl-radius-sm);
-  background: var(--bs-tertiary-bg);
-}
-
-.see-all {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  min-height: 2.75rem;
-  margin-top: 0.5rem;
-  font-weight: 700;
 }
 
 .day-nav {
@@ -347,29 +258,26 @@ async function remove() {
 
 .tasks {
   display: grid;
+  gap: 0.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* One task: the whole row ticks it; Edit (while managing) sits at the right edge. Rows are divided
-   by a rule, like the other lists on Home. */
+/* One task: the whole box ticks it; Edit sits at the right edge. */
 .task-row {
   position: relative;
   display: flex;
   align-items: center;
-  border-top: 1px solid var(--sl-line);
-  transition: background-color var(--sl-dur-base) ease;
+  border: 2px solid var(--sl-line);
+  border-radius: var(--sl-radius-sm);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
-.task-row:first-child {
-  border-top: 0;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .task-row:hover {
-    background: var(--bs-tertiary-bg);
-  }
+.task-row:hover {
+  border-color: var(--sl-ink-soft);
 }
 
 .task-check {
@@ -385,8 +293,8 @@ async function remove() {
   gap: 0.85rem;
   min-width: 0;
   min-height: 3.5rem;
-  padding: 0.6rem 0.25rem;
-  cursor: pointer;
+  padding: 0.6rem 0.85rem;
+  cursor: var(--sl-cur-tick);
 }
 
 .task-check:disabled + .task-label {
@@ -394,7 +302,7 @@ async function remove() {
 }
 
 .task-check:focus-visible + .task-label {
-  outline: 3px solid var(--sl-focus);
+  outline: 3px solid var(--sl-jade);
   outline-offset: 2px;
   border-radius: var(--sl-radius-sm);
 }
@@ -413,36 +321,11 @@ async function remove() {
   height: 1.75rem;
   border: 2px solid var(--sl-ink-soft);
   border-radius: 0.5rem;
-  color: var(--sl-jade-on);
+  color: transparent;
   transition:
-    background-color var(--sl-dur-base) ease,
-    border-color var(--sl-dur-base) ease;
-}
-
-/* The tick is a stroke that is drawn in: hidden (dash offset 1) until the task is done. A CSS
-   transition, so a quick tick and untick reverses smoothly instead of restarting. */
-.task-tick {
-  width: 1.2rem;
-  height: 1.2rem;
-  fill: none;
-  stroke: currentcolor;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.task-tick path {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  transition: stroke-dashoffset 0.22s var(--sl-ease-out);
-}
-
-.done .task-tick path {
-  stroke-dashoffset: 0;
-}
-
-.task-text {
-  transition: color var(--sl-dur-base) ease;
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s var(--sl-ease);
 }
 
 .task-time {
@@ -482,17 +365,26 @@ async function remove() {
 }
 
 .done {
+  border-color: var(--sl-jade-soft);
   background: color-mix(in srgb, var(--sl-jade-soft) 40%, var(--sl-surface));
 }
 
 .done .task-box {
   border-color: var(--sl-jade);
   background: var(--sl-jade);
+  color: #fff;
+  animation: pop 0.3s var(--sl-ease);
 }
 
 .done .task-text {
   color: var(--sl-ink-soft);
   text-decoration: line-through;
+}
+
+@keyframes pop {
+  50% {
+    transform: scale(1.2);
+  }
 }
 
 @media (max-width: 575.98px) {

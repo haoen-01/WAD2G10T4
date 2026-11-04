@@ -49,14 +49,24 @@ describe('what is sent to the API', () => {
 });
 
 describe('starting points', () => {
-  it('speaks to her, or about her, and fits the page', () => {
+  it('speaks to the senior, or about them by name, and fits the page', () => {
     assert.deepEqual(startingSuggestions('senior', 'Badges'), [
       'How many steps today?',
       "What's coming up?",
       'How do badges work?',
       'What can you help with?',
     ]);
-    assert.equal(startingSuggestions('family', 'Home')[0], 'How are her steps today?');
+    assert.equal(
+      startingSuggestions('family', 'Home', 'Mr Tan')[0],
+      'How are Mr Tan’s steps today?',
+    );
+    assert.equal(
+      startingSuggestions('family', 'Home', 'Mdm Lim')[0],
+      'How are Mdm Lim’s steps today?',
+    );
+    // No name yet (a family member not in a group): never a guessed "her" or "his".
+    assert.equal(startingSuggestions('family', 'Home')[0], 'How are their steps today?');
+    assert.equal(startingSuggestions('family', 'Home', '  ')[0], 'How are their steps today?');
     assert.equal(startingSuggestions('family', 'Home')[2], 'Explain this page');
   });
 

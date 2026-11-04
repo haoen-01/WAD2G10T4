@@ -511,7 +511,7 @@ onBeforeUnmount(() => {
         <button
           v-if="canChange"
           type="button"
-          class="btn btn-primary"
+          class="btn btn-primary sl-cta sl-cur-add"
           data-testid="add-appointment"
           :disabled="formOpen"
           @click="openAdd()"

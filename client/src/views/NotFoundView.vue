@@ -25,7 +25,7 @@ import Icon from '@/components/ui/Icon.vue';
       That page does not exist. It may have moved, or the link may be old.
     </p>
     <div class="d-flex flex-wrap justify-content-center gap-2">
-      <RouterLink class="btn btn-primary btn-lg" to="/">
+      <RouterLink class="btn btn-primary btn-lg sl-cta" to="/">
         <Icon name="home" class="me-2" />Back to Overview
       </RouterLink>
       <RouterLink class="btn btn-outline-primary btn-lg" to="/calendar">

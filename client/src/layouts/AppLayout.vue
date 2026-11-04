@@ -11,7 +11,7 @@ import {
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 
 import AssistantDock from '@/components/assistant/AssistantDock.vue';
-import ConnectionProblem from '@/components/layout/ConnectionProblem.vue';
+import LivingBackground from '@/components/layout/LivingBackground.vue';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import DisplayControls from '@/components/ui/DisplayControls.vue';
@@ -19,14 +19,13 @@ import MainNav from '@/components/ui/MainNav.vue';
 import SettingsMenu from '@/components/ui/SettingsMenu.vue';
 import CheckInBanner from '@/components/walk/CheckInBanner.vue';
 import { useAuth } from '@/composables/useAuth';
-import { useConnection } from '@/composables/useConnection';
 import { useMe } from '@/composables/useMe';
 import { useViewMode } from '@/composables/useViewMode';
 import { useWalk } from '@/composables/useWalk';
 import { AUTH_ENABLED } from '@/lib/config';
-import { homeFor, isLoginPath, isPathInView, isSignInScreen } from '@/lib/view-mode';
+import { homeFor, isLoginPath, isPathInView } from '@/lib/view-mode';
 
-const { loading, session, currentUser, signOut } = useAuth();
+const { loading, currentUser, signOut } = useAuth();
 const { mode, leaveDemoView } = useViewMode();
 // A family member caring for more than one senior picks whose care the screens show.
 const { activeGroups, currentGroup, selectGroup, loadMe } = useMe();
@@ -35,8 +34,6 @@ function pickSenior(event: Event) {
 }
 const router = useRouter();
 const route = useRoute();
-// Care+ could not be reached: the connection panel replaces the page and the menu links.
-const { problem } = useConnection();
 
 // The walk check-in: a banner on the family's screens (not the Walk page, which shows it itself),
 // and a dot on the Walk link while one is waiting. A notification click opens the Walk page.
@@ -62,8 +59,6 @@ const ALL_LINKS: { to: string; label: string; exact: boolean; icon: IconName }[]
 // the calendar and family screens, which hold sample data in the browser and have no API behind
 // them.
 const links = computed(() => {
-  // No menu on the sign-in, sign-up and welcome pages, whether sign-in is on or off.
-  if (problem.value || isSignInScreen(route.path)) return [];
   const current = mode.value;
   if (current) return ALL_LINKS.filter((link) => isPathInView(current, link.to));
   return AUTH_ENABLED ? [] : ALL_LINKS;
@@ -78,18 +73,10 @@ async function leaveDemo() {
   await router.replace({ name: 'login' });
 }
 
-// While the connection panel shows, the account read itself may be what failed, so a session is
-// enough to offer Sign out (never "Sign in" to someone who is signed in).
-const signedIn = computed(() => {
-  if (!AUTH_ENABLED) return !!mode.value;
-  return problem.value ? !!session.value : !!currentUser.value;
-});
-// No Sign in, Sign out or role chip on the sign-in, sign-up and welcome pages themselves.
-const showSession = computed(() => !isSignInScreen(route.path));
+const signedIn = computed(() => (AUTH_ENABLED ? !!currentUser.value : !!mode.value));
 
 // The notification bell: family view only, once this person is an active member of a group (the
-// senior never gets one). Its own chunk, loaded only when it shows, so the layout stays small. Not
-// on the sign-in screens, and not over the connection panel (like Kaki).
+// senior never gets one). Its own chunk, loaded only when it shows, so the layout stays small.
 const NotificationBell = defineAsyncComponent(
   () => import('@/components/family/NotificationBell.vue'),
 );
@@ -98,8 +85,7 @@ const showBell = computed(
     mode.value === 'family' &&
     signedIn.value &&
     activeGroups.value.length > 0 &&
-    showSession.value &&
-    !problem.value,
+    !isLoginPath(route.path),
 );
 // Every family screen reads `/v1/me` anyway; this only makes sure the bell knows on any page.
 watch(
@@ -111,9 +97,7 @@ watch(
 );
 // Kaki, the Care+ assistant: on every screen once someone is in (senior or family), never on the
 // sign-in screens.
-const showAssistant = computed(
-  () => signedIn.value && !!mode.value && !isLoginPath(route.path) && !problem.value,
-);
+const showAssistant = computed(() => signedIn.value && !!mode.value && !isLoginPath(route.path));
 const ready = computed(() => !AUTH_ENABLED || !loading.value);
 
 /*
@@ -127,11 +111,6 @@ const ready = computed(() => !AUTH_ENABLED || !loading.value);
  * `--sl-pinned-height` (what stays on screen) lets in-page jump links stop below the bar.
  */
 const showTabs = computed(() => mode.value !== 'senior' && links.value.length > 0);
-// The senior's own screen has its section tabs as a bottom bar on a phone (`SeniorView`), so the
-// top bar stops being pinned there: never two pinned bars.
-const seniorTabs = computed(
-  () => mode.value === 'senior' && route.path.toLowerCase() === '/senior' && !problem.value,
-);
 const header = ref<HTMLElement | null>(null);
 const nav = ref<{ $el: HTMLElement } | null>(null);
 const PHONE = '(max-width: 767.98px)';
@@ -178,17 +157,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    class="shell d-flex flex-column min-vh-100"
-    :class="{ 'shell--tabs': showTabs, 'shell--senior-tabs': seniorTabs }"
-  >
+  <div class="shell d-flex flex-column min-vh-100" :class="{ 'shell--tabs': showTabs }">
     <a class="visually-hidden-focusable" href="#main">Skip to content</a>
+    <LivingBackground />
 
     <header ref="header" class="topbar">
       <div class="container topbar-inner">
-        <!-- The family's menu sits to the left of the centred brand on a wide screen. -->
-        <MainNav v-if="showTabs && wide" variant="pill" :links="links" :dots="navDots" />
-
         <RouterLink class="brand" :to="brandTo">
           <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
             <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="5" />
@@ -208,21 +182,12 @@ onBeforeUnmount(() => {
         </RouterLink>
 
         <!-- The senior's one link stays in the top bar; the family's pill is in the same row. -->
-        <MainNav
-          v-if="mode === 'senior' && links.length"
-          ref="nav"
-          variant="bar"
-          :links="links"
-          :dots="navDots"
-        />
+        <MainNav v-if="mode === 'senior'" ref="nav" variant="bar" :links="links" :dots="navDots" />
+        <MainNav v-else-if="showTabs && wide" variant="pill" :links="links" :dots="navDots" />
 
         <div class="topbar-tools">
           <template v-if="showTabs">
-            <RouterLink
-              v-if="ready && !signedIn && showSession"
-              class="btn btn-outline-primary"
-              to="/login"
-            >
+            <RouterLink v-if="ready && !signedIn" class="btn btn-outline-primary" to="/login">
               Sign in
             </RouterLink>
             <NotificationBell v-if="showBell" />
@@ -258,7 +223,7 @@ onBeforeUnmount(() => {
           </template>
           <template v-else>
             <DisplayControls />
-            <template v-if="ready && showSession">
+            <template v-if="ready">
               <RouterLink v-if="!signedIn" class="btn btn-outline-primary" to="/login">
                 Sign in
               </RouterLink>
@@ -282,15 +247,12 @@ onBeforeUnmount(() => {
     <MainNav v-if="showTabs && !wide" variant="tabs" :links="links" :dots="navDots" />
 
     <main id="main" tabindex="-1" class="container flex-grow-1">
-      <ConnectionProblem v-if="problem" />
-      <template v-else>
-        <CheckInBanner v-if="showCheckIn" />
-        <RouterView v-slot="{ Component, route: shown }">
-          <Transition name="page">
-            <component :is="Component" :key="shown.path" />
-          </Transition>
-        </RouterView>
-      </template>
+      <CheckInBanner v-if="showCheckIn" />
+      <RouterView v-slot="{ Component, route: shown }">
+        <Transition name="page">
+          <component :is="Component" :key="shown.path" />
+        </Transition>
+      </RouterView>
     </main>
 
     <AssistantDock v-if="showAssistant" />
@@ -305,14 +267,15 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Senior and sign-in screens: the plain top bar, as it was. Solid, not blurred. */
+/* Senior and sign-in screens: the plain top bar, now see-through like the family's (no blur: a
+   blurred header would trap the senior's fixed elements). */
 .topbar {
   position: sticky;
   z-index: var(--sl-header-z);
   /* 0 on wide screens; on a phone, minus the brand row, so only the menu row stays pinned. */
   top: calc(-1 * var(--sl-tuck, 0px));
-  border-bottom: 1px solid var(--sl-line);
-  background: var(--sl-mist);
+  border-bottom: 1px solid var(--sl-glass-border);
+  background: color-mix(in srgb, var(--sl-mist) 90%, transparent);
 }
 
 .topbar-inner {
@@ -370,27 +333,6 @@ main {
 @media (max-width: 767.98px) {
   .shell--tabs {
     padding-bottom: var(--sl-tabbar-height);
-  }
-
-  /* The senior's bar is taller: 56px tabs for older hands. */
-  .shell--senior-tabs {
-    padding-bottom: calc(var(--sl-tabbar-height) + 0.75rem);
-  }
-
-  /* The senior's section tabs are pinned at the bottom; the top bar scrolls away with the page. */
-  .shell--senior-tabs .topbar {
-    position: static;
-  }
-
-  /* One menu on the senior's phone: the bottom tabs. Their "My day" link (the only page they
-     have, and the brand already goes there) stays for screen readers and appears on focus. */
-  .shell--senior-tabs .topbar :deep(.mainnav--bar:not(:focus-within)) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
   }
 }
 
@@ -522,135 +464,5 @@ main {
   border-top: 1px solid var(--sl-line);
   color: var(--sl-ink-soft);
   font-size: 0.9rem;
-}
-/* ===== The family's header: the editorial look of family Home =====
-   Cream, with the menu on the left, the serif "Care+" in the middle and the tools on the right.
-   The current page is underlined in plum rather than filled. Scoped to `.shell--tabs` (the family
-   layout), so the senior's header and the sign-in screens keep their own. */
-.shell--tabs .topbar {
-  border-bottom-color: var(--ed-line);
-  background: var(--ed-cream);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
-.shell--tabs .topbar-inner {
-  min-height: 4.5rem;
-}
-
-.shell--tabs .brand {
-  gap: 0.5rem;
-  color: var(--ed-ink);
-  font-family: var(--ed-serif);
-  font-size: 1.9rem;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-}
-
-.shell--tabs .brand:hover {
-  color: var(--ed-ink);
-}
-
-.shell--tabs .brand-mark {
-  width: 1.6rem;
-  height: 1.6rem;
-}
-
-.shell--tabs .brand-mark circle:last-child {
-  stroke: var(--ed-cross);
-}
-
-.shell--tabs .brand-plus {
-  color: var(--ed-cross);
-}
-
-:root[data-bs-theme='dark'] .shell--tabs .brand,
-:root[data-bs-theme='dark'] .shell--tabs .brand:hover {
-  color: var(--ed-ink);
-}
-
-@media (min-width: 768px) {
-  /* Menu and tools share the row equally, so the brand is centred between them. */
-  .shell--tabs .brand {
-    flex: 0 0 auto;
-    justify-content: center;
-  }
-
-  .shell--tabs :deep(.mainnav--pill) {
-    flex: 1 1 0;
-    min-width: max-content;
-  }
-}
-
-.shell--tabs :deep(.mainnav--pill .mainnav-list) {
-  padding: 0;
-  border: 0;
-  background: none;
-}
-
-.shell--tabs :deep(.mainnav--pill .mainnav-link) {
-  color: var(--ed-ink-soft);
-  font-weight: 600;
-}
-
-.shell--tabs :deep(.mainnav--pill .mainnav-link:hover:not(.active)) {
-  background: var(--ed-line);
-  color: var(--ed-ink);
-}
-
-.shell--tabs :deep(.mainnav--pill .mainnav-link.active) {
-  color: var(--ed-ink);
-  font-weight: 700;
-}
-
-/* The highlight that slides to the current page becomes a short plum rule under its name. */
-.shell--tabs :deep(.mainnav--pill .mainnav-indicator) {
-  top: auto;
-  bottom: 0.2rem;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--ed-ink);
-}
-
-.shell--tabs :deep(.mainnav-dot) {
-  border-color: var(--ed-cream);
-  background: var(--ed-cross);
-}
-
-/* The phone's tab bar: cream, with the current tab's icon on a plum pill. */
-.shell--tabs :deep(.mainnav--tabs) {
-  border-top-color: var(--ed-line);
-  background: var(--ed-cream);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
-.shell--tabs :deep(.mainnav--tabs .mainnav-link) {
-  color: var(--ed-ink-soft);
-}
-
-.shell--tabs :deep(.mainnav--tabs .mainnav-link.active) {
-  color: var(--ed-ink);
-}
-
-.shell--tabs :deep(.mainnav--tabs .mainnav-link.active .mainnav-icon) {
-  color: var(--ed-on-plum);
-}
-
-.shell--tabs :deep(.mainnav--tabs .mainnav-indicator) {
-  background: var(--ed-plum);
-}
-
-/* Full-width fields (Home's hero edge and bands) never make the page scroll sideways. `clip`,
-   unlike `hidden`, makes no scroll container, so the sticky header still sticks. */
-.shell--tabs {
-  overflow-x: clip;
-}
-
-/* The footer under family screens takes the same cream and rule. */
-.shell--tabs .site-footer {
-  border-top-color: var(--ed-line);
-  background: var(--ed-cream);
-  color: var(--ed-ink-soft);
 }
 </style>
