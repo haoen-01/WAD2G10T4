@@ -31,6 +31,9 @@ from tests.test_family_groups import (
 OWNER = "family-a"
 DAY = "2026-11-12"  # `_appointment_body`'s one-off day
 SECRET = "Bring the blue folder, locker code 4417"
+# What must never leak. The whole phrase, not just "4417": random hex ids (`act_cf441719…`) can
+# contain those four digits by chance, but never a phrase with spaces and letters like this.
+LEAK = "locker code 4417"
 
 
 def _notes_url(group_id: str, appointment_id: str) -> str:
@@ -108,16 +111,16 @@ def test_adding_a_note_returns_it_and_records_note_added_without_the_text(
     assert latest["appointment_title"] == "Eye check-up" and latest["appointment_kind"] == "medical"
     assert latest["on_date"] == DAY
     assert latest["occurrence_id"] == f"{appointment_id}@{DAY}"
-    assert latest["note"] is None and "4417" not in str(_entries(client, group_id))
+    assert latest["note"] is None and LEAK not in str(_entries(client, group_id))
 
     with client.app.state.repository.sessions() as session:  # type: ignore[attr-defined]
         row = session.scalar(
             select(FamilyActivityRow).where(FamilyActivityRow.kind == "note_added")
         )
         assert row is not None and row.note is None and row.check_in_kind is None
-        assert "4417" not in str(vars(row))
+        assert LEAK not in str(vars(row))
         for event in session.scalars(select(AuditEventRow)):
-            assert "4417" not in str(vars(event))
+            assert LEAK not in str(vars(event))
 
 
 def test_note_text_never_reaches_the_logs(
@@ -128,7 +131,7 @@ def test_note_text_never_reaches_the_logs(
     with caplog.at_level(logging.DEBUG):
         assert _add(client, group_id, appointment_id, SECRET).status_code == 201
         assert _list(client, group_id, appointment_id).status_code == 200
-    assert "4417" not in caplog.text
+    assert LEAK not in caplog.text
 
 
 def test_notes_are_trimmed_and_listed_oldest_first_with_is_mine_per_viewer(
@@ -396,7 +399,7 @@ def test_the_calendar_the_senior_reads_has_no_note_data(client: TestClient) -> N
     for sub in ("senior-1", OWNER):
         response = _calendar(client, person_id, sub, from_date="2026-11-01", to_date="2026-11-30")
         assert response.status_code == 200
-        assert "4417" not in response.text and "note_id" not in response.text
+        assert LEAK not in response.text and "note_id" not in response.text
         body = response.json()
         [appointment] = body["appointments"]
         # The appointment's own details field is untouched by notes.
