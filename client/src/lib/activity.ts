@@ -68,10 +68,12 @@ export function summariseDays(days: readonly StepDay[], usual: number): Fortnigh
 }
 
 /**
- * One sentence for the chart: "12 of the last 14 days were within 20% of her usual day." `owner` is
- * whose usual day it is: "her" for the family, "your" on the senior's own screen.
+ * One sentence for the chart: "12 of the last 14 days were within 20% of Mr Tan’s usual day."
+ * `owner` is whose usual day it is: the senior's name with a possessive ("Mr Tan’s") for the
+ * family, "your" on the senior's own screen, and "their" when no name is known. Care+ does not
+ * record gender, so it never says "her" or "his".
  */
-export function fortnightSentence(summary: FortnightSummary, owner = 'her'): string {
+export function fortnightSentence(summary: FortnightSummary, owner = 'their'): string {
   if (summary.total === 0) return 'No daily readings yet.';
   const days = summary.total === 1 ? 'day' : 'days';
   if (summary.near === summary.total) {

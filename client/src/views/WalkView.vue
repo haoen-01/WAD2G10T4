@@ -88,12 +88,12 @@ watch(
         <p class="walk-eyebrow mb-1"><Icon name="walk" /> Live walk</p>
         <h1>{{ name }}’s walk</h1>
         <p class="sl-lede mb-0">
-          Where she is on her walk, shared by her choice. Explore the map, replay the walk, and see
-          if she has stayed in one place for a long time.
+          Where {{ name }} is right now, shared by their own choice. Explore the map, replay the
+          walk, and see if they have stayed in one place for a long time.
         </p>
       </div>
       <span v-if="walk.sharing.value" class="sl-tag sl-tone-jade" data-testid="walk-sharing">
-        <Icon name="check" /> {{ name }} is sharing her walk
+        <Icon name="check" /> {{ name }} is sharing their walk
       </span>
     </header>
 
@@ -106,10 +106,10 @@ watch(
     >
       <Icon name="eye-off" />
       <div>
-        <h2 id="not-shared-heading" class="h4">{{ name }} is not sharing her walks</h2>
+        <h2 id="not-shared-heading" class="h4">{{ name }} is not sharing their walks</h2>
         <p class="mb-2">
-          Her location is shown only when she turns on “Share my walk with my family” on her own
-          page. She can turn it off at any time.
+          {{ name }}’s location is shown only when they turn on “Share my walk with my family” on
+          their own page. They can turn it off at any time.
         </p>
         <p v-if="!AUTH_ENABLED" class="sl-note mb-0">
           In the demo: sign out, choose “I’m the senior”, and turn it on under “My walks”.

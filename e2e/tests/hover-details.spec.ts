@@ -41,7 +41,7 @@ test('the chart shows a day’s figures only while its bar is pointed at, focuse
   // Hover: the figures for that bar pop out; moving off the chart hides them.
   await bars.nth(4).hover();
   await expect(tip).toContainText(/steps/);
-  await expect(tip).toContainText(/% of her usual day/);
+  await expect(tip).toContainText(/% of Mdm Lim’s usual day/);
   const label = (await bars.nth(4).getAttribute('aria-label')) ?? '';
   // Counted back from the latest reading, never a calendar date.
   await expect(tip).toContainText(label.split(':')[0]);

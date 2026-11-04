@@ -44,6 +44,13 @@ export default defineConfig({
     video: 'retain-on-failure',
     ...devices['Desktop Chrome'],
     timezoneId: TIMEZONE,
+    // The morning summary on Home is a pop-up that covers the page. Every spec starts with it
+    // switched off (as a reader can do with "Show this each morning"), so it does not get in the
+    // way; `morning-summary.spec.ts` turns it back on to test it.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: webUrl, localStorage: [{ name: 'careplus.morning.v1', value: 'off' }] }],
+    },
   },
   webServer: [
     {

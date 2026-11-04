@@ -7,8 +7,8 @@ import { useWalk, type WalkAlert } from '@/composables/useWalk';
 import { DEMO_SENIOR_PHONE } from '@/lib/demo-walk';
 
 /**
- * What a family member can do about a check-in: call her, message her, see her on the map, tell
- * the rest of the family "I'm checking in", or say she is fine. Care+ never calls or messages
+ * What a family member can do about a check-in: call the senior, message them, see them on the
+ * map, tell the rest of the family "I'm checking in", or say they are fine. Care+ never calls or messages
  * anyone itself; these open the phone's own dialler and messages.
  */
 const props = withDefaults(defineProps<{ alert: WalkAlert; showMap?: boolean }>(), {
@@ -56,7 +56,7 @@ const checking = computed(() => props.alert.status === 'checking');
       data-testid="checkin-fine"
       @click="walk.shesFine()"
     >
-      <Icon name="check" /> She’s fine
+      <Icon name="check" /> {{ name }} is fine
     </button>
   </div>
 </template>

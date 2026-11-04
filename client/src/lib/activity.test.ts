@@ -68,18 +68,24 @@ describe('summariseDays', () => {
 });
 
 describe('fortnightSentence', () => {
-  it('says how many days were near usual', () => {
+  it("says how many days were near the senior's usual day, by name", () => {
     assert.equal(
-      fortnightSentence({ total: 14, near: 12, lowest: null, highest: null }),
-      '12 of the last 14 days were within 20% of her usual day.',
+      fortnightSentence({ total: 14, near: 12, lowest: null, highest: null }, 'Mr Tan’s'),
+      '12 of the last 14 days were within 20% of Mr Tan’s usual day.',
     );
   });
 
   it('says "all" when every day was near usual', () => {
     assert.equal(
-      fortnightSentence({ total: 14, near: 14, lowest: null, highest: null }),
-      'All of the last 14 days were within 20% of her usual day.',
+      fortnightSentence({ total: 14, near: 14, lowest: null, highest: null }, 'Mdm Lim’s'),
+      'All of the last 14 days were within 20% of Mdm Lim’s usual day.',
     );
+  });
+
+  it('says "their" with no name, never a guessed "her" or "his"', () => {
+    const sentence = fortnightSentence({ total: 14, near: 12, lowest: null, highest: null });
+    assert.equal(sentence, '12 of the last 14 days were within 20% of their usual day.');
+    assert.doesNotMatch(sentence, /\b(she|her|he|his)\b/i);
   });
 
   it('speaks to the senior on their own screen', () => {

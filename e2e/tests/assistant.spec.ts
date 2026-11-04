@@ -81,7 +81,9 @@ test('family ask about her, and a reply that comes while minimised shows as new'
     await route.continue();
   });
   await orb(page).click();
-  await expect(page.getByTestId('assistant-chip').first()).toHaveText('How are her steps today?');
+  await expect(page.getByTestId('assistant-chip').first()).toHaveText(
+    'How are Mdm Lim’s steps today?',
+  );
   await page.getByTestId('assistant-input').fill('How many steps today?');
   await page.getByTestId('assistant-input').press('Enter');
   // Minimised before the answer arrives: a badge on the orb says there is one to read.

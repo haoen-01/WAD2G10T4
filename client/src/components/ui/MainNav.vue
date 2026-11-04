@@ -4,14 +4,17 @@ import { RouterLink, useRoute } from 'vue-router';
 
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
+import { sameSpan, type Span, STRETCH_MS, stretchSpan } from '@/lib/nav-bubble';
 
 /**
  * The main menu, in three looks:
  * - `tabs` (the family, phone): a bottom tab bar, `position: fixed`, so the layout renders it
  *   outside the sticky header (a filtered ancestor would trap a fixed child).
  * - `pill` (the family, wide screens): a pill in the middle of the header row.
- *   Both slide one highlight behind the current link.
- * - `bar` (the senior): the plain links inside the top bar, unchanged.
+ *   Both slide one glass bubble (with a rainbow rim) behind the current link. On the pill it also
+ *   follows the mouse or keyboard focus, stretching like liquid between links, and goes back to
+ *   the current link when they leave the menu.
+ * - `bar` (the senior): the plain links inside the top bar; the current one is the glass bubble.
  * `dots` puts a sun-coloured dot on a link (keyed by its path); the value is read out after its label.
  */
 const props = defineProps<{
@@ -26,17 +29,77 @@ const list = ref<HTMLElement | null>(null);
 const ready = ref(false);
 /** False when no link is current (for example on the group set-up pages), so nothing is highlighted. */
 const hasActive = ref(false);
+/** True while the mouse or focus is on a link (the bubble shows there even with no current link). */
+const pointing = ref(false);
+/** True for the moment the bubble is stretched between two links. */
+const stretching = ref(false);
 let resizeObserver: ResizeObserver | null = null;
+let stretchTimer = 0;
+/** Where the bubble is now, so the next move can stretch from it. */
+let shown: Span | null = null;
 
-/** Put the highlight under the current link (CSS turns these two numbers into its position). */
+const reducedMotion = () =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+/** Sets the bubble's place (CSS turns these two numbers into its position and width). */
+function place(span: Span) {
+  list.value?.style.setProperty('--ind-x', `${span.x}px`);
+  list.value?.style.setProperty('--ind-w', `${span.w}px`);
+}
+
+/**
+ * Moves the bubble under `link`. With `stretch`, it first covers both the old and the new link,
+ * then shrinks onto the new one `STRETCH_MS` later; CSS's springy transition does the rest.
+ */
+function moveTo(link: HTMLElement, stretch = false) {
+  window.clearTimeout(stretchTimer);
+  stretching.value = false;
+  const target = { x: link.offsetLeft, w: link.offsetWidth };
+  if (stretch && ready.value && shown && !sameSpan(shown, target) && !reducedMotion()) {
+    stretching.value = true;
+    place(stretchSpan(shown, target));
+    stretchTimer = window.setTimeout(() => {
+      stretching.value = false;
+      place(target);
+    }, STRETCH_MS);
+  } else {
+    place(target);
+  }
+  shown = target;
+}
+
+/** Put the bubble under the current link. */
 function measure() {
   const el = list.value;
   if (!el || props.variant === 'bar') return;
   const active = el.querySelector<HTMLElement>('a.active');
   hasActive.value = !!active;
-  if (!active) return;
-  el.style.setProperty('--ind-x', `${active.offsetLeft}px`);
-  el.style.setProperty('--ind-w', `${active.offsetWidth}px`);
+  // While the mouse or focus is on a link the bubble stays there; it comes back on leaving.
+  if (active && !pointing.value) moveTo(active);
+}
+
+/** The mouse (not a finger) or keyboard focus reached a link: the bubble goes to it. */
+function onPoint(event: PointerEvent | FocusEvent) {
+  if (props.variant !== 'pill') return;
+  if ('pointerType' in event && event.pointerType === 'touch') return;
+  pointing.value = true;
+  moveTo(event.currentTarget as HTMLElement, true);
+}
+
+/** The mouse or focus left the menu: back to the current link. */
+function onLeave(event: PointerEvent | FocusEvent) {
+  if (props.variant !== 'pill' || !pointing.value) return;
+  const next = (event as FocusEvent).relatedTarget as Node | null;
+  if (event.type === 'focusout' && next && list.value?.contains(next)) return;
+  // The mouse left, but keyboard focus is still on a link in the menu: stay with the focus.
+  const focused = document.activeElement as HTMLElement | null;
+  if (event.type === 'pointerleave' && focused?.matches('a') && list.value?.contains(focused)) {
+    moveTo(focused, true);
+    return;
+  }
+  pointing.value = false;
+  const active = list.value?.querySelector<HTMLElement>('a.active');
+  if (active) moveTo(active, true);
 }
 
 onMounted(async () => {
@@ -52,7 +115,10 @@ onMounted(async () => {
   void document.fonts?.ready.then(measure);
 });
 
-onBeforeUnmount(() => resizeObserver?.disconnect());
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  window.clearTimeout(stretchTimer);
+});
 
 watch(
   () => [route.fullPath, props.links.length],
@@ -65,13 +131,25 @@ watch(
 
 <template>
   <nav class="mainnav" :class="`mainnav--${variant}`" aria-label="Main">
-    <ul ref="list" class="mainnav-list" :class="{ 'is-ready': ready, 'has-active': hasActive }">
+    <ul
+      ref="list"
+      class="mainnav-list"
+      :class="{
+        'is-ready': ready,
+        'has-active': hasActive || pointing,
+        'is-stretching': stretching,
+      }"
+      @pointerleave="onLeave"
+      @focusout="onLeave"
+    >
       <li v-for="link in links" :key="link.to">
         <RouterLink
           class="mainnav-link"
           :to="link.to"
           :active-class="link.exact ? '' : 'active'"
           exact-active-class="active"
+          @pointerenter="onPoint"
+          @focus="onPoint"
         >
           <span class="mainnav-icon"><Icon :name="link.icon" /></span>
           <span class="mainnav-label">{{ link.label }}</span>
@@ -136,9 +214,29 @@ watch(
   color: var(--sl-ink);
 }
 
+/* The senior's current link is the same glass bubble as the family's, standing still. */
 .mainnav--bar .mainnav-link.active {
-  background: var(--sl-ink);
-  color: var(--sl-on-ink);
+  background: var(--sl-bubble-bg);
+  box-shadow: var(--sl-bubble-shadow);
+  color: var(--sl-ink);
+  font-weight: 700;
+}
+
+.mainnav--bar .mainnav-link.active::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: var(--sl-bubble-rim);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
 }
 
 .mainnav--bar .mainnav-icon {
@@ -192,27 +290,81 @@ watch(
     color: var(--sl-jade-deep);
     box-shadow: inset 0 -3px 0 var(--sl-jade-deep);
   }
+
+  .mainnav--bar .mainnav-link.active::before {
+    display: none;
+  }
 }
 
-/* ===== tabs and pill (the family): one highlight that slides to the current link ===== */
+/* ===== tabs and pill (the family): one glass bubble that slides to the current link ===== */
+/* The bubble: frosted glass, a rainbow rim (a conic gradient masked to a ring) and a soft glow of
+   the same colours behind it. */
 .mainnav-indicator {
   position: absolute;
   z-index: 0;
   left: 0;
   border-radius: 999px;
+  background: var(--sl-bubble-bg);
+  box-shadow: var(--sl-bubble-shadow);
   opacity: 0;
   pointer-events: none;
+}
+
+.mainnav-indicator::before,
+.mainnav-indicator::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--sl-bubble-rim);
+}
+
+.mainnav-indicator::before {
+  padding: 1.5px;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+.mainnav-indicator::after {
+  z-index: -1;
+  inset: -3px;
+  filter: blur(8px);
+  opacity: 0.22;
 }
 
 .mainnav-list.has-active .mainnav-indicator {
   opacity: 1;
 }
 
+/* A spring that overshoots a little, so it settles with a wobble; squashed while stretched. */
 .mainnav-list.is-ready .mainnav-indicator {
   transition:
-    transform var(--sl-dur-slow) var(--sl-ease-spring),
-    width var(--sl-dur-slow) var(--sl-ease-spring),
+    transform 0.5s var(--sl-ease-spring),
+    width 0.5s var(--sl-ease-spring),
+    scale 0.45s var(--sl-ease-spring),
     opacity var(--sl-dur-base) ease;
+}
+
+.mainnav-list.is-ready.is-stretching .mainnav-indicator {
+  scale: 1 0.84;
+  transition:
+    transform 0.17s ease-out,
+    width 0.17s ease-out,
+    scale 0.17s ease-out,
+    opacity var(--sl-dur-base) ease;
+}
+
+.mainnav-link .mainnav-icon {
+  transition: transform 0.35s var(--sl-ease-spring);
+}
+
+.mainnav--pill .mainnav-link:hover .mainnav-icon {
+  transform: scale(1.15);
 }
 
 /* Phone tab bar: fixed to the bottom edge, icon above label, the highlight a pill behind the icon. */
@@ -288,7 +440,6 @@ watch(
   top: 0.35rem;
   width: 4rem;
   height: 2rem;
-  background: var(--sl-jade-soft);
   transform: translateX(calc(var(--ind-x, 0px) + (var(--ind-w, 4rem) - 4rem) / 2));
 }
 
@@ -321,13 +472,14 @@ watch(
     color var(--sl-dur-slow) var(--sl-ease-spring);
 }
 
-.mainnav--pill .mainnav-link:hover:not(.active) {
-  background: var(--bs-tertiary-bg);
+/* The bubble shows where the mouse is, so a hovered link needs no fill of its own. */
+.mainnav--pill .mainnav-link:hover,
+.mainnav--pill .mainnav-link.active {
   color: var(--sl-ink);
 }
 
 .mainnav--pill .mainnav-link.active {
-  color: var(--sl-jade-on);
+  font-weight: 700;
 }
 
 .mainnav--pill .mainnav-icon {
@@ -338,7 +490,6 @@ watch(
   top: 0.25rem;
   bottom: 0.25rem;
   width: var(--ind-w, 0);
-  background: var(--sl-jade);
   transform: translateX(var(--ind-x, 0px));
 }
 

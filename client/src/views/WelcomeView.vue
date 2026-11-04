@@ -92,7 +92,7 @@ function submit() {
         />
       </div>
       <div v-if="error" class="alert alert-danger mb-0" role="alert">{{ error }}</div>
-      <button type="submit" class="btn btn-primary btn-lg" :disabled="busy">Continue</button>
+      <button type="submit" class="btn btn-primary btn-lg sl-cta" :disabled="busy">Continue</button>
     </form>
   </AuthShell>
 </template>
@@ -136,6 +136,6 @@ fieldset {
   display: flex;
   align-items: center;
   padding: 0.5rem 0.9rem;
-  cursor: pointer;
+  cursor: var(--sl-cur-press);
 }
 </style>

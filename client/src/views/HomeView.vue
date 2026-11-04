@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DailyMetric, PersonState, WearableStatus } from '@silverloop/api-client';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 import ErrorAlert from '@/components/ErrorAlert.vue';
@@ -9,6 +9,7 @@ import CheckInCard from '@/components/home/CheckInCard.vue';
 import DayTimeline from '@/components/home/DayTimeline.vue';
 import FortnightPanel from '@/components/home/FortnightPanel.vue';
 import HomeHero from '@/components/home/HomeHero.vue';
+import MorningSummary from '@/components/home/MorningSummary.vue';
 import NeedsHelperList from '@/components/home/NeedsHelperList.vue';
 import TaskPanel from '@/components/home/TaskPanel.vue';
 import WeatherCard from '@/components/home/WeatherCard.vue';
@@ -23,10 +24,19 @@ import { useNow } from '@/composables/useNow';
 import { useTasks } from '@/composables/useTasks';
 import { showToast } from '@/composables/useToast';
 import { addDays } from '@/lib/calendar';
-import { needingHelp, upcomingWithin } from '@/lib/coverage';
+import { needingHelp, stillNeedsHelper, upcomingWithin } from '@/lib/coverage';
 import type { Appointment, FamilyMember } from '@/lib/family';
 import { homeSeniorOf } from '@/lib/family-group';
+import { formatIsoDay } from '@/lib/format-date';
 import { DEMO_PERSON_ID } from '@/lib/labels';
+import {
+  buildSummary,
+  MORNING_KEY,
+  MORNING_OFF,
+  shouldShowSummary,
+  shownToday,
+} from '@/lib/morning-summary';
+import { isSampleSource } from '@/lib/reading-days';
 import { greetingFor, visitWhen } from '@/lib/today';
 import { getPersonMetrics, getPersonState, getWearable } from '@/services/careApi';
 
@@ -73,6 +83,7 @@ async function load() {
   void loadWearable();
   loading.value = false;
   if (person.value) void loadHistory();
+  openSummaryOnceToday();
 }
 
 async function loadHistory() {
@@ -130,6 +141,90 @@ const tasks = useTasks();
 const weekTasks = computed(() =>
   tasks.tasksByDay(Array.from({ length: 7 }, (_, offset) => addDays(today, offset))),
 );
+
+/*
+ * Phones: Today's tasks come before the family updates, the updates start folded, and the week
+ * ahead is a link to the calendar instead of the whole week. Plain `matchMedia`, kept in step when
+ * the screen turns or resizes.
+ */
+const phoneQuery = window.matchMedia('(max-width: 767.98px)');
+const isPhone = ref(phoneQuery.matches);
+function onPhoneChange() {
+  isPhone.value = phoneQuery.matches;
+}
+onMounted(() => phoneQuery.addEventListener('change', onPhoneChange));
+onBeforeUnmount(() => phoneQuery.removeEventListener('change', onPhoneChange));
+const weekVisits = computed(() => upcomingWithin(appointments, today, 6).length);
+
+/*
+ * The morning summary (`lib/morning-summary.ts`): opens by itself on the first visit each day,
+ * and from the "Today's summary" button at any time. "Show this each morning" is remembered in
+ * this browser.
+ */
+function readSummaryKey(): string | null {
+  try {
+    return window.localStorage.getItem(MORNING_KEY);
+  } catch {
+    return null;
+  }
+}
+function writeSummaryKey(value: string) {
+  try {
+    window.localStorage.setItem(MORNING_KEY, value);
+  } catch {
+    // Private browsing: it simply opens again next time.
+  }
+}
+const summaryOpen = ref(false);
+const eachMorning = ref(readSummaryKey() !== MORNING_OFF);
+watch(eachMorning, (on) => {
+  writeSummaryKey(on ? shownToday(null, personId.value ?? '', today) : MORNING_OFF);
+});
+
+const summary = computed(() => {
+  const reading = person.value;
+  if (!reading) return null;
+  const battery = wearable.value;
+  return buildSummary({
+    elder: elder.value,
+    today,
+    readingDay: reading.current_day,
+    steps: reading.signal.current_steps,
+    usual: reading.baseline.median_steps,
+    readable: reading.signal.quality.safe_to_interpret,
+    attentionBand: reading.attention_band,
+    lastDecision: reading.last_decision,
+    consentActive: reading.consent_active,
+    appointmentsToday: appointments
+      .filter((appointment) => appointment.date === today)
+      .map((appointment) => ({
+        title: appointment.title,
+        start: appointment.start,
+        end: appointment.end,
+        needsSomeone: stillNeedsHelper(state.assignments, appointment),
+      })),
+    tasksToday: tasks
+      .tasksOn(today)
+      .map((task) => ({ title: task.title, time: task.time, completed: task.completed })),
+    unhelpedSoon: needingHelp(upcomingWithin(appointments, today, 2), state.assignments).map(
+      (appointment) => ({ title: appointment.title, date: appointment.date }),
+    ),
+    battery:
+      battery && typeof battery.battery_percent === 'number'
+        ? { percent: battery.battery_percent, charging: battery.charging }
+        : null,
+  });
+});
+const summarySample = computed(() => isSampleSource(person.value?.signal.quality.source));
+
+function openSummaryOnceToday() {
+  const id = personId.value;
+  if (!id || !person.value || !currentGroup.value) return;
+  const stored = readSummaryKey();
+  if (!shouldShowSummary(stored, id, today)) return;
+  writeSummaryKey(shownToday(stored, id, today));
+  summaryOpen.value = true;
+}
 </script>
 
 <template>
@@ -145,10 +240,36 @@ const weekTasks = computed(() =>
       :elder="elder"
     />
 
+    <div v-if="summary && currentGroup" class="mb-4">
+      <button
+        type="button"
+        class="btn btn-outline-primary"
+        data-testid="open-morning-summary"
+        @click="summaryOpen = true"
+      >
+        <Icon name="sun" class="me-1" />Today’s summary
+      </button>
+    </div>
+    <MorningSummary
+      v-if="summary"
+      v-model:each-morning="eachMorning"
+      :open="summaryOpen"
+      :summary="summary"
+      :greeting="greeting"
+      :viewer="viewer"
+      :elder="elder"
+      :date-words="formatIsoDay(today)"
+      :sample="summarySample"
+      @close="summaryOpen = false"
+    />
+
     <ErrorAlert v-if="error" :message="error" class="mb-4" @retry="load" />
 
     <!-- The senior's day by the hour, live: appointments, tasks and the family. -->
     <DayTimeline v-if="!loading" id="home-timeline" class="mb-4" :elder="elder" />
+
+    <!-- Phones: today's tasks go here, before the family updates (see the Teleport below). -->
+    <div id="home-tasks-spot" :class="{ 'mb-4': isPhone && !loading }"></div>
 
     <!-- What the family has been doing, and a one-tap way to say you were in touch. Phones: the
          check-in first; wide screens: the feed on the left, the check-in beside it. -->
@@ -157,7 +278,7 @@ const weekTasks = computed(() =>
         <CheckInCard :elder="elder" :actor="checkInActor" />
       </div>
       <div class="col-12 col-lg-7">
-        <ActivityFeed :elder="elder" :members="state.members" />
+        <ActivityFeed :elder="elder" :members="state.members" :collapsible="isPhone" />
       </div>
     </div>
 
@@ -174,6 +295,7 @@ const weekTasks = computed(() =>
           :failed="historyFailed"
           :has-person="person !== null"
           :usual="usual"
+          :elder="elder"
           @retry="loadHistory"
         />
         <NeedsHelperList
@@ -190,10 +312,30 @@ const weekTasks = computed(() =>
       </div>
       <div class="col-12 col-lg-5 d-flex flex-column gap-4">
         <WeatherCard />
-        <TaskPanel id="home-tasks" class="flex-grow-1" :can-manage="true" />
+        <!-- One Tasks panel. On a phone, Teleport moves this same panel up to #home-tasks-spot;
+             on wider screens (disabled) it stays here. Moving it keeps it alive, so a half-typed
+             task survives turning the phone sideways. `defer` waits until the spot exists. -->
+        <Teleport defer to="#home-tasks-spot" :disabled="!isPhone">
+          <TaskPanel id="home-tasks" class="flex-grow-1" :can-manage="true" />
+        </Teleport>
       </div>
 
-      <div class="col-12">
+      <!-- Phones: the week is one link to the calendar. -->
+      <div v-if="isPhone" class="col-12">
+        <RouterLink class="week-link sl-panel" to="/calendar" data-testid="week-link">
+          <span class="sl-icon-chip"><Icon name="calendar" /></span>
+          <span class="week-link-text">
+            <span class="week-link-title">The week ahead</span>
+            <span class="sl-note"
+              >{{ weekVisits }} {{ weekVisits === 1 ? 'visit' : 'visits' }} in the next 7 days ·
+              open the calendar</span
+            >
+          </span>
+          <Icon name="arrow-right" class="week-link-go" />
+        </RouterLink>
+      </div>
+
+      <div v-else class="col-12">
         <section id="home-week" aria-labelledby="week-heading">
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
             <h2 id="week-heading" class="sl-section-title d-flex align-items-center gap-2 mb-0">
@@ -220,3 +362,40 @@ const weekTasks = computed(() =>
     </p>
   </div>
 </template>
+
+<style scoped>
+/* Phones: the week ahead as one row that opens the calendar. */
+.week-link {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  color: var(--sl-ink);
+  text-decoration: none;
+}
+
+.week-link:hover {
+  color: var(--sl-ink);
+}
+
+.week-link-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.week-link-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.week-link-go {
+  flex: none;
+  margin-left: auto;
+  color: var(--sl-jade);
+  transition: transform var(--sl-dur-base) var(--sl-ease);
+}
+
+.week-link:hover .week-link-go {
+  transform: translateX(4px);
+}
+</style>

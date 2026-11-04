@@ -60,7 +60,7 @@ async function send(kind: CheckInKind, past: string) {
       rows="2"
       :maxlength="NOTE_MAX"
       aria-describedby="checkin-note-left"
-      placeholder="For example: she sounded cheerful"
+      :placeholder="`For example: ${elder} sounded cheerful`"
     ></textarea>
     <p id="checkin-note-left" class="form-text mt-1 mb-3">{{ left }} characters left</p>
     <p class="form-label mb-1" aria-hidden="true">Then tap how you were in touch</p>

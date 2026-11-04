@@ -11,6 +11,7 @@ import {
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 
 import AssistantDock from '@/components/assistant/AssistantDock.vue';
+import LivingBackground from '@/components/layout/LivingBackground.vue';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import DisplayControls from '@/components/ui/DisplayControls.vue';
@@ -158,6 +159,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="shell d-flex flex-column min-vh-100" :class="{ 'shell--tabs': showTabs }">
     <a class="visually-hidden-focusable" href="#main">Skip to content</a>
+    <LivingBackground />
 
     <header ref="header" class="topbar">
       <div class="container topbar-inner">
@@ -265,14 +267,15 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Senior and sign-in screens: the plain top bar, as it was. Solid, not blurred. */
+/* Senior and sign-in screens: the plain top bar, now see-through like the family's (no blur: a
+   blurred header would trap the senior's fixed elements). */
 .topbar {
   position: sticky;
   z-index: var(--sl-header-z);
   /* 0 on wide screens; on a phone, minus the brand row, so only the menu row stays pinned. */
   top: calc(-1 * var(--sl-tuck, 0px));
-  border-bottom: 1px solid var(--sl-line);
-  background: var(--sl-mist);
+  border-bottom: 1px solid var(--sl-glass-border);
+  background: color-mix(in srgb, var(--sl-mist) 90%, transparent);
 }
 
 .topbar-inner {
