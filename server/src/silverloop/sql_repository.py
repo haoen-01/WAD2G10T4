@@ -2606,8 +2606,27 @@ class SqlAlchemyRepository:
                 # clear". Dropped evidence is still recorded (never silently discarded).
                 rain_fresh = True
                 holiday_fresh = True
+                # Live weather says what the sky is doing now, so it may only speak for the day
+                # being evaluated when that day is today in Singapore, and only while it is still
+                # current now. A simulated day keeps its simulated weather; nothing is invented
+                # for it and nothing real is stamped onto it.
+                real_now = _utcnow()
                 for evidence in external.evidence:
-                    if evidence.expires_at >= evaluation_instant:
+                    if evidence.source == "nea_weather_live":
+                        if next_day != local_date(real_now):
+                            rain_fresh = False
+                            expired_context_evidence.append(
+                                {
+                                    "evidence_id": evidence.evidence_id,
+                                    "source": evidence.source,
+                                    "expires_at": evidence.expires_at.isoformat(),
+                                    "reason": "not_about_this_day",
+                                }
+                            )
+                            continue
+                        if evidence.expires_at >= real_now:
+                            continue
+                    elif evidence.expires_at >= evaluation_instant:
                         continue
                     expired_context_evidence.append(
                         {
@@ -2620,11 +2639,26 @@ class SqlAlchemyRepository:
                         rain_fresh = False
                     elif evidence.source == "nager_date_public_holidays":
                         holiday_fresh = False
+                # Which weather this day's decisions use, said plainly: the scripted rain when the
+                # simulation set some, else the live reading when it speaks for this day (or that
+                # the live lookup had nothing current), else the simulation's dry day.
+                live_today = rain_fresh and next_day == local_date(real_now)
+                weather_source: Literal["simulated", "live", "unavailable"]
+                if context.rainy or next_day != local_date(real_now):
+                    weather_source = "simulated"
+                elif not rain_fresh:
+                    weather_source = "unavailable"  # today's reading went stale before use
+                else:
+                    weather_source = external.signal.weather_source
                 context = ContextSignal(
                     rainy=context.rainy or (external.signal.rainy and rain_fresh),
                     holiday=context.holiday or (external.signal.holiday and holiday_fresh),
                     air_quality=context.air_quality,
-                    note=context.note or external.signal.note,
+                    note=context.note or (external.signal.note if live_today else None),
+                    weather_source=weather_source,
+                    weather_valid_until=(
+                        external.signal.weather_valid_until if weather_source == "live" else None
+                    ),
                 )
 
             run.current_day = next_day
@@ -3357,6 +3391,7 @@ class SqlAlchemyRepository:
             candidates=candidates,
             programmes=programmes,
             history=history,
+            weather_source=state.signal.context.weather_source,
         )
 
     def _rank_intervention_candidates(
@@ -5616,6 +5651,7 @@ class SqlAlchemyRepository:
             self._activity_preferences_model(session, run.person_id, today, run.run_id),
             today=today,
             rainy=context.rainy,
+            rain_until=context.weather_valid_until if context.weather_source == "live" else None,
             engagement=self._activity_engagement(session, run.person_id, run.run_id),
         )
         written: list[ReplanOfferRow] = []

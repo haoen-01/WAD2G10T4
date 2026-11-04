@@ -5425,6 +5425,28 @@
               }
             ],
             "title": "Note"
+          },
+          "weather_source": {
+            "type": "string",
+            "enum": [
+              "simulated",
+              "live",
+              "unavailable"
+            ],
+            "title": "Weather Source",
+            "default": "simulated"
+          },
+          "weather_valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Valid Until"
           }
         },
         "type": "object",

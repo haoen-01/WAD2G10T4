@@ -3,7 +3,9 @@
  * sample-data notice, and how the hero names the day a reading is from. Pure and free of Vue, so
  * `lib/home.test.ts` can run them under Node's type stripping.
  */
-import { formatIsoDay } from './format-date';
+import type { ContextSignal } from '@silverloop/api-client';
+
+import { PRODUCT_TIME_ZONE, formatClockTime, formatIsoDay } from './format-date';
 
 /** Rows a Home list shows before "See all". */
 export const HOME_LIST_CAP = 5;
@@ -71,4 +73,32 @@ export function headlineLines(headline: string, elder: string): string[] {
 /** "Monday, 2 November": today's date, said first in the hero. */
 export function longToday(today: string): string {
   return formatIsoDay(today, { style: 'long' });
+}
+
+/** An instant's clock time in Singapore, as "2:00 pm"; null when it is not a real instant. */
+function singaporeClock(value: string | null | undefined): string | null {
+  const instant = value ? new Date(value) : null;
+  if (!instant || Number.isNaN(instant.getTime())) return null;
+  const hhmm = new Intl.DateTimeFormat('en-GB', {
+    timeZone: PRODUCT_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(instant);
+  return formatClockTime(hhmm);
+}
+
+/**
+ * How the "why" line names the weather it weighed, and where that weather came from: a current
+ * live NEA reading (and until when it speaks), the simulation's scripted rain, or a live lookup
+ * that had nothing current to say. A dry simulated day says nothing about the weather.
+ */
+export function weatherWords(context: ContextSignal): string | null {
+  const source = context.weather_source ?? 'simulated';
+  if (context.rainy) {
+    if (source !== 'live') return 'rainy day (simulated)';
+    const until = singaporeClock(context.weather_valid_until);
+    return until ? `raining now (live weather, until ${until})` : 'raining now (live weather)';
+  }
+  return source === 'unavailable' ? 'live weather unavailable' : null;
 }

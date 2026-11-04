@@ -301,6 +301,11 @@ class ContextSignal(BaseModel):
     air_quality: str = "normal"
     holiday: bool = False
     note: str | None = None
+    # Where `rainy` came from: the scripted simulation, a current live NEA reading for this very
+    # day, or a live lookup that had nothing current to say (then `rainy` is not live).
+    weather_source: Literal["simulated", "live", "unavailable"] = "simulated"
+    # While `weather_source` is live: until when that reading or forecast speaks for.
+    weather_valid_until: datetime | None = None
 
 
 class BaselineSummary(BaseModel):
