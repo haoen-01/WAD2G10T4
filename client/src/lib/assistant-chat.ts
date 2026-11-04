@@ -37,9 +37,18 @@ export function forApi(messages: readonly ChatMessage[]): { role: ChatRole; cont
   return turns;
 }
 
-/** What to offer on an empty chat: the questions people ask most, in their own words. */
-export function startingSuggestions(viewer: Viewer, page: string | null): string[] {
-  const steps = viewer === 'senior' ? 'How many steps today?' : 'How are her steps today?';
+/**
+ * What to offer on an empty chat: the questions people ask most, in their own words. A family
+ * member is asked about the senior by name: Care+ does not know whether a senior is a man or a
+ * woman, so it never says "her" or "his" ("their" only when there is no name yet).
+ */
+export function startingSuggestions(
+  viewer: Viewer,
+  page: string | null,
+  seniorName: string | null = null,
+): string[] {
+  const about = seniorName?.trim() ? `${seniorName.trim()}’s` : 'their';
+  const steps = viewer === 'senior' ? 'How many steps today?' : `How are ${about} steps today?`;
   const onPage: Record<string, string> = {
     Badges: 'How do badges work?',
     Walk: 'How does walk sharing work?',

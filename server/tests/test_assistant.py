@@ -4,6 +4,7 @@ and who may ask about whom."""
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 
 import httpx
@@ -12,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from silverloop.assistant import (
     EMERGENCY_REPLY,
+    INSTRUCTIONS,
     MEDICAL_REPLY,
     Appointment,
     CareFacts,
@@ -148,9 +150,25 @@ def test_the_helper_answers_steps_and_whats_next_from_the_facts() -> None:
     assert "1 more" in nxt.reply
 
 
-def test_the_helper_speaks_to_family_about_her() -> None:
+def test_the_helper_speaks_to_family_about_the_senior_by_name() -> None:
     family = CareFacts(**{**FACTS.__dict__, "viewer": "family"})
     assert "Mdm Lim’s watch" in helper_reply("steps?", family).reply
+    tan = CareFacts(**{**FACTS.__dict__, "viewer": "family", "senior_name": "Mr Tan"})
+    reply = helper_reply("How are his steps today?", tan).reply
+    assert "Mr Tan’s watch" in reply
+    assert not re.search(r"\b(she|her|he|his)\b", reply, re.I)
+
+
+def test_without_a_name_the_helper_never_guesses_a_gender() -> None:
+    nameless = CareFacts(**{**FACTS.__dict__, "viewer": "family", "senior_name": None})
+    reply = helper_reply("steps?", nameless).reply
+    assert "their watch" in reply
+    assert not re.search(r"\b(she|her|he|his)\b", reply, re.I)
+
+
+def test_the_ai_is_told_to_use_the_senior_s_name_not_a_guessed_gender() -> None:
+    assert 'never call them "he", "she", "his" or "her"' in INSTRUCTIONS
+    assert not re.search(r"\b(she|her)\b", INSTRUCTIONS.split("- Refer to the senior")[0])
 
 
 def test_the_helper_gives_each_viewer_the_right_code_for_family() -> None:
