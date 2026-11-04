@@ -4825,11 +4825,15 @@ export type PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostErrors = {
      */
     422: unknown;
     /**
+     * Too many sentences from this person in 10 minutes.
+     */
+    429: unknown;
+    /**
      * Classified server error
      */
     500: ServerErrorBody;
     /**
-     * The Kokoro voice is not installed or could not speak.
+     * The Kokoro voice is not installed, busy, or could not speak.
      */
     503: unknown;
 };

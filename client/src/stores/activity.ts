@@ -1,6 +1,6 @@
 import type { DailyMetric, PersonState, WearableStatus } from '@silverloop/api-client';
 import { defineStore } from 'pinia';
-import { computed, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 
 import { viewerKey } from '@/composables/useMe';
 import { percentOfUsual } from '@/lib/activity';
@@ -45,6 +45,13 @@ export const useActivityStore = defineStore('activity', () => {
   let owner: string | null = null;
   let loadedAt = 0;
   let inFlight: Promise<void> | null = null;
+  // The senior the read in flight was started for, and whether picking that senior started it (see
+  // the watch below): a screen reacting to the same pick then shares it rather than reading twice.
+  let inFlightWanted: string | null = null;
+  let inFlightFromPick = false;
+  // Bumped by every read and by `reset`: a read that is no longer the latest writes nothing, so an
+  // older answer landing last can never show the previous senior (or the previous person's view).
+  let generation = 0;
 
   // ---- Getters ----
   /** True once loaded with no senior to show (the chosen group has none linked yet). */
@@ -80,17 +87,25 @@ export const useActivityStore = defineStore('activity', () => {
     owner = null;
     loadedAt = 0;
     inFlight = null;
+    inFlightFromPick = false;
+    generation += 1;
+  }
+
+  /** Whether what a read started at `mine` for `id` got back may still be shown. */
+  function current(mine: number, id: string): boolean {
+    return mine === generation && personId.value === id;
   }
 
   async function loadHistory(): Promise<void> {
     historyFailed.value = false;
     const id = personId.value;
     if (!id) return;
+    const mine = generation;
     try {
       const days = await getPersonMetrics(id, HISTORY_DAYS);
-      if (personId.value === id) history.value = days;
+      if (current(mine, id)) history.value = days;
     } catch {
-      if (personId.value === id) historyFailed.value = true;
+      if (current(mine, id)) historyFailed.value = true;
     }
   }
 
@@ -101,61 +116,93 @@ export const useActivityStore = defineStore('activity', () => {
       wearable.value = null;
       return;
     }
+    const mine = generation;
     try {
       const status = await getWearable(id);
-      if (personId.value === id) wearable.value = status;
+      if (current(mine, id)) wearable.value = status;
     } catch {
-      if (personId.value === id) wearableFailed.value = true;
+      if (current(mine, id)) wearableFailed.value = true;
     }
   }
 
   /**
    * Reads the chosen senior's activity. A screen opening shares a read in flight, and reuses one
    * finished less than `ACTIVITY_MAX_AGE_MS` ago for the same viewer and senior; `force` always
-   * reads again (Try again, or another senior picked). A different viewer starts from empty.
+   * reads again (Try again, or another senior picked), except that it shares a read the store
+   * itself started for that same pick. A different viewer starts from empty. Only the latest read
+   * writes: an older one still in flight is dropped when it lands.
    */
   function load(options: { force?: boolean } = {}): Promise<void> {
+    return start(options.force ?? false, false);
+  }
+
+  function start(force: boolean, fromPick: boolean): Promise<void> {
     const viewer = viewerKey();
     if (owner !== null && owner !== viewer) reset();
-    if (inFlight && !options.force) return inFlight;
-    const fresh = loaded.value && Date.now() - loadedAt < ACTIVITY_MAX_AGE_MS;
-    if (fresh && !options.force) {
-      const wanted = homeSeniorOf(session.currentGroup, DEMO_PERSON_ID);
-      if (wanted === personId.value) return Promise.resolve();
+    const wanted = homeSeniorOf(session.currentGroup, DEMO_PERSON_ID);
+    if (inFlight && (!force || (inFlightFromPick && inFlightWanted === wanted))) {
+      return inFlight;
     }
+    const fresh = loaded.value && Date.now() - loadedAt < ACTIVITY_MAX_AGE_MS;
+    if (fresh && !force && wanted === personId.value) return Promise.resolve();
+    const mine = ++generation;
     const run = (async () => {
       loading.value = true;
       error.value = null;
       try {
         await session.loadMe().catch(() => null);
+        if (mine !== generation) return;
         const id = homeSeniorOf(session.currentGroup, DEMO_PERSON_ID);
         if (id !== personId.value) {
+          person.value = null;
           history.value = null;
           wearable.value = null;
         }
         personId.value = id;
+        let next: PersonState | null = null;
+        let problem: string | null = null;
         try {
-          person.value = id ? await getPersonState(id) : null;
+          next = id ? await getPersonState(id) : null;
         } catch (caught) {
-          person.value = null;
-          error.value = classifyApiError(caught).message;
+          problem = classifyApiError(caught).message;
         }
+        if (mine !== generation) return;
+        person.value = next;
+        error.value = problem;
         if (!person.value) history.value = null;
         owner = viewer;
         loadedAt = Date.now();
         loaded.value = true;
       } finally {
-        loading.value = false;
+        if (mine === generation) loading.value = false;
       }
       // The extra detail, side by side; either can fail without the other.
       await Promise.all([loadWearable(), person.value ? loadHistory() : Promise.resolve()]);
     })();
     inFlight = run;
+    inFlightWanted = wanted;
+    inFlightFromPick = fromPick;
     void run.finally(() => {
-      if (inFlight === run) inFlight = null;
+      if (inFlight === run) {
+        inFlight = null;
+        inFlightFromPick = false;
+      }
     });
     return run;
   }
+
+  // Picking another senior ("Whose care to show", on every page) reads theirs, whichever screen
+  // is open, so the Watch page never keeps showing the first senior. Only once something has been
+  // read: a store nobody has used yet reads nothing, and after `reset` (signing out) nothing either.
+  watch(
+    () => homeSeniorOf(session.currentGroup, DEMO_PERSON_ID),
+    (next) => {
+      if (!loaded.value || next === personId.value) return;
+      // A screen already reading for this pick (Home's own watch) is enough.
+      if (inFlight && inFlightWanted === next) return;
+      void start(true, true);
+    },
+  );
 
   return {
     // State

@@ -13,6 +13,7 @@ from silverloop.agent.catchup import (
     TaskToday,
     execute_read_tool,
     fallback_catch_up,
+    short_date,
     validate_catch_up,
     write_catch_up,
 )
@@ -106,13 +107,71 @@ def test_with_the_flag_off_the_fallback_says_the_same_things() -> None:
     assert result.mode == "fallback_disabled"
     assert "2 updates from the family" in result.summary
     assert "2 visits still need someone" in result.summary
-    assert "1 of 2 of today's tasks are done" in result.summary
+    assert "1 of 2 tasks done today." in result.summary
     # The reader's own call is not news to them.
     assert all("You " not in line for line in result.highlights)
 
 
+def test_a_return_visit_says_what_changed_since_they_last_looked() -> None:
+    summary, _ = fallback_catch_up(_context())
+    assert summary.startswith("2 updates from the family since you last looked.")
+    summary, _ = fallback_catch_up(_context(feed=[]))
+    assert summary.startswith("No new updates from the family since you last looked.")
+
+
+def test_a_first_visit_says_where_things_stand_not_since_you_last_looked() -> None:
+    summary, _ = fallback_catch_up(_context(since=None))
+    assert summary.startswith("2 recent updates from the family.")
+    assert "since you last looked" not in summary
+    one = _context(since=None, feed=_context().feed[:1])
+    assert fallback_catch_up(one)[0].startswith("1 recent update from the family.")
+    summary, _ = fallback_catch_up(_context(since=None, feed=[]))
+    assert summary.startswith("No recent updates from the family.")
+    assert "since you last looked" not in summary
+
+
+def test_the_task_sentence_counts_tasks_done_today() -> None:
+    none_done = [TaskToday(title=f"Task {n}", time="09:00", done=False) for n in range(5)]
+    assert "0 of 5 tasks done today." in fallback_catch_up(_context(tasks_today=none_done))[0]
+    one = [TaskToday(title="Light stretching", time="17:00", done=True)]
+    assert "1 of 1 task done today." in fallback_catch_up(_context(tasks_today=one))[0]
+    assert "tasks done" not in fallback_catch_up(_context(tasks_today=[]))[0]
+
+
+def test_open_visits_are_dated_like_the_rest_of_the_app() -> None:
+    assert short_date(date(2026, 8, 18)) == "Tue, 18 Aug"
+    assert short_date(date(2026, 11, 5)) == "Thu, 5 Nov"
+    _, highlights = fallback_catch_up(_context())
+    assert "Doctor's appointment on Wed, 4 Nov needs someone" in highlights
+    assert "Grocery shopping on Sat, 7 Nov needs someone" in highlights
+
+
+def test_the_agent_is_told_whether_this_is_a_first_visit() -> None:
+    briefs: list[str] = []
+
+    def recording() -> tuple[Any, None]:
+        stand_in = ScriptedStandIn()
+        create = stand_in.messages.create
+
+        def spy(**kwargs: Any) -> Any:
+            briefs.append(str(kwargs["messages"][0]["content"]))
+            return create(**kwargs)
+
+        stand_in.messages = SimpleNamespace(create=spy)
+        return stand_in, None
+
+    for context in (_context(since=None), _context()):
+        write_catch_up(context, settings=_settings(), client_factory=recording)
+    assert "first look" in briefs[0]
+    assert "since they last looked" in briefs[-1]
+
+
 def test_the_fallback_always_passes_its_own_check() -> None:
-    for context in (_context(), _context(feed=[], open_visits=[], tasks_today=[])):
+    for context in (
+        _context(),
+        _context(since=None),
+        _context(feed=[], open_visits=[], tasks_today=[]),
+    ):
         summary, highlights = fallback_catch_up(context)
         assert validate_catch_up(summary, highlights, context) == []
 

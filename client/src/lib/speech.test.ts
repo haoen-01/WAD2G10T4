@@ -2,42 +2,43 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  NO_DEVICE_VOICE_HINT,
   chooseVoice,
   choosesBrowser,
   englishVoices,
+  isOnDeviceVoice,
   kokoroChoice,
   kokoroVoiceOf,
-  lunaHint,
-  isNaturalVoice,
-  isPreferredVoice,
   pickVoice,
   speechChunks,
+  voiceHint,
   voiceLabel,
   voiceScore,
 } from './speech';
 
-const v = (name: string, lang: string) => ({ name, lang });
+/** A voice the device speaks itself. */
+const v = (name: string, lang: string) => ({ name, lang, localService: true });
+/** A voice spoken by Microsoft's or Google's servers: the words would leave the device. */
+const online = (name: string, lang: string) => ({ name, lang, localService: false });
 
 describe('speech', () => {
-  it('prefers a natural Singapore English female voice when the browser has one (Edge)', () => {
-    const edge = [
-      v('Microsoft David - English (United States)', 'en-US'),
-      v('Microsoft Zira - English (United States)', 'en-US'),
-      v('Microsoft Wayne Online (Natural) - English (Singapore)', 'en-SG'),
-      v('Microsoft Aria Online (Natural) - English (United States)', 'en-US'),
-      v('Microsoft Luna Online (Natural) - English (Singapore)', 'en-SG'),
+  it('prefers a natural Singapore English female voice the device has', () => {
+    const mac = [
+      v('Daniel', 'en-GB'),
+      v('Karen', 'en-AU'),
+      v('Samantha (Enhanced)', 'en-US'),
+      v('Luna (Premium)', 'en-SG'),
     ];
-    assert.equal(pickVoice(edge)?.name, 'Microsoft Luna Online (Natural) - English (Singapore)');
+    assert.equal(pickVoice(mac)?.name, 'Luna (Premium)');
   });
 
-  it('picks the warm female voice Chrome has, never a male one', () => {
-    const chrome = [
-      v('Google US English', 'en-US'),
-      v('Google UK English Male', 'en-GB'),
-      v('Google UK English Female', 'en-GB'),
-      v('Google Deutsch', 'de-DE'),
+  it('picks the warm female voice the device has, never a male one', () => {
+    const device = [
+      v('English UK Male', 'en-GB'),
+      v('English UK Female', 'en-GB'),
+      v('Deutsch', 'de-DE'),
     ];
-    assert.equal(pickVoice(chrome)?.name, 'Google UK English Female');
+    assert.equal(pickVoice(device)?.name, 'English UK Female');
   });
 
   it('takes a robotic female voice only when nothing better exists, and never a male one', () => {
@@ -67,52 +68,53 @@ describe('speech', () => {
   });
 });
 
-describe('voice loading and labels', () => {
-  it('counts only the neural voices as natural, so a reading waits for them', () => {
-    assert.equal(
-      isNaturalVoice(v('Microsoft Luna Online (Natural) - English (Singapore)', 'en-SG')),
-      true,
-    );
-    assert.equal(isNaturalVoice(v('Microsoft Zira - English (United States)', 'en-US')), false);
-    assert.equal(isNaturalVoice(v('Google UK English Female', 'en-GB')), false);
-    // A natural voice that is male or not English is never the one waited for.
-    assert.equal(
-      isNaturalVoice(v('Microsoft Wayne Online (Natural) - English (Singapore)', 'en-SG')),
-      false,
-    );
+describe('only on-device voices (the senior’s day never goes to an online voice)', () => {
+  const luna = online('Microsoft Luna Online (Natural) - English (Singapore)', 'en-SG');
+  const aria = online('Microsoft Aria Online (Natural) - English (United States)', 'en-US');
+  const google = online('Google US English', 'en-US');
+  const zira = v('Microsoft Zira - English (United States)', 'en-US');
+  const david = v('Microsoft David - English (United States)', 'en-US');
+
+  it('tells an on-device voice from an online one, and an unknown one is not on-device', () => {
+    assert.equal(isOnDeviceVoice(zira), true);
+    assert.equal(isOnDeviceVoice(luna), false);
+    assert.equal(isOnDeviceVoice({ name: 'Unknown', lang: 'en-US' }), false);
   });
 
-  it('picks Luna once Edge has added its online voices, not Zira from the first list', () => {
-    const first = [
-      v('Microsoft David - English (United States)', 'en-US'),
-      v('Microsoft Zira - English (United States)', 'en-US'),
-    ];
-    const later = [...first, v('Microsoft Luna Online (Natural) - English (Singapore)', 'en-SG')];
-    assert.equal(pickVoice(first)?.name, 'Microsoft Zira - English (United States)');
-    assert.equal(pickVoice(later)?.name, 'Microsoft Luna Online (Natural) - English (Singapore)');
+  it('a local voice beats an online "Natural" voice, whatever the order', () => {
+    assert.equal(pickVoice([luna, aria, zira])?.name, zira.name);
+    assert.equal(pickVoice([zira, luna])?.name, zira.name);
+    assert.equal(chooseVoice([luna, google, zira], null)?.name, zira.name);
+    assert.ok(voiceScore(zira) > voiceScore(luna));
   });
 
-  it('waits only for Luna: Chrome’s natural voice is good enough to use, not to stop waiting', () => {
-    const luna = v('Microsoft Luna Online (Natural) - English (Singapore)', 'en-SG');
-    const chromeNatural = v('Google US English 1 (Natural)', 'en-US');
-    const aria = v('Microsoft Aria Online (Natural) - English (United States)', 'en-US');
-    assert.equal(isPreferredVoice(luna), true);
-    assert.equal(isPreferredVoice(chromeNatural), false);
-    assert.equal(isPreferredVoice(aria), false);
-    // Both listed: Luna, whatever the order.
-    assert.equal(pickVoice([chromeNatural, luna])?.name, luna.name);
-    assert.equal(pickVoice([luna, chromeNatural])?.name, luna.name);
-    // Without Luna, the natural voice beats the robotic ones.
-    assert.equal(
-      pickVoice([v('Microsoft Zira - English (United States)', 'en-US'), chromeNatural])?.name,
-      chromeNatural.name,
-    );
-    assert.equal(voiceLabel(chromeNatural), 'Google US English 1 (Natural)');
+  it('with only online voices nothing is picked, and the card says it cannot read aloud', () => {
+    assert.equal(pickVoice([luna, aria, google]), null);
+    assert.equal(chooseVoice([luna, aria, google], null), null);
+    assert.equal(voiceHint([luna, aria, google]), NO_DEVICE_VOICE_HINT);
+    assert.equal(voiceLabel(null), 'No reading voice on this device');
   });
 
+  it('never uses an online voice, even one the listener chose before', () => {
+    assert.equal(chooseVoice([luna, zira], luna.name)?.name, zira.name);
+    assert.equal(chooseVoice([luna], luna.name), null);
+  });
+
+  it('with only a male on-device voice, reads with it rather than the browser default', () => {
+    assert.equal(chooseVoice([luna, david], null)?.name, david.name);
+    assert.equal(voiceHint([luna, david]), null);
+  });
+
+  it('says nothing about the voice until the browser has listed its voices', () => {
+    assert.equal(voiceHint([]), null);
+    assert.equal(voiceHint([zira]), null);
+  });
+});
+
+describe('voice labels', () => {
   it('names the voice plainly for the card', () => {
     assert.equal(
-      voiceLabel(v('Microsoft Luna Online (Natural) - English (Singapore)', 'en-SG')),
+      voiceLabel(online('Microsoft Luna Online (Natural) - English (Singapore)', 'en-SG')),
       'Luna · Natural · English (Singapore)',
     );
     assert.equal(
@@ -120,37 +122,30 @@ describe('voice loading and labels', () => {
       'Zira · English (United States)',
     );
     assert.equal(voiceLabel(v('Google UK English Female', 'en-GB')), 'Google UK English Female');
-    assert.equal(voiceLabel(null), 'Your browser’s default voice');
+    assert.equal(voiceLabel(null), 'No reading voice on this device');
   });
 });
 
 describe('choosing a voice', () => {
-  const luna = v('Microsoft Luna Online (Natural) - English (Singapore)', 'en-SG');
-  const chrome = v('Google US English 1 (Natural)', 'en-US');
+  const luna = online('Microsoft Luna Online (Natural) - English (Singapore)', 'en-SG');
+  const samantha = v('Samantha (Enhanced)', 'en-US');
   const zira = v('Microsoft Zira - English (United States)', 'en-US');
-  const german = v('Google Deutsch', 'de-DE');
+  const german = v('Anna', 'de-DE');
 
-  it('uses the listener’s own choice while the browser has it, else the best', () => {
-    assert.equal(chooseVoice([chrome, zira], zira.name)?.name, zira.name);
-    assert.equal(chooseVoice([chrome, zira], null)?.name, chrome.name);
-    assert.equal(chooseVoice([chrome, zira], 'A voice from another browser')?.name, chrome.name);
-  });
-
-  it('lists only English voices, best first', () => {
-    assert.deepEqual(
-      englishVoices([zira, german, chrome, luna]).map((item) => item.name),
-      [luna.name, chrome.name, zira.name],
+  it('uses the listener’s own choice while the device has it, else the best', () => {
+    assert.equal(chooseVoice([samantha, zira], zira.name)?.name, zira.name);
+    assert.equal(chooseVoice([samantha, zira], null)?.name, samantha.name);
+    assert.equal(
+      chooseVoice([samantha, zira], 'A voice from another browser')?.name,
+      samantha.name,
     );
   });
 
-  it('says why Luna is missing: only in Edge, or not loaded in Edge', () => {
-    const chromeAgent =
-      'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/156.0 Safari/537.36';
-    const edgeAgent = `${chromeAgent} Edg/156.0`;
-    assert.match(lunaHint([chrome, zira], chromeAgent) ?? '', /only available in Microsoft Edge/);
-    assert.match(lunaHint([zira], edgeAgent) ?? '', /has not loaded in Edge/);
-    assert.equal(lunaHint([zira, luna], edgeAgent), null);
-    assert.equal(lunaHint([], chromeAgent), null);
+  it('lists only the device’s own English voices, best first', () => {
+    assert.deepEqual(
+      englishVoices([zira, german, samantha, luna]).map((item) => item.name),
+      [samantha.name, zira.name],
+    );
   });
 
   it('tells a Kokoro voice choice from a browser voice choice', () => {

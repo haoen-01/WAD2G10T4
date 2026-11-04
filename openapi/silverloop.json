@@ -3580,7 +3580,7 @@
           "family"
         ],
         "summary": "Person My Day Speech",
-        "description": "One sentence of \"Read my day\", spoken by the Kokoro voice on this server's CPU (no\ncloud service). The same readers as `my-day`. 503 when Kokoro or its model files are not\ninstalled, or it failed: the browser then reads with its own voice.",
+        "description": "One sentence of \"Read my day\", spoken by the Kokoro voice on this server's CPU (no\ncloud service). The same readers as `my-day`. 429 past `tts_rate_per_10_min` sentences\na person in 10 minutes. 503 when Kokoro or its model files are not installed, it failed,\nor it is busy with another sentence for longer than `tts_busy_wait_seconds`: the browser\nthen reads with its own voice.",
         "operationId": "person_my_day_speech_v1_people__person_id__my_day_speech_post",
         "security": [
           {
@@ -3637,8 +3637,11 @@
           "422": {
             "description": "Unprocessable Content"
           },
+          "429": {
+            "description": "Too many sentences from this person in 10 minutes."
+          },
           "503": {
-            "description": "The Kokoro voice is not installed or could not speak."
+            "description": "The Kokoro voice is not installed, busy, or could not speak."
           }
         }
       }

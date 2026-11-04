@@ -670,8 +670,10 @@ export const personMyDayVoiceV1PeoplePersonIdMyDayVoiceGet = <ThrowOnError exten
  * Person My Day Speech
  *
  * One sentence of "Read my day", spoken by the Kokoro voice on this server's CPU (no
- * cloud service). The same readers as `my-day`. 503 when Kokoro or its model files are not
- * installed, or it failed: the browser then reads with its own voice.
+ * cloud service). The same readers as `my-day`. 429 past `tts_rate_per_10_min` sentences
+ * a person in 10 minutes. 503 when Kokoro or its model files are not installed, it failed,
+ * or it is busy with another sentence for longer than `tts_busy_wait_seconds`: the browser
+ * then reads with its own voice.
  */
 export const personMyDaySpeechV1PeoplePersonIdMyDaySpeechPost = <ThrowOnError extends boolean = false>(options: Options<PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostData, ThrowOnError>): RequestResult<PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostResponses, PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostErrors, ThrowOnError> => (options.client ?? client).post<PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostResponses, PersonMyDaySpeechV1PeoplePersonIdMyDaySpeechPostErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

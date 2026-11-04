@@ -160,4 +160,39 @@ describe('the calendar store', () => {
     expect(mocked.getGroupCalendar).toHaveBeenLastCalledWith('g2');
     expect(store.groupId).toBe('g2');
   });
+
+  it('reset forgets the calendar, and a read still in flight is dropped', async () => {
+    const store = useCalendarStore();
+    await store.refresh();
+    store.state.currentMemberId = 'm-sarah';
+    expect(store.appointments.length).toBe(1);
+
+    store.reset();
+    expect(store.appointments).toEqual([]);
+    expect(store.state).toEqual({
+      members: [],
+      availability: [],
+      assignments: [],
+      currentMemberId: null,
+    });
+    expect(store.groupId).toBeNull();
+    expect(store.personId).toBeNull();
+    expect(store.elderName).toBe('Your senior');
+    expect(store.loaded).toBe(false);
+    expect(store.loading).toBe(false);
+    expect(store.error).toBeNull();
+
+    // A read that started before the reset never puts the previous person's calendar back.
+    let release!: (value: FamilyCalendar) => void;
+    mocked.getGroupCalendar.mockImplementationOnce(
+      () => new Promise<FamilyCalendar>((resolve) => (release = resolve)),
+    );
+    const pending = store.refresh();
+    await settle();
+    store.reset();
+    release(calendar('g1'));
+    await pending;
+    expect(store.appointments).toEqual([]);
+    expect(store.loaded).toBe(false);
+  });
 });

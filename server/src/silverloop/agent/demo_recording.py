@@ -195,7 +195,7 @@ class ScriptedStandIn:
         opening = (
             f"While you were away, {' and '.join(people[:2])} kept things moving."
             if people
-            else "It has been quiet in the family group since you last looked."
+            else "It has been quiet in the family group lately."
         )
         waiting = (
             f" {len(visits)} upcoming visit{'s' if len(visits) != 1 else ''} still "
@@ -204,7 +204,8 @@ class ScriptedStandIn:
             else " Every upcoming visit has someone going."
         )
         done = sum(1 for task in tasks if task.get("done"))
-        today = f" {done} of {len(tasks)} of today's tasks are ticked off." if tasks else ""
+        noun = "task" if len(tasks) == 1 else "tasks"
+        today = f" {done} of {len(tasks)} {noun} ticked off today." if tasks else ""
         return _response(
             [
                 _block(

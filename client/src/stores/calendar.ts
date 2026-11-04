@@ -97,6 +97,8 @@ export const useCalendarStore = defineStore('calendar', () => {
 
   let reading: Promise<void> | null = null;
   let rereadAfter = false;
+  // Bumped by `reset`: a read that started for the previous person is then never applied.
+  let generation = 0;
 
   /**
    * Reads the calendar again. A screen opening shares a read already in flight. After a change
@@ -109,25 +111,32 @@ export const useCalendarStore = defineStore('calendar', () => {
       if (afterChange) rereadAfter = true;
       return reading;
     }
-    reading = (async () => {
+    const mine = generation;
+    const current = (async () => {
       loading.value = true;
       try {
         do {
           rereadAfter = false;
           try {
-            applyCalendar(await readCalendar());
+            const calendar = await readCalendar();
+            if (mine !== generation) return;
+            applyCalendar(calendar);
             error.value = null;
             loaded.value = true;
           } catch (caught) {
+            if (mine !== generation) return;
             error.value = classifyApiError(caught).message;
           }
         } while (rereadAfter);
       } finally {
-        loading.value = false;
-        reading = null;
+        if (mine === generation) {
+          loading.value = false;
+          reading = null;
+        }
       }
     })();
-    return reading;
+    reading = current;
+    return current;
   }
 
   // Picking another senior in the navbar shows their calendar.
@@ -356,6 +365,25 @@ export const useCalendarStore = defineStore('calendar', () => {
     return helperIds(state.assignments, appointmentId);
   }
 
+  /**
+   * Forgets the calendar (signing out, or the session expired): nothing of the previous person's
+   * is shown to the next. A read still in flight is dropped when it lands.
+   */
+  function reset(): void {
+    generation += 1;
+    reading = null;
+    rereadAfter = false;
+    savedIds.clear();
+    appointments.splice(0, appointments.length);
+    Object.assign(state, { members: [], availability: [], assignments: [], currentMemberId: null });
+    elderName.value = 'Your senior';
+    groupId.value = null;
+    personId.value = null;
+    loading.value = false;
+    loaded.value = false;
+    error.value = null;
+  }
+
   return {
     // State
     today,
@@ -384,6 +412,7 @@ export const useCalendarStore = defineStore('calendar', () => {
     removeAppointment,
     statusOf,
     helperIdsOf,
+    reset,
   };
 });
 

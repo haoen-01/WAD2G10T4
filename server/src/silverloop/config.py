@@ -168,6 +168,16 @@ class Settings(BaseSettings):
     tts_voice: str = "af_heart"
     # A little slower than Kokoro's default, as a calm companion would read.
     tts_speed: float = 0.92
+    # Sentences one person may have spoken in 10 minutes (a reading is about 5 to 12), so a loop
+    # cannot keep the CPU busy; over it the speech route answers 429.
+    tts_rate_per_10_min: int = 240
+    # How long a sentence waits for Kokoro to finish another before the route answers 503 (busy).
+    tts_busy_wait_seconds: float = 3.0
+
+    # Agent requests (catch-up, appointment draft, "Read my day") one person may send to the model
+    # provider in 10 minutes. Over it, the answer is still given, assembled without a model, as if
+    # the agent were off (`fallback_disabled`). Only counted while `llm_enabled` is true.
+    agent_rate_per_10_min: int = 30
 
     auth_enabled: bool = True
     supabase_url: str = ""

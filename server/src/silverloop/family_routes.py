@@ -4,12 +4,15 @@ tasks. The rules live in `silverloop.family_groups`, `silverloop.family_calendar
 
 from __future__ import annotations
 
+import logging
+import threading
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 
+from silverloop.assistant import RateLimiter
 from silverloop.auth import Family, PersonReader, Senior, SignedIn
 from silverloop.config import Settings
 from silverloop.family_calendar import FamilyCalendarStore
@@ -65,7 +68,14 @@ from silverloop.models import (
 )
 from silverloop.senior_day import build_context as build_my_day_context
 from silverloop.senior_day import my_day
-from silverloop.tts import VOICES, SpeechUnavailable, speak, unavailable_reason, voice_label
+from silverloop.tts import (
+    VOICES,
+    SpeechBusy,
+    SpeechUnavailable,
+    speak,
+    unavailable_reason,
+    voice_label,
+)
 from silverloop.wearable_status import simulated_wearable
 
 
@@ -99,6 +109,36 @@ def _call[T](action: Callable[[], T]) -> T:
 
 def _today() -> date:
     return local_date(datetime.now(UTC))
+
+
+logger = logging.getLogger("silverloop.family")
+
+_limiters_lock = threading.Lock()
+
+
+def _limiter(request: Request, name: str, limit: int) -> RateLimiter:
+    """One fair-use limiter per app and purpose, made once even when the first requests race."""
+    with _limiters_lock:
+        limiters: dict[str, RateLimiter] | None = getattr(request.app.state, "route_limiters", None)
+        if limiters is None:
+            limiters = {}
+            request.app.state.route_limiters = limiters
+        if name not in limiters:
+            limiters[name] = RateLimiter(limit)
+        return limiters[name]
+
+
+def _agent_settings(request: Request, who: str) -> Settings:
+    """The settings an agent route runs with. Over the per-person limit (`agent_rate_per_10_min`)
+    the model is not called and the answer is assembled without one, exactly as with the agent
+    off (`fallback_disabled`): there is always an answer, and a loop cannot run up a bill."""
+    settings: Settings = request.app.state.settings
+    if not settings.llm_enabled:
+        return settings
+    if _limiter(request, "agent", settings.agent_rate_per_10_min).allow(who):
+        return settings
+    logger.info("agent_rate_limited")
+    return settings.model_copy(update={"llm_enabled": False})
 
 
 def check_reader(request: Request, person_id: str, current_user: CurrentUser) -> None:
@@ -360,7 +400,7 @@ def register_family_routes(application: FastAPI) -> None:
                 _calendar(request), current_user.sub, group_id, body.text, _today()
             )
         )
-        return draft_appointment(context, request.app.state.settings)
+        return draft_appointment(context, _agent_settings(request, current_user.sub))
 
     @application.post(
         "/v1/groups/{group_id}/appointments",
@@ -520,7 +560,7 @@ def register_family_routes(application: FastAPI) -> None:
                 _calendar(request), _tasks(request), current_user.sub, group_id, since, _today()
             )
         )
-        return catch_up(context, request.app.state.settings)
+        return catch_up(context, _agent_settings(request, current_user.sub))
 
     @application.post(
         "/v1/groups/{group_id}/check-ins",
@@ -757,7 +797,7 @@ def register_family_routes(application: FastAPI) -> None:
                 _calendar(request), _tasks(request), person_id, current_user.sub, _today(), now
             )
         )
-        return my_day(context, request.app.state.settings)
+        return my_day(context, _agent_settings(request, current_user.sub))
 
     @application.get(
         "/v1/people/{person_id}/my-day/voice",
@@ -791,21 +831,30 @@ def register_family_routes(application: FastAPI) -> None:
             403: {},
             404: {},
             422: {},
-            503: {"description": "The Kokoro voice is not installed or could not speak."},
+            429: {"description": "Too many sentences from this person in 10 minutes."},
+            503: {"description": "The Kokoro voice is not installed, busy, or could not speak."},
         },
     )
     def person_my_day_speech(
         request: Request, person_id: str, body: SpeechRequest, current_user: PersonReader
     ) -> Response:
         """One sentence of "Read my day", spoken by the Kokoro voice on this server's CPU (no
-        cloud service). The same readers as `my-day`. 503 when Kokoro or its model files are not
-        installed, or it failed: the browser then reads with its own voice."""
+        cloud service). The same readers as `my-day`. 429 past `tts_rate_per_10_min` sentences
+        a person in 10 minutes. 503 when Kokoro or its model files are not installed, it failed,
+        or it is busy with another sentence for longer than `tts_busy_wait_seconds`: the browser
+        then reads with its own voice."""
         check_reader(request, person_id, current_user)
         settings = request.app.state.settings
         if body.voice is not None and body.voice not in VOICES and body.voice != settings.tts_voice:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown voice.")
+        if not _limiter(request, "tts", settings.tts_rate_per_10_min).allow(current_user.sub):
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS, "Too many sentences. Try again later."
+            )
         try:
             audio = speak(body.text, settings, body.voice)
+        except SpeechBusy as error:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
         except SpeechUnavailable as error:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
         # Private: the audio is one person's day. The browser may keep it for this session.

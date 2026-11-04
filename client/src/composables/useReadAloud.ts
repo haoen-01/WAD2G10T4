@@ -4,15 +4,16 @@ import {
   SENTENCE_PAUSE_MS,
   SPEECH_PITCH,
   SPEECH_RATE,
+  NO_DEVICE_VOICE_HINT,
   VOICE_CHOICE_KEY,
   chooseVoice,
   choosesBrowser,
   englishVoices,
-  isPreferredVoice,
+  isOnDeviceVoice,
   kokoroChoice,
   kokoroVoiceOf,
-  lunaHint,
   speechChunks,
+  voiceHint,
   voiceLabel,
 } from '@/lib/speech';
 
@@ -33,12 +34,11 @@ export interface ServerVoice {
 }
 
 /**
- * How long, from the moment the card appears, a reading may wait for the preferred browser voice
- * (Luna). Edge lists its local voices (David, Mark, Zira) at once and adds its online "Natural"
- * ones a moment later; settling for the first good-enough voice would lock in a lesser one before
- * Luna arrives. After this, the best voice listed so far is used (Chrome never offers Luna).
+ * How long, from the moment the card appears, a reading may wait for the browser to list the
+ * device's own voices (Chrome lists none until its first `voiceschanged`). After this, if there is
+ * still no on-device voice, the card says it cannot read aloud here.
  */
-const PREFERRED_VOICE_WAIT_MS = 3000;
+const DEVICE_VOICE_WAIT_MS = 3000;
 /** Kokoro's sentences already end in a natural breath; a shorter gap keeps the pace calm, not slow. */
 const KOKORO_PAUSE_MS = 220;
 /** A fraction of a second of silence: played straight from the press, so later sentences may play. */
@@ -54,14 +54,14 @@ function readChoice(): string | null {
 }
 
 /**
- * Resolves with the voice list once it holds the preferred voice, or once `waitMs` has passed, or
+ * Resolves with the voice list once it holds an on-device voice, or once `waitMs` has passed, or
  * at once if it already does. Every `voiceschanged` re-reads the list, so a late voice is never
  * missed.
  */
-function voicesWithPreferred(waitMs: number): Promise<SpeechSynthesisVoice[]> {
+function voicesOnDevice(waitMs: number): Promise<SpeechSynthesisVoice[]> {
   const synth = window.speechSynthesis;
-  const hasPreferred = () => synth.getVoices().some(isPreferredVoice);
-  if (hasPreferred() || waitMs <= 0) return Promise.resolve(synth.getVoices());
+  const hasOwnVoice = () => synth.getVoices().some(isOnDeviceVoice);
+  if (hasOwnVoice() || waitMs <= 0) return Promise.resolve(synth.getVoices());
   return new Promise((resolve) => {
     const done = () => {
       window.clearTimeout(timer);
@@ -69,7 +69,7 @@ function voicesWithPreferred(waitMs: number): Promise<SpeechSynthesisVoice[]> {
       resolve(synth.getVoices());
     };
     const changed = () => {
-      if (hasPreferred()) done();
+      if (hasOwnVoice()) done();
     };
     const timer = window.setTimeout(done, waitMs);
     synth.addEventListener('voiceschanged', changed);
@@ -81,9 +81,9 @@ function voicesWithPreferred(waitMs: number): Promise<SpeechSynthesisVoice[]> {
  *
  * With `server`, it first uses the Care+ server's natural Kokoro voice (no cloud service: Kokoro
  * runs on the Care+ server's own CPU). Without it, or whenever Kokoro cannot speak, it reads with
- * the browser's own speech in the warmest voice the browser has (see `lib/speech.ts`). The
- * browser's local voices stay on the device; Edge's "Online (Natural)" voices are spoken by
- * Microsoft's service, so with one of those the sentences go to Microsoft to be spoken.
+ * the browser's own speech in the warmest on-device voice there is (see `lib/speech.ts`). Online
+ * browser voices (Edge's "Online (Natural)", Chrome's "Google …") are never used, so the script
+ * never goes to Microsoft or Google; with no on-device voice, `hint` says it cannot read aloud.
  */
 export function useReadAloud(server?: ServerVoice) {
   const hasBrowserSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -93,10 +93,11 @@ export function useReadAloud(server?: ServerVoice) {
   /** The voice that is reading (or will read), in words for the card; its full name for tests. */
   const voiceName = ref<string | null>(null);
   const voiceText = ref<string | null>(null);
-  /** "Choose a voice": the browser's English voices, best first, and why Luna is missing if it is. */
+  /** "Choose a voice": the device's own English voices, best first (never online ones). */
   const voices = ref<{ name: string; label: string }[]>([]);
   /** "Choose a voice": the server's Kokoro voices, while Kokoro can speak ("kokoro:…" names). */
   const serverVoices = ref<{ name: string; label: string }[]>([]);
+  /** Set when the device has no voice of its own, so nothing can be read aloud here. */
   const hint = ref<string | null>(null);
   /**
    * The listener's own pick, remembered here: a browser voice's name or a Kokoro voice
@@ -138,7 +139,7 @@ export function useReadAloud(server?: ServerVoice) {
     // The list stays current under Kokoro too, so a browser voice can still be chosen.
     voices.value = englishVoices(all).map((item) => ({ name: item.name, label: voiceLabel(item) }));
     if (engine.value !== 'browser') return;
-    hint.value = lunaHint(all, navigator.userAgent);
+    hint.value = voiceHint(all);
     if (state.value === 'idle') showBrowserVoice(chooseVoice(all, chosenName.value));
   };
 
@@ -181,7 +182,7 @@ export function useReadAloud(server?: ServerVoice) {
     refreshShownVoice();
   }
 
-  // The wait for the preferred browser voice counts from here: a few seconds after the card
+  // The wait for the device's voices counts from here: a few seconds after the card
   // appears, the browser has listed all it will, and a press speaks at once.
   let listeningSince = Date.now();
   onMounted(() => {
@@ -256,14 +257,16 @@ export function useReadAloud(server?: ServerVoice) {
       state.value = 'idle';
       return;
     }
-    // A voice the listener chose needs no wait; the automatic choice waits a moment for Luna.
-    const own =
-      chosenName.value !== null &&
-      window.speechSynthesis.getVoices().some((item) => item.name === chosenName.value);
-    const waitMs = own ? 0 : Math.max(0, PREFERRED_VOICE_WAIT_MS - (Date.now() - listeningSince));
-    voice = chooseVoice(await voicesWithPreferred(waitMs), chosenName.value);
+    const waitMs = Math.max(0, DEVICE_VOICE_WAIT_MS - (Date.now() - listeningSince));
+    voice = chooseVoice(await voicesOnDevice(waitMs), chosenName.value);
     if (run !== reading) return; // stopped while the voices were loading
     showBrowserVoice(voice);
+    if (!voice) {
+      // No on-device voice: never left to the browser's default, which may be an online one.
+      hint.value = NO_DEVICE_VOICE_HINT;
+      state.value = 'idle';
+      return;
+    }
     sayNext(run);
   }
 

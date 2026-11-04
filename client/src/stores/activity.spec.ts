@@ -25,6 +25,41 @@ vi.mock('@/services/careApi', () => ({
 
 const mocked = vi.mocked(api);
 
+function group(groupId: string, personId: string | null) {
+  return {
+    group_id: groupId,
+    person_id: personId,
+    senior_name: `Senior ${groupId}`,
+    my_role: 'owner',
+    my_status: 'active',
+    member_count: 4,
+    last_opened: false,
+    unread_count: 0,
+  };
+}
+
+function meWith(...groups: ReturnType<typeof group>[]): MeResponse {
+  return {
+    sub: viewer,
+    role: 'family',
+    display_name: 'Sarah',
+    person_id: null,
+    needs_onboarding: false,
+    groups,
+  } as MeResponse;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => (resolve = done));
+  return { promise, resolve };
+}
+
+/** Lets watchers run and promises settle. */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 6; i += 1) await new Promise((done) => setTimeout(done, 0));
+}
+
 function me(personId: string | null): MeResponse {
   return {
     sub: viewer,
@@ -182,5 +217,89 @@ describe('the activity store', () => {
     expect(activity.history).toBeNull();
     expect(activity.wearable).toBeNull();
     expect(activity.loaded).toBe(false);
+  });
+
+  it('follows the senior picked in the session, reading once even when a screen asks too', async () => {
+    mocked.getMe.mockResolvedValue(meWith(group('g1', 'mdm-lim'), group('g2', 'mr-tan')));
+    mocked.getPersonState.mockImplementation(async (id: string) => ({
+      ...person(id === 'mr-tan' ? 3000 : 5720, 5747),
+      person_id: id,
+    }));
+    const activity = useActivityStore();
+    await activity.load();
+    expect(activity.personId).toBe('mdm-lim');
+
+    useSessionStore().selectGroup('g2');
+    await nextTick();
+    // Home's own watch asks for the same pick: it shares the store's read.
+    void activity.load({ force: true });
+    await settle();
+    expect(activity.personId).toBe('mr-tan');
+    expect(activity.steps).toBe(3000);
+    expect(mocked.getPersonState).toHaveBeenCalledTimes(2);
+    expect(mocked.getPersonState).toHaveBeenLastCalledWith('mr-tan');
+    expect(mocked.getWearable).toHaveBeenLastCalledWith('mr-tan');
+  });
+
+  it('an older answer landing last never replaces the newer one', async () => {
+    mocked.getMe.mockResolvedValue(meWith(group('g1', 'mdm-lim'), group('g2', 'mr-tan')));
+    const first = deferred<PersonState>();
+    const second = deferred<PersonState>();
+    mocked.getPersonState
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise);
+    const activity = useActivityStore();
+    const s1 = activity.load();
+    await settle();
+    useSessionStore().selectGroup('g2');
+    const s2 = activity.load({ force: true });
+    await settle();
+
+    second.resolve({ ...person(3000, 5747), person_id: 'mr-tan' });
+    await s2;
+    first.resolve({ ...person(5720, 5747), person_id: 'mdm-lim' });
+    await s1;
+    await settle();
+    expect(activity.personId).toBe('mr-tan');
+    expect(activity.person?.person_id).toBe('mr-tan');
+    expect(activity.steps).toBe(3000);
+  });
+
+  it('a read in flight when reset runs writes nothing', async () => {
+    const pending = deferred<PersonState>();
+    const watchStatus = deferred<WearableStatus>();
+    mocked.getPersonState.mockImplementationOnce(() => pending.promise);
+    const activity = useActivityStore();
+    const run = activity.load();
+    await settle();
+
+    activity.reset();
+    pending.resolve(person(5720, 5747));
+    await run;
+    await settle();
+    expect(activity.person).toBeNull();
+    expect(activity.loaded).toBe(false);
+    expect(activity.personId).toBeNull();
+
+    // The same for the watch's status, still on its way when the person signs out.
+    mocked.getWearable.mockImplementationOnce(() => watchStatus.promise);
+    const again = activity.load();
+    await settle();
+    activity.reset();
+    watchStatus.resolve(WATCH);
+    await again;
+    expect(activity.wearable).toBeNull();
+    expect(activity.history).toBeNull();
+  });
+
+  it('after reset, picking another senior reads nothing', async () => {
+    mocked.getMe.mockResolvedValue(meWith(group('g1', 'mdm-lim'), group('g2', 'mr-tan')));
+    const activity = useActivityStore();
+    await activity.load();
+    activity.reset();
+    mocked.getPersonState.mockClear();
+    useSessionStore().selectGroup('g2');
+    await settle();
+    expect(mocked.getPersonState).not.toHaveBeenCalled();
   });
 });

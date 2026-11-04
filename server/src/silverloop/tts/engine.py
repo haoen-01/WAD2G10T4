@@ -6,8 +6,11 @@
   with its own voice.
 * **Loaded once.** The model is built on first use (about 2 s), under a lock, and kept for the
   life of the process; `warm_up` can do that at start-up so the first reading does not wait.
-* **One at a time.** Synthesis is serialised: ONNX Runtime already uses every core for one
-  sentence, and two at once would only slow both.
+* **One at a time, never queued for long.** Synthesis is serialised: ONNX Runtime already uses
+  every core for one sentence, and two at once would only slow both. A request waits at most
+  `tts_busy_wait_seconds` for its turn and then raises `SpeechBusy` (the route answers 503 and the
+  browser reads on with its own voice), so a burst of sentences cannot tie up the server's worker
+  threads. Checking whether Kokoro is available never waits on a sentence being spoken.
 * **Cached, privately.** Each finished sentence is kept in memory, keyed by a SHA-256 of the
   model, voice, speed and words -- never the words themselves -- in a small LRU. Nothing is written
   to disk and nothing is logged, so a narration that has not changed is not made twice.
@@ -42,6 +45,10 @@ class SpeechUnavailable(Exception):
     """Kokoro cannot speak here (not installed, no model files, or it failed). Says why."""
 
 
+class SpeechBusy(SpeechUnavailable):
+    """Kokoro is speaking another sentence and this one waited its limit for a turn."""
+
+
 def model_dir(settings: Settings) -> Path:
     path = Path(settings.tts_model_dir)
     return path if path.is_absolute() else API_ROOT / path
@@ -49,12 +56,19 @@ def model_dir(settings: Settings) -> Path:
 
 class _Engine:
     def __init__(self) -> None:
+        # Speaking one sentence at a time; loading the model; the cache. Taken in that order only.
         self._lock = threading.Lock()
+        self._load_lock = threading.Lock()
+        self._cache_lock = threading.Lock()
         self._kokoro: Any = None
         self._loaded_from: tuple[str, str] | None = None
         self._cache: OrderedDict[str, bytes] = OrderedDict()
 
     def _load(self, settings: Settings) -> Any:
+        with self._load_lock:
+            return self._load_locked(settings)
+
+    def _load_locked(self, settings: Settings) -> Any:
         directory = model_dir(settings)
         model, voices = directory / settings.tts_model_file, directory / VOICES_FILE
         key = (str(model), str(voices))
@@ -87,8 +101,8 @@ class _Engine:
         if not settings.tts_enabled:
             return "TTS_ENABLED is false."
         try:
-            with self._lock:
-                self._load(settings)
+            # The model's own lock only: never waits behind a sentence being spoken.
+            self._load(settings)
         except SpeechUnavailable as error:
             return str(error)
         return None
@@ -105,9 +119,13 @@ class _Engine:
                 [settings.tts_model_file, voice, f"{settings.tts_speed:.3f}", said]
             ).encode()
         ).hexdigest()
-        with self._lock:
-            if (cached := self._cache.get(key)) is not None:
-                self._cache.move_to_end(key)
+        if (cached := self._cached(key)) is not None:
+            return cached
+        if not self._lock.acquire(timeout=max(0.0, settings.tts_busy_wait_seconds)):
+            raise SpeechBusy("The Kokoro voice is busy. Try again in a moment.")
+        try:
+            # Another request may have made this very sentence while this one waited.
+            if (cached := self._cached(key)) is not None:
                 return cached
             kokoro = self._load(settings)
             language = "en-gb" if voice.startswith("b") else "en-us"
@@ -120,10 +138,19 @@ class _Engine:
                     f"Kokoro could not speak: {type(error).__name__}."
                 ) from error
             audio = _wav(samples, rate)
-            self._cache[key] = audio
-            while len(self._cache) > CACHE_ENTRIES:
-                self._cache.popitem(last=False)
+            with self._cache_lock:
+                self._cache[key] = audio
+                while len(self._cache) > CACHE_ENTRIES:
+                    self._cache.popitem(last=False)
             return audio
+        finally:
+            self._lock.release()
+
+    def _cached(self, key: str) -> bytes | None:
+        with self._cache_lock:
+            if (cached := self._cache.get(key)) is not None:
+                self._cache.move_to_end(key)
+            return cached
 
 
 def _wav(samples: Any, rate: int) -> bytes:

@@ -184,6 +184,11 @@ the senior's care group. **member** means an active member of that group.
 | PUT    | `/v1/groups/{group_id}/tasks/{task_id}/days/{day}`           | member    | Tick one day done or not (`{done}`): today or a past day       |
 | PUT    | `/v1/people/{person_id}/tasks/{task_id}/days/{day}`          | reader    | The senior ticks one of today's tasks done or not (`{done}`)   |
 | GET    | `/v1/people/{person_id}/wearable`                            | reader    | Simulated watch status: connected, last sync, battery          |
+| GET    | `/v1/groups/{group_id}/catch-up`                             | member    | The catch-up card: what changed (`since`), who is needed       |
+| POST   | `/v1/groups/{group_id}/appointments/draft`                   | member    | Fill in the appointment form from typed text; saves nothing    |
+| GET    | `/v1/people/{person_id}/my-day`                              | reader    | "Read my day": today's script for reading aloud                |
+| GET    | `/v1/people/{person_id}/my-day/voice`                        | reader    | Whether the Kokoro voice can speak here, and its voices        |
+| POST   | `/v1/people/{person_id}/my-day/speech`                       | reader    | One sentence spoken by Kokoro, as `audio/wav`                  |
 
 A family group can exist before its senior is linked (ADR 0010). `POST /v1/groups` takes
 `{relationship, senior_name?, senior_pin?}`, at least one of the two (else 422): with only
@@ -216,6 +221,45 @@ as SHA-256 hashes. With `AUTH_ENABLED=false`, `POST /v1/demo/reset` (for Mdm Lim
 family and schedule back to their starting state, relative to today, and API startup does the same
 when the database is SQLite. With sign-in on, `pnpm demo:story` sets up the real logins instead (see
 `docs/supabase.md`).
+
+`GET /v1/people/{person_id}/wearable` is simulated (`source: synthetic`). `last_synced_at` is null
+when the readings are synthetic or the latest reading is from an earlier day (stale), so a screen
+never shows an invented sync time.
+
+### Agents and the read-aloud voice
+
+The catch-up, the appointment draft and "Read my day" are read-only agents (ADR 0015; data sent
+once a provider is approved: `docs/agentic-features.md`). Each response says how it was written:
+`mode` (`agent`, or `fallback_disabled` / `fallback_error` / `fallback_no_proposal`), `source`
+(`live` or `recorded` when `mode` is `agent`, else null) and `steps` (the agent's tool calls). With
+`LLM_ENABLED=false` (the default) the answer is assembled without a model.
+
+- `GET /v1/groups/{group_id}/catch-up?since=` (ISO date-time, optional): for active members; a
+  senior gets 403, anyone else (a pending member, an outsider, an unknown group) 404; a malformed
+  `since` is 422. With no `since` (a first visit) it says where things stand; with one, what
+  changed after it.
+- `POST /v1/groups/{group_id}/appointments/draft` (`{text}`, up to 300 characters, else 422): the
+  same callers (senior 403, anyone else 404). It returns a filled-in `AppointmentDraft` and
+  **saves nothing**; the member adds it with `POST /appointments`.
+- `GET /v1/people/{person_id}/my-day`: for the senior themselves and active members of their
+  family group; anyone else (another senior, a pending member, an outsider) 404.
+- `GET /v1/people/{person_id}/my-day/voice`: the same readers. `{available, voice, label,
+voices}`; `available` is false when Kokoro or its model files are not installed. It never waits
+  on a sentence being spoken.
+- `POST /v1/people/{person_id}/my-day/speech` (`{text, voice?}`): the same readers. 200 with one
+  WAV sentence (`Cache-Control: private`); 422 for an unknown `voice` or `text` over 500
+  characters; 429 past `TTS_RATE_PER_10_MIN` (240) sentences per person in 10 minutes; 503 when
+  Kokoro is not installed (the opt-in `tts` group), could not speak, or is busy with another
+  sentence for longer than `TTS_BUSY_WAIT_SECONDS` (3 s). The browser then reads with its own
+  on-device voice.
+
+**Fair use for the agents.** With `LLM_ENABLED=true`, one person may send
+`AGENT_RATE_PER_10_MIN` (30) agent requests to the provider in 10 minutes, across the three agent
+routes. Past that the request is still answered (200), assembled without a model exactly as with
+the agent off (`mode: fallback_disabled`), rather than refused: these cards always show an answer.
+Each run also has a deadline: no model turn starts unless even its worst case (every attempt timing
+out) ends within 55 s, inside the browser's 60 s wait; past it the answer falls back
+(`fallback_error`).
 
 ### The family feed
 

@@ -70,8 +70,8 @@ _WELLBEING_CLAIMS: tuple[str, ...] = (
 
 SYSTEM_PROMPT = """\
 You write a short catch-up for a family member who has just opened Care+, the app their family
-uses to share caring for an older relative. Tell them what changed since they last looked and what
-is waiting for someone, in plain, warm, everyday words.
+uses to share caring for an older relative. Tell them what changed since they last looked (on a
+first visit, where things stand) and what is waiting for someone, in plain, warm, everyday words.
 
 1. Call the read tools first. Only what they return is true; never invent an update, a person, a
    visit or a task.
@@ -365,18 +365,31 @@ def _feed_line(item: FeedItem, senior_name: str) -> str:
     return f"{who} {verb}"
 
 
+def short_date(day: date) -> str:
+    """A day as the rest of the app writes it: "Tue, 18 Aug" (no leading zero)."""
+    return f"{day:%a}, {day.day} {day:%b}"
+
+
 def fallback_catch_up(context: CatchUpContext) -> tuple[str, list[str]]:
-    """The same catch-up, assembled without a model. Always valid under `validate_catch_up`."""
+    """The same catch-up, assembled without a model. Always valid under `validate_catch_up`.
+
+    On a first visit (no `since`) it says where things stand; on a return, what changed since.
+    """
     others = [item for item in context.feed if not item.is_me]
     highlights: list[str] = []
     for item in others[:2]:
         highlights.append(_feed_line(item, context.senior_name))
     for visit in context.open_visits[:2]:
-        highlights.append(f"{visit.title} on {visit.day.strftime('%a %d %b')} needs someone")
+        highlights.append(f"{visit.title} on {short_date(visit.day)} needs someone")
 
     parts: list[str] = []
-    if others:
-        noun = "update" if len(others) == 1 else "updates"
+    noun = "update" if len(others) == 1 else "updates"
+    if context.since is None:
+        if others:
+            parts.append(f"{len(others)} recent {noun} from the family.")
+        else:
+            parts.append("No recent updates from the family.")
+    elif others:
         parts.append(f"{len(others)} {noun} from the family since you last looked.")
     else:
         parts.append("No new updates from the family since you last looked.")
@@ -387,7 +400,8 @@ def fallback_catch_up(context: CatchUpContext) -> tuple[str, list[str]]:
         parts.append("Every visit in the next two weeks has someone going.")
     if context.tasks_today:
         done = sum(1 for task in context.tasks_today if task.done)
-        parts.append(f"{done} of {len(context.tasks_today)} of today's tasks are done.")
+        total = len(context.tasks_today)
+        parts.append(f"{done} of {total} {'task' if total == 1 else 'tasks'} done today.")
     return " ".join(parts), highlights
 
 
@@ -432,7 +446,13 @@ def write_catch_up(
         tools=tool_definitions(),
         brief=(
             f"The reader is opening Care+ for {fence_untrusted(context.senior_name)}. "
-            f"Today is {context.today.strftime('%A')}. Begin with the read tools."
+            f"Today is {context.today.strftime('%A')}. "
+            + (
+                "This is their first look, so say where things stand. "
+                if context.since is None
+                else "Say what changed since they last looked. "
+            )
+            + "Begin with the read tools."
         ),
         submit_tool=SUBMIT_TOOL_NAME,
         read_tool=lambda name, _arguments: execute_read_tool(name, context),

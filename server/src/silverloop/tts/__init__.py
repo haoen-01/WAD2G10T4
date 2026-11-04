@@ -2,6 +2,7 @@
 
 from silverloop.tts.engine import (
     VOICES,
+    SpeechBusy,
     SpeechUnavailable,
     speak,
     unavailable_reason,
@@ -12,6 +13,7 @@ from silverloop.tts.spoken import spoken_text
 
 __all__ = [
     "VOICES",
+    "SpeechBusy",
     "SpeechUnavailable",
     "speak",
     "spoken_text",

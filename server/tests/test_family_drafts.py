@@ -10,6 +10,7 @@ from silverloop.local_time import local_date
 from tests.test_family_groups import (
     _group_with_owner,
     _headers,
+    _join_pin,
     _onboard,
     client,  # noqa: F401 - pytest fixture
     repo,  # noqa: F401 - pytest fixture
@@ -62,3 +63,15 @@ def test_the_senior_and_outsiders_cannot_use_it(client: TestClient) -> None:  # 
 def test_overlong_text_is_refused(client: TestClient) -> None:  # noqa: F811
     group_id = _group_with_owner(client)
     assert _draft(client, group_id, "x" * 301).status_code == 422
+
+
+def test_a_pending_member_cannot_use_it(client: TestClient) -> None:  # noqa: F811
+    group_id = _group_with_owner(client)
+    _onboard(client, "family-b", "family", "Jun")
+    joined = client.post(
+        "/v1/groups/join",
+        json={"pin": _join_pin(client, group_id), "relationship": "Son"},
+        headers=_headers("family-b"),
+    )
+    assert joined.json()["my_status"] == "pending"
+    assert _draft(client, group_id, "lunch tmr 12pm", "family-b").status_code == 404

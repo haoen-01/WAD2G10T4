@@ -69,3 +69,10 @@ def test_the_family_may_read_it_and_outsiders_may_not(client: TestClient) -> Non
     assert _my_day(client, person_id, OWNER).status_code == 200
     _onboard(client, "family-z", "family", "Stranger")
     assert _my_day(client, person_id, "family-z").status_code == 404
+
+
+def test_a_senior_cannot_read_another_seniors_day(client: TestClient) -> None:  # noqa: F811
+    _group_with_owner(client)
+    person_id = client.get("/v1/me", headers=_headers("senior-1")).json()["person_id"]
+    _onboard(client, "senior-2", "senior", "Mr Lee")
+    assert _my_day(client, person_id, "senior-2").status_code == 404

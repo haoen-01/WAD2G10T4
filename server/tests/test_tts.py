@@ -278,3 +278,74 @@ def test_every_offered_voice_is_in_the_voices_file() -> None:
 
     kokoro = Kokoro(str(_MODELS / "kokoro-v1.0.onnx"), str(_MODELS / tts_engine.VOICES_FILE))
     assert set(tts_engine.VOICES) <= set(kokoro.get_voices())
+
+
+# ── Fair use: one person cannot keep the voice busy ───────────────────────────────────────────
+
+
+def test_too_many_sentences_from_one_person_answer_429(
+    client: TestClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "silverloop.family_routes.speak", lambda text, settings, voice=None: b"RIFF-fake"
+    )
+    app = client.app
+    app.state.settings = app.state.settings.model_copy(update={"tts_rate_per_10_min": 2})  # type: ignore[attr-defined]
+    _group_with_owner(client)
+    person_id = client.get("/v1/me", headers=_headers("senior-1")).json()["person_id"]
+    assert _speech(client, person_id, "senior-1").status_code == 200
+    assert _speech(client, person_id, "senior-1").status_code == 200
+    refused = _speech(client, person_id, "senior-1")
+    assert refused.status_code == 429
+    # The limit is per person: the family's own sentences are still spoken.
+    assert _speech(client, person_id, "family-a").status_code == 200
+
+
+def test_a_sentence_that_waits_too_long_for_its_turn_is_refused_as_busy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = _Engine()
+    monkeypatch.setattr(engine, "_load", lambda _settings: _FakeKokoro())
+    settings = _settings(tts_busy_wait_seconds=0.05)
+    engine._lock.acquire()  # another sentence is being spoken
+    try:
+        with pytest.raises(tts_engine.SpeechBusy, match="busy"):
+            engine.speak("Hello.", settings)
+        # Whether Kokoro can speak is answered at once, never queued behind that sentence.
+        monkeypatch.setattr(engine, "_load_locked", lambda _settings: _FakeKokoro())
+        assert engine.available(settings) is None
+    finally:
+        engine._lock.release()
+    assert engine.speak("Hello.", settings).startswith(b"RIFF")
+
+
+def test_the_route_answers_503_when_the_voice_is_busy(
+    client: TestClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def busy(text: str, settings: Settings, voice: str | None = None) -> bytes:
+        raise tts_engine.SpeechBusy("The Kokoro voice is busy. Try again in a moment.")
+
+    monkeypatch.setattr("silverloop.family_routes.speak", busy)
+    _group_with_owner(client)
+    person_id = client.get("/v1/me", headers=_headers("senior-1")).json()["person_id"]
+    response = _speech(client, person_id, "senior-1")
+    assert response.status_code == 503
+    assert "busy" in response.json()["detail"]
+
+
+def test_a_senior_cannot_hear_or_check_another_seniors_voice(
+    client: TestClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "silverloop.family_routes.speak", lambda text, settings, voice=None: b"RIFF-fake"
+    )
+    monkeypatch.setattr("silverloop.family_routes.unavailable_reason", lambda settings: None)
+    _group_with_owner(client)
+    person_id = client.get("/v1/me", headers=_headers("senior-1")).json()["person_id"]
+    _onboard(client, "senior-2", "senior", "Mr Lee")
+    assert _speech(client, person_id, "senior-2").status_code == 404
+    voice = client.get(f"/v1/people/{person_id}/my-day/voice", headers=_headers("senior-2"))
+    assert voice.status_code == 404

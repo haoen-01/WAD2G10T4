@@ -36,6 +36,11 @@ ClientFactory = Callable[[], tuple[Any, str | None]]
 # and the result falls back. Kept well inside the browser's own wait (`AGENT_TIMEOUT_MS`, 60 s, in
 # `client/src/services/careApi.ts`) so the person always gets an answer, never a timeout.
 DEADLINE_SECONDS = 40.0
+# The most one whole request may take, worst case, so it ends before the browser gives up (60 s),
+# with a margin for the reads, the check and the SDK's back-off between retries. A turn is only
+# started when even its worst case (every attempt timing out) still ends inside this, and each
+# attempt's timeout is clamped so that one turn's worst case always fits.
+REQUEST_BUDGET_SECONDS = 55.0
 # Reading a few facts and writing a short, checked answer needs little reasoning; a deterministic
 # check approves every result. Low effort keeps each turn to a few seconds (measured with
 # gpt-5-mini: about 9-13 s for the four turns of a typed appointment, against 22-25 s at medium).
@@ -66,10 +71,22 @@ def llm_source(settings: Settings) -> LlmSource:
     return "recorded" if settings.llm_provider == "recorded" else "live"
 
 
+def attempt_timeout(settings: Settings) -> float:
+    """One provider attempt's timeout: `llm_timeout_seconds`, clamped so that a turn with every
+    retry timing out (`llm_max_retries` + 1 attempts) still fits in `REQUEST_BUDGET_SECONDS`."""
+    attempts = max(0, settings.llm_max_retries) + 1
+    return min(settings.llm_timeout_seconds, REQUEST_BUDGET_SECONDS / attempts)
+
+
+def turn_worst_case(settings: Settings) -> float:
+    """How long one model turn can take when every attempt times out."""
+    return attempt_timeout(settings) * (max(0, settings.llm_max_retries) + 1)
+
+
 def default_client(settings: Settings) -> tuple[Any, str | None]:
     from silverloop.agent.planner import _build_client
 
-    return _build_client(settings, settings.llm_timeout_seconds)
+    return _build_client(settings, attempt_timeout(settings))
 
 
 def unknown_tool(name: str) -> tuple[str, str, bool]:
@@ -137,8 +154,13 @@ def run_tool_loop(
             **kwargs,
         )
 
+    worst_turn = turn_worst_case(settings)
     for iteration in range(1, max(1, settings.llm_max_iterations) + 1):
-        if iteration > 1 and time.monotonic() - started > deadline_seconds:
+        elapsed = time.monotonic() - started
+        if iteration > 1 and (
+            elapsed > deadline_seconds or elapsed + worst_turn > REQUEST_BUDGET_SECONDS
+        ):
+            # Another turn could run past the browser's wait: answer now, without a model.
             return end("error", "DeadlineExceeded")
         try:
             response = client.messages.create(
