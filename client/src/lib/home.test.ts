@@ -9,6 +9,7 @@ import {
   readingPastDay,
   readingStamp,
   sampleNotice,
+  weatherWords,
 } from './home';
 
 describe('capRows', () => {
@@ -82,5 +83,39 @@ describe('the reading’s day', () => {
 
   it('writes today’s date out in full', () => {
     assert.equal(longToday('2026-11-02'), 'Monday, 2 November');
+  });
+});
+
+describe('weatherWords', () => {
+  it('says simulated rain is simulated, as it always is in the offline demo', () => {
+    assert.equal(weatherWords({ rainy: true }), 'rainy day (simulated)');
+    assert.equal(
+      weatherWords({ rainy: true, weather_source: 'simulated' }),
+      'rainy day (simulated)',
+    );
+  });
+
+  it('names live rain and the Singapore time it speaks until', () => {
+    assert.equal(
+      weatherWords({
+        rainy: true,
+        weather_source: 'live',
+        weather_valid_until: '2026-08-20T06:00:00Z',
+      }),
+      'raining now (live weather, until 2:00 pm)',
+    );
+    assert.equal(
+      weatherWords({ rainy: true, weather_source: 'live', weather_valid_until: null }),
+      'raining now (live weather)',
+    );
+  });
+
+  it('says when live weather had nothing current, and nothing on a dry day', () => {
+    assert.equal(
+      weatherWords({ rainy: false, weather_source: 'unavailable' }),
+      'live weather unavailable',
+    );
+    assert.equal(weatherWords({ rainy: false, weather_source: 'live' }), null);
+    assert.equal(weatherWords({ rainy: false }), null);
   });
 });

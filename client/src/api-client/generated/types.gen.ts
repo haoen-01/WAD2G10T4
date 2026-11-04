@@ -828,6 +828,14 @@ export type ContextSignal = {
      * Note
      */
     note?: string | null;
+    /**
+     * Weather Source
+     */
+    weather_source?: 'simulated' | 'live' | 'unavailable';
+    /**
+     * Weather Valid Until
+     */
+    weather_valid_until?: string | null;
 };
 
 /**

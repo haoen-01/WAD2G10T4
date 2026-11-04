@@ -1053,6 +1053,28 @@ def test_the_brief_calls_the_persistence_count_what_it_counts(context: ToolConte
     assert f"{context.sustained_low_days} lower day(s)" not in brief
 
 
+def test_the_brief_names_where_the_weather_came_from(context: ToolContext) -> None:
+    """Simulated rain keeps the recorded wording; live rain says it is a current NEA reading; an
+    unavailable live lookup tells the planner to assume nothing about the weather."""
+    from dataclasses import replace
+
+    from silverloop.agent.planner import _brief
+
+    simulated = _brief(replace(context, rainy=True))
+    assert "it is raining" in simulated
+    assert "live NEA reading" not in simulated
+
+    live = _brief(replace(context, rainy=True, weather_source="live"))
+    assert "it is raining (a current live NEA reading)" in live
+
+    unavailable = _brief(replace(context, rainy=False, weather_source="unavailable"))
+    assert "live weather is unavailable, so assume nothing about it" in unavailable
+    assert "it is raining" not in unavailable
+
+    dry = _brief(context)
+    assert "raining" not in dry and "live weather" not in dry
+
+
 def test_the_brief_describes_the_profile_note_as_the_fixture_text_it_is(
     context: ToolContext,
 ) -> None:

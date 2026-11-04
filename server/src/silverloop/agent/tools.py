@@ -157,6 +157,8 @@ class ToolContext:
     candidates: list[CandidateOption]
     programmes: list[ProgrammeOption] = field(default_factory=list)
     history: list[HistoryEntry] = field(default_factory=list)
+    # Where `rainy` came from (`ContextSignal.weather_source`): simulated, live or unavailable.
+    weather_source: str = "simulated"
 
     @property
     def permitted_candidate_keys(self) -> list[str]:

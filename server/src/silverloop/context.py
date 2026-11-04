@@ -16,6 +16,7 @@ clear" in the decision trace.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -34,6 +35,10 @@ HOLIDAYS_URL = "https://date.nager.at/api/v3/PublicHolidays/{year}/{country}"
 
 _RAIN_KEYWORDS = ("rain", "shower", "thundery")
 _RAINFALL_THRESHOLD_MM = 0.2
+# How long one 5-minute rain-gauge reading may stand for "now". The 2-hour forecast carries its own
+# end (`valid_period.end`); without one, two hours after it was issued.
+RAINFALL_FRESH_FOR = timedelta(minutes=30)
+FORECAST_FRESH_FOR = timedelta(hours=2)
 
 # Errors caught around each outbound call: network failures, timeouts, HTTP error statuses and
 # any shape of unexpected/malformed response body. Never a bare `except Exception` -- an
@@ -109,18 +114,31 @@ class ExternalContextProvider:
         *,
         country_code: str = "SG",
         timeout_seconds: float = 3.0,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._country_code = country_code
         self._timeout = timeout_seconds
+        # Weather is judged against the real time, never the simulated day: a reading is only
+        # "current" while it is current now. Tests pass their own clock.
+        self._clock = clock or (lambda: datetime.now(UTC))
         self._holiday_cache: dict[int, set[date]] = {}
 
     def fetch(self, as_of: datetime) -> ExternalContext:
+        """Live weather as of now (the real clock), and whether `as_of`'s date is a holiday."""
+        now = self._clock()
         with httpx.Client(timeout=self._timeout) as client:
-            rain_evidence, rainy, rain_note = self._fetch_rain(client, as_of)
+            rain_evidence, rainy, rain_note = self._fetch_rain(client, now)
             holiday_evidence, is_holiday = self._fetch_holiday(client, as_of.date(), as_of)
 
+        live = bool(rain_evidence.payload.get("available"))
         return ExternalContext(
-            signal=ContextSignal(rainy=rainy, holiday=is_holiday, note=rain_note),
+            signal=ContextSignal(
+                rainy=rainy,
+                holiday=is_holiday,
+                note=rain_note,
+                weather_source="live" if live else "unavailable",
+                weather_valid_until=rain_evidence.expires_at if live else None,
+            ),
             evidence=[rain_evidence, holiday_evidence],
         )
 
@@ -146,6 +164,7 @@ class ExternalContextProvider:
 
         forecast_rain_areas: list[str] = []
         forecast_ts: datetime | None = None
+        forecast_until: datetime | None = None
         forecast_error: str | None = None
         try:
             response = client.get(TWO_HR_FORECAST_URL)
@@ -155,6 +174,12 @@ class ExternalContextProvider:
             if items:
                 latest_item = items[-1]
                 forecast_ts = datetime.fromisoformat(latest_item["timestamp"])
+                period_end = (latest_item.get("valid_period") or {}).get("end")
+                forecast_until = (
+                    datetime.fromisoformat(period_end)
+                    if period_end
+                    else forecast_ts + FORECAST_FRESH_FOR
+                )
                 forecast_rain_areas = [
                     entry["area"]
                     for entry in latest_item.get("forecasts", [])
@@ -165,6 +190,19 @@ class ExternalContextProvider:
         except _LOOKUP_ERRORS as exc:
             forecast_error = f"{type(exc).__name__}: {exc}"
             logger.warning("external_context_forecast_unavailable: %s", exc)
+
+        # Only what is still current counts. A reading or a forecast already past its time is
+        # recorded as stale, never used as now (the upstream can lag, or stop updating).
+        stale: list[str] = []
+        reading_until = reading_ts + RAINFALL_FRESH_FOR if reading_ts is not None else None
+        if reading_ts is not None and reading_until is not None and reading_until < as_of:
+            stale.append(f"rainfall reading from {reading_ts.isoformat()}")
+            reading_error = reading_error or "stale"
+            reading_ts, max_reading = None, 0.0
+        if forecast_ts is not None and forecast_until is not None and forecast_until < as_of:
+            stale.append(f"forecast issued {forecast_ts.isoformat()}")
+            forecast_error = forecast_error or "stale"
+            forecast_ts, forecast_rain_areas = None, []
 
         if reading_ts is None and forecast_ts is None:
             # Both the rainfall gauge and the forecast lookup failed: "unavailable", not "clear".
@@ -185,20 +223,31 @@ class ExternalContextProvider:
                 payload={
                     "available": False,
                     "reason": "; ".join(reasons) or "weather lookup failed",
+                    **({"stale": stale} if stale else {}),
                 },
             )
-            return evidence, False, "Weather context unavailable: live lookup failed."
+            return evidence, False, "Weather context unavailable: no current live reading."
 
         notes: list[str] = []
         rainy = False
-        if max_reading > _RAINFALL_THRESHOLD_MM:
+        # Until when each current part speaks: the rain it shows, or else the dry spell.
+        rain_until: list[datetime] = []
+        if max_reading > _RAINFALL_THRESHOLD_MM and reading_until is not None:
             rainy = True
+            rain_until.append(reading_until)
             notes.append(f"Live rainfall gauge reading {max_reading:.1f}mm in the last 5 minutes.")
-        if forecast_rain_areas:
+        if forecast_rain_areas and forecast_until is not None:
             rainy = True
+            rain_until.append(forecast_until)
             notes.append(
                 f"2-hour forecast shows rain/showers in {len(forecast_rain_areas)} area(s)."
             )
+        current_until = [
+            until
+            for ts, until in ((reading_ts, reading_until), (forecast_ts, forecast_until))
+            if ts is not None and until is not None
+        ]
+        expires_at = max(rain_until) if rainy else min(current_until)
 
         observed_at = max(ts for ts in (reading_ts, forecast_ts) if ts is not None)
         payload: dict[str, Any] = {
@@ -210,10 +259,12 @@ class ExternalContextProvider:
             payload["rainfall_reading_unavailable"] = reading_error
         if forecast_error is not None:
             payload["forecast_unavailable"] = forecast_error
+        if stale:
+            payload["stale"] = stale
         evidence = ContextEvidence(
             source="nea_weather_live",
             observed_at=observed_at,
-            expires_at=observed_at + timedelta(hours=2),
+            expires_at=expires_at,
             confidence=0.95 if (reading_ts and forecast_ts) else 0.75,
             evidence_id=_evidence_id("WEATHER"),
             payload=payload,
