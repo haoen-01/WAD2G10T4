@@ -127,7 +127,11 @@ const greeting = computed(() => {
   return name ? `Hello, ${name}! I'm ${ASSISTANT_NAME}.` : `Hello! I'm ${ASSISTANT_NAME}.`;
 });
 const starters = computed(() =>
-  startingSuggestions(assistant.context().viewer, assistant.context().page),
+  startingSuggestions(
+    assistant.context().viewer,
+    assistant.context().page,
+    senior.value ? null : (currentGroup.value?.senior_name ?? null),
+  ),
 );
 
 // ---- Opening and closing: the chat grows out of the orb, and shrinks back into it ----
