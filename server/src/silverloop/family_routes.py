@@ -842,9 +842,10 @@ def register_family_routes(application: FastAPI) -> None:
     ) -> Response:
         """One sentence of "Read my day", spoken by the Kokoro voice on this server's CPU (no
         cloud service). The same readers as `my-day`. 429 past `tts_rate_per_10_min` sentences
-        a person in 10 minutes. 503 when Kokoro or its model files are not installed, it failed,
-        or it is busy with another sentence for longer than `tts_busy_wait_seconds`: the browser
-        then reads with its own voice."""
+        a person in 10 minutes. 503 when Kokoro or its model files are not installed or it
+        failed: the browser then reads with an on-device voice. A 503 with `code: speech_busy`
+        (and `Retry-After`) means it was busy with another sentence for longer than
+        `tts_busy_wait_seconds`: the browser asks for that sentence again before giving up."""
         check_reader(request, person_id, current_user)
         settings = request.app.state.settings
         if body.voice is not None and body.voice not in VOICES and body.voice != settings.tts_voice:
@@ -859,7 +860,7 @@ def register_family_routes(application: FastAPI) -> None:
             # Busy is a moment's wait, not "cannot speak": `code` (and `Retry-After`) let the
             # browser ask for this sentence again instead of dropping the Kokoro voice.
             return JSONResponse(
-                {"code": SPEECH_BUSY_CODE, "detail": str(error)},
+                {"code": SPEECH_BUSY_CODE, "message": str(error), "detail": str(error)},
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 headers={"Retry-After": "1"},
             )

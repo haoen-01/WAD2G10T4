@@ -50,7 +50,7 @@ class SpeechBusy(SpeechUnavailable):
 
 
 # The `code` of the speech route's busy 503: the browser asks for that sentence again in a moment
-# rather than switching to its own voice (`client/src/lib/speech.ts`, `SPEECH_BUSY_CODE`).
+# rather than switching to its own voice (`client/src/lib/read-aloud.ts`, `SPEECH_BUSY_CODE`).
 SPEECH_BUSY_CODE = "speech_busy"
 
 
