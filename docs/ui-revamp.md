@@ -117,11 +117,19 @@ use `motion-v` or `@vueuse`).
   focus to the section. A gentle snap (`scroll-snap-type: y proximity` on this page only,
   `scroll-snap-align: start`) settles the page there if you stop scrolling just short of it. No
   snap with reduced motion.
+- **No bars over the story**: while the story is on screen it has the whole screen. The script puts
+  `sl-landing-cover` on `<html>` until the sign-in section reaches the middle of the screen; the
+  CSS in `LandingStory.vue` then slides the top bar up (and a phone's tab bar down) and sets
+  `visibility: hidden`, which also keeps their links out of the Tab order. On this page the top bar
+  is `position: fixed` (out of the page flow), so hiding and showing it never moves the page. They
+  slide back at "Start caring together.", where Sign in and the zoom and dark mode settings are
+  needed. Every other page keeps its bars.
 - **Stacked and still** (the `.still` class): the pinning is dropped and the scenes become a
   normal page read from top to bottom. This happens with reduced motion, and also when the screen
   is too short for a pinned scene to fit (under 600px high once Care+'s text size is counted: a
   phone turned sideways, or a big zoom), so nothing is ever cut off. `decide()` checks again on
-  resize, on a zoom change and when the reduced-motion setting changes.
+  resize, on a zoom change and when the reduced-motion setting changes. The still layout keeps the
+  top bar, like any other page.
 - The band is full width (`width: 100vw` with a negative margin). `100vw` includes the scroll bar,
   so on this page only, `:global(.shell:has(.landing)) { overflow-x: clip }` cuts off those few
   pixels instead of scrolling sideways (`clip`, unlike `hidden`, does not break

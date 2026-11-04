@@ -116,6 +116,20 @@ test('"Get started" jumps straight to the sign-in choices, without playing the s
   await expect(page.getByTestId('choose-family')).toBeInViewport();
 });
 
+test('the landing story has the whole screen: the top bar returns at the sign-in choices', async ({
+  page,
+}) => {
+  await page.goto('/login');
+  const bar = page.getByRole('banner');
+  await expect(bar).toBeHidden();
+  await page.getByRole('link', { name: 'Get started' }).click();
+  await expect(bar).toBeVisible();
+  // Leaving the page puts the bar back to normal.
+  await page.getByTestId('choose-family').click();
+  await expect(page).toHaveURL(/\/login\/family/);
+  await expect(bar).toBeVisible();
+});
+
 test('with reduced motion nothing in the background drifts or follows', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await enterAsFamily(page);

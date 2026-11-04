@@ -98,6 +98,21 @@ function fromShelf(): Keyframe | null {
   return { transform: `translate(${dx}px, ${dy}px) scale(${from.width / to.width})` };
 }
 
+/**
+ * Whether she has turned or dragged the medal since it opened. The turn as it lands waits for the
+ * medal to fly in; if she has already turned it by then, her turn wins and the flourish is skipped.
+ */
+let touched = false;
+function turnMedal() {
+  touched = true;
+  spin.turn();
+}
+function press(event: PointerEvent) {
+  if (!won.value) return;
+  touched = true;
+  spin.down(event);
+}
+
 async function arrive() {
   await nextTick();
   if (reduced()) return;
@@ -110,7 +125,7 @@ async function arrive() {
     : null;
   if (won.value) {
     await motion?.finished.catch(() => undefined);
-    spin.flourish(party.value ? 2 : 1);
+    if (!touched) spin.flourish(party.value ? 2 : 1);
   }
 }
 
@@ -153,6 +168,7 @@ watch(
     if (id) {
       said.value = '';
       party.value = false;
+      touched = false;
       spin.reset();
       if (!dialog.value?.open) dialog.value?.showModal();
       if (props.firstLook && props.badge?.state === 'claimed') celebrate(props.badge);
@@ -199,7 +215,7 @@ onBeforeUnmount(() => {
           <div
             class="viewer-stage"
             :class="{ 'can-drag': won, 'is-dragging': spin.dragging.value }"
-            @pointerdown="won && spin.down($event)"
+            @pointerdown="press"
             @pointermove="spin.move"
             @pointerup="up"
             @pointercancel="up"
@@ -265,7 +281,7 @@ onBeforeUnmount(() => {
               type="button"
               class="viewer-turn"
               data-testid="badge-turn"
-              @click="spin.turn"
+              @click="turnMedal"
             >
               <Icon name="refresh" /> {{ showingBack ? 'Show the front' : 'Turn over' }}
             </button>

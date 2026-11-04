@@ -19,6 +19,9 @@ import { clamp01, countUp, holdThenMove, sectionProgress, shotNumber } from '@/l
  * `--g`); the CSS turns those into `transform`, `opacity` and `filter`. The screens are pictures
  * of the app in `public/landing/`.
  *
+ * While the story is on screen it has the whole screen: no top bar, and no tab bar on a phone (the
+ * `sl-landing-cover` class on <html>; they slide back in at the sign-in choices).
+ *
  * Stacked and still instead (the `.still` class, a normal page read top to bottom): with reduced
  * motion, and when the screen is too short for a pinned scene to fit (a phone turned sideways, or
  * a large zoom, whether the browser's or Care+'s own text size), so nothing is ever cut off.
@@ -83,13 +86,26 @@ const steps = ref(TO_STEPS);
 const shot = ref(1);
 let frame = 0;
 
+/** On <html> while the story covers the screen: the layout hides its bars (see the CSS below). */
+const COVER = 'sl-landing-cover';
+
+/**
+ * The bars stay hidden until the sign-in choices take over the screen (the story's end is above
+ * the middle of the screen). Not in the still layout: that is an ordinary page, so it keeps them.
+ */
+function cover() {
+  const el = root.value;
+  const on = !still.value && !!el && el.getBoundingClientRect().bottom > window.innerHeight / 2;
+  document.documentElement.classList.toggle(COVER, on);
+}
+
 function paint() {
   frame = 0;
+  cover();
   const el = root.value;
   if (still.value || !el || !story.value || !tour.value || !stage.value || !track.value) return;
-  const pinTop =
-    parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sl-pinned-height')) ||
-    0;
+  // The stage is pinned at the very top of the screen (no top bar over it).
+  const pinTop = 0;
   const stageHeight = stage.value.offsetHeight;
 
   // Part 1: the headline, then the card.
@@ -164,6 +180,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', decide);
   reducedMotion?.removeEventListener('change', decide);
   if (frame) cancelAnimationFrame(frame);
+  document.documentElement.classList.remove(COVER);
 });
 </script>
 
@@ -305,7 +322,8 @@ onBeforeUnmount(() => {
   /* Scroll progress, set by the script: --p through part 1, --g along the tour's row. */
   --p: 0;
   --g: 0;
-  --stage-h: calc(100dvh - var(--sl-pinned-height, 0px));
+  /* One screen: the bars are hidden while the story plays, so it has all of it. */
+  --stage-h: 100dvh;
   /* Each effect's own 0-to-1, cut from --p: the headline fades, the card grows, then its
      contents arrive in turn, and the ring fills. */
   --pb: clamp(0, calc(var(--p) - 0.06), 1);
@@ -340,16 +358,50 @@ onBeforeUnmount(() => {
   overflow-x: clip;
 }
 
-/* A phone with the bottom tab bar: the stage stops above it. */
-@media (max-width: 767.98px) {
-  :root:has(.mainnav--tabs) .landing {
-    --stage-h: calc(100dvh - var(--sl-pinned-height, 0px) - var(--sl-tabbar-height));
-  }
+/*
+ * No top bar over the story (and no tab bar on a phone). On this page the top bar is taken out of
+ * the page flow (`position: fixed`), so hiding and showing it never moves the page. While
+ * `sl-landing-cover` is on <html> (set by the script) both bars slide off the screen; `visibility:
+ * hidden` (after the slide) also takes their links out of the Tab order. They slide back when the
+ * sign-in choices arrive. Only with the moving story: the still layout keeps its bars.
+ */
+:global(:root:has(.landing:not(.still)) .topbar) {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+:global(:root:has(.landing:not(.still)) .topbar),
+:global(:root:has(.landing:not(.still)) .mainnav--tabs) {
+  transition:
+    transform 0.35s var(--sl-ease),
+    opacity 0.35s ease,
+    visibility 0s linear 0s;
+}
+
+:global(:root.sl-landing-cover .topbar),
+:global(:root.sl-landing-cover .mainnav--tabs) {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.35s var(--sl-ease),
+    opacity 0.35s ease,
+    visibility 0s linear 0.35s;
+}
+
+:global(:root.sl-landing-cover .topbar) {
+  transform: translateY(-100%);
+}
+
+:global(:root.sl-landing-cover .mainnav--tabs) {
+  transform: translateY(100%);
 }
 
 .stage {
   position: sticky;
-  top: var(--sl-pinned-height, 0px);
+  top: 0;
   height: var(--stage-h);
   overflow: hidden;
 }
