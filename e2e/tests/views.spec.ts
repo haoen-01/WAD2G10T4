@@ -19,13 +19,31 @@ async function enterAs(page: Page, audience: 'family' | 'senior') {
   await page.getByTestId(`continue-${audience}`).click();
 }
 
-test('the family sees Home, Walk, Calendar and Family, and never the senior screen', async ({
+test('the family sees Home, Watch, Walk, Calendar and Family, and never the senior screen', async ({
   page,
 }) => {
   await enterAs(page, 'family');
   await expect(page).toHaveURL(/\/$/);
 
-  await expect(nav(page).getByRole('link')).toHaveText(['Home', 'Walk', 'Calendar', 'Family']);
+  await expect(nav(page).getByRole('link')).toHaveText([
+    'Home',
+    'Watch',
+    'Walk',
+    'Calendar',
+    'Family',
+  ]);
+
+  // Watch opens the senior's watch page, and the menu marks it as the current page.
+  await nav(page).getByRole('link', { name: 'Watch' }).click();
+  await expect(page).toHaveURL(/\/watch$/);
+  await expect(nav(page).getByRole('link', { name: 'Watch' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(nav(page).getByRole('link', { name: 'Home' })).not.toHaveAttribute(
+    'aria-current',
+    'page',
+  );
 
   await page.goto('/senior');
   await expect(page).toHaveURL(/\/$/);

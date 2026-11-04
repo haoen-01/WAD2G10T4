@@ -16,15 +16,15 @@ import Icon from '@/components/ui/Icon.vue';
 import WalkLink from '@/components/walk/WalkLink.vue';
 import { formatSteps, percentOfUsual } from '@/lib/activity';
 import { todayIso } from '@/lib/calendar';
-import { crossSplit, longToday, readingPastDay, readingStamp } from '@/lib/home';
+import { headlineLines, longToday, readingPastDay, readingStamp } from '@/lib/home';
 import { daySummary } from '@/lib/labels';
 
 /**
  * The top of family Home, set like an editorial cover on a plum field: her day as one large
  * serif headline (built from the policy's own result, `daySummary`), one plain line under it, the
  * page's one action ("What needs you") and a way to hear the family's catch-up read aloud. Her
- * watch stands beside it, live and turnable, with its status chips underneath; the Simulated watch
- * chip opens the full watch page. The greeting, the date, "Why?" and the screen's one sample-data
+ * watch stands beside it, live and turnable, with its status underneath: the connection, then the
+ * battery; tapping the watch opens the full watch page. The greeting, the date, "Why?" and the screen's one sample-data
  * notice sit quietly at the foot. A torn-paper edge hands over to the cream page below.
  */
 const props = defineProps<{
@@ -50,6 +50,10 @@ const props = defineProps<{
 const emit = defineEmits<{ listen: [] }>();
 
 const today = computed(() => todayIso(props.now));
+/** The headline in its natural phrases, one per line ("Tue, 18 Aug / was a usual day / for …"). */
+const headline = computed(() =>
+  summary.value ? headlineLines(summary.value.headline, props.elder) : [],
+);
 /** The reading's own day when it is not today ("Tue, 18 Aug"), so nothing reads as today. */
 const pastDay = computed(() =>
   props.person ? readingPastDay(props.person.current_day, today.value) : null,
@@ -73,10 +77,6 @@ const summary = computed(() => {
     pastDay: pastDay.value,
   });
 });
-/** Where the orange cross sits inside the headline, if anywhere (`crossSplit`). */
-const split = computed(() =>
-  summary.value ? crossSplit(summary.value.headline, props.elder) : null,
-);
 const stamp = computed(() =>
   props.person ? readingStamp(props.person.current_day, today.value) : '',
 );
@@ -102,6 +102,12 @@ watch(() => [props.loading, props.person] as const, markEntered);
     :aria-busy="loading ? 'true' : undefined"
   >
     <div class="hero-copy">
+      <!-- Today's real date comes first, apart from the reading's own day in the headline. -->
+      <p class="hero-greeting">
+        {{ greeting }}<template v-if="viewer">, {{ viewer }}</template
+        >. <time class="hero-date" :datetime="today">{{ longToday(today) }}</time>
+      </p>
+
       <template v-if="loading">
         <h1 class="visually-hidden">Care+: {{ elder }}’s day</h1>
         <p class="visually-hidden" role="status">Loading {{ elder }}’s day…</p>
@@ -112,15 +118,8 @@ watch(() => [props.loading, props.person] as const, markEntered);
 
       <template v-else-if="person && summary">
         <h1 class="hero-title ed-serif" :class="{ 'hero-in': enter }" style="--i: 0">
-          <span class="visually-hidden">Care+: </span>
-          <template v-if="split"
-            >{{ split.before }}
-            <svg class="hero-cross" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 2.5h6v6.5h6.5v6H15v6.5H9V15H2.5V9H9z" />
-            </svg>
-            {{ split.after }}</template
-          >
-          <template v-else>{{ summary.headline }}</template>
+          <span class="visually-hidden">Care+: </span
+          ><span v-for="(line, index) in headline" :key="index" class="hero-line">{{ line }}</span>
         </h1>
         <p class="hero-lede" :class="{ 'hero-in': enter }" style="--i: 1">
           {{ summary.detail
@@ -169,12 +168,8 @@ watch(() => [props.loading, props.person] as const, markEntered);
         </button>
       </div>
 
-      <!-- The quiet facts: who is looking, today, the steps' own day, Why?, and the senior's walk. -->
+      <!-- The quiet facts: the steps' own day, Why?, and the senior's walk. -->
       <div v-if="!loading" class="hero-meta">
-        <p class="hero-greeting mb-0">
-          {{ greeting }}<template v-if="viewer">, {{ viewer }}</template
-          >. <time class="hero-date" :datetime="today">{{ longToday(today) }}</time>
-        </p>
         <template v-if="person && summary">
           <span class="hero-stamp" data-testid="hero-steps-label">{{ stamp }}</span>
           <StatusWhyPanel :person="person" :action="summary.action" />
@@ -207,6 +202,7 @@ watch(() => [props.loading, props.person] as const, markEntered);
         :failed="wearableFailed"
         :elder="elder"
         :now="now"
+        :reading-day="pastDay"
       />
     </div>
   </header>
@@ -262,8 +258,8 @@ watch(() => [props.loading, props.person] as const, markEntered);
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
     align-items: center;
     gap: 2rem;
-    min-height: 34rem;
-    padding: 3.5rem 0;
+    min-height: min(34rem, calc(100svh - 8rem));
+    padding: clamp(1.25rem, 4vh, 3.5rem) 0;
   }
 
   .hero--solo {
@@ -278,8 +274,10 @@ watch(() => [props.loading, props.person] as const, markEntered);
 
 .hero-title {
   max-width: 13ch;
-  margin: 0 0 1.25rem;
-  font-size: clamp(2.75rem, 7.5vw, 5.75rem);
+  margin: 0 0 clamp(0.75rem, 2vh, 1.25rem);
+  /* As large as ever on a tall screen; on a short one (768 px) a little smaller, so the whole hero
+     fits the window. */
+  font-size: clamp(2.75rem, min(7.5vw, 10.5vh), 5.75rem);
   line-height: 0.98;
   letter-spacing: -0.025em;
   text-wrap: balance;
@@ -289,18 +287,14 @@ watch(() => [props.loading, props.person] as const, markEntered);
   max-width: 18ch;
 }
 
-.hero-cross {
-  display: inline-block;
-  width: 0.62em;
-  height: 0.62em;
-  margin: 0 0.04em;
-  vertical-align: -0.02em;
-  fill: var(--ed-cross);
+/* Each phrase of the headline starts its own line; a long one still wraps inside it. */
+.hero-line {
+  display: block;
 }
 
 .hero-lede {
   max-width: 34rem;
-  margin-bottom: 2rem;
+  margin-bottom: clamp(1.25rem, 2.5vh, 2rem);
   color: var(--ed-on-plum-soft);
   font-size: 1.2rem;
   line-height: 1.5;
@@ -373,15 +367,17 @@ watch(() => [props.loading, props.person] as const, markEntered);
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 1.25rem;
-  margin-top: 2.5rem;
-  padding-top: 1.25rem;
+  margin-top: clamp(1.25rem, 3vh, 2.5rem);
+  padding-top: clamp(0.75rem, 1.5vh, 1.25rem);
   border-top: 1px solid var(--ed-line-on-plum);
   color: var(--ed-on-plum-soft);
   font-size: 0.95rem;
 }
 
 .hero-greeting {
+  margin-bottom: clamp(0.5rem, 1.5vh, 1rem);
   color: var(--ed-on-plum);
+  font-size: 1.05rem;
   font-weight: 600;
 }
 
@@ -425,13 +421,14 @@ watch(() => [props.loading, props.person] as const, markEntered);
   min-width: 0;
 }
 
-/* Her watch's facts are quiet outlined chips on the plum, the Simulated watch chip opens it. */
+/* Her watch's facts are quiet outlined chips, one above the other, centred under the watch. */
 .hero-watch-status {
   margin-top: 0.75rem;
 }
 
 .hero :deep(.watch-line) {
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
 }
 
@@ -460,18 +457,6 @@ watch(() => [props.loading, props.person] as const, markEntered);
 
 .hero :deep(.watch-part.battery) {
   color: var(--ed-on-plum);
-}
-
-/* The way into the 3D watch: the one filled chip in the row. */
-.hero :deep(.watch-part.sim-link) {
-  border-color: var(--ed-lime);
-  background: var(--ed-lime);
-  color: var(--ed-lime-ink);
-}
-
-.hero :deep(.watch-part.sim-link:focus-visible) {
-  outline: 3px solid var(--ed-on-plum);
-  outline-offset: 3px;
 }
 
 .hero :deep(.remind) {

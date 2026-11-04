@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -47,6 +47,25 @@ def test_the_status_is_labelled_synthetic_and_stays_in_range() -> None:
 
 def test_the_same_person_and_time_give_the_same_answer() -> None:
     assert simulated_wearable("p1", True, _at(15)) == simulated_wearable("p1", True, _at(15))
+
+
+def test_an_older_latest_reading_gives_no_made_up_sync_time() -> None:
+    """A watch that synced minutes ago would have sent today's steps; with only an older reading,
+    no sync time is claimed. The battery and connection stay as simulated."""
+    now = _at(15)
+    old = simulated_wearable("mdm-lim", True, now, date(2026, 8, 18))
+    assert old.last_synced_at is None
+    assert old.connected and old.battery_percent is not None and old.source == "synthetic"
+    today = simulated_wearable("mdm-lim", True, now, date(2026, 10, 14))
+    assert today.last_synced_at is not None
+
+
+def test_sample_readings_never_get_a_sync_time_even_dated_today() -> None:
+    """Sample readings were never sent by a watch, so no live sync is claimed for them."""
+    now = _at(15)
+    status = simulated_wearable("mdm-lim", True, now, date(2026, 10, 14), readings_synthetic=True)
+    assert status.last_synced_at is None
+    assert status.connected and status.source == "synthetic"
 
 
 def test_no_readings_means_no_watch_connected() -> None:

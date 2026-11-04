@@ -257,8 +257,16 @@ def _play_mdm_lim(repository: SqlAlchemyRepository, senior_sub: str) -> MdmLimSt
     A nudge she has wholly muted is her instruction and the story carries on without one: the
     decision stays at the severity rung and `_resolve_decision_state` lowers it to `NO_ACTION`.
     Any other decision on either day ends the story, because running it again would decide the
-    same thing."""
-    repository.reset(person_id=DEMO_PERSON_ID)
+    same thing.
+
+    With `demo_dates_follow_today`, the run starts as many days before today as the story plays, so
+    its last day is today (Singapore) and the demo never reads as August."""
+    end_on = (
+        local_date(datetime.now(UTC)) - timedelta(days=len(_DAYS))
+        if repository.settings.demo_dates_follow_today
+        else None
+    )
+    repository.reset(person_id=DEMO_PERSON_ID, end_on=end_on)
     day_1 = repository.advance("activity_declines", _DAYS[0], person_id=DEMO_PERSON_ID)
     nudge = day_1.created_intervention
     if nudge is not None and day_1.state.last_decision == Decision.GENTLE_NUDGE:

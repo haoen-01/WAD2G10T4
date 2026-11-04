@@ -4,7 +4,8 @@
     "incremental": false,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"],
+    "allowImportingTsExtensions": true,
     "paths": { "@silverloop/api-client": ["./src/api-client/index.ts"] }
   },
-  "include": ["vite.config.ts", "src/**/*.test.ts"]
+  "include": ["vite.config.ts", "vitest.config.ts", "src/**/*.test.ts"]
 }

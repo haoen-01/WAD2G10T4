@@ -124,6 +124,8 @@ describe('watchPoints', () => {
   it('reads steps from today and compares them with the usual day', () => {
     const steps = point('steps');
     assert.equal(steps.value, '5,720 today');
+    // An older reading keeps its own day, never "today".
+    assert.equal(point('steps', points({ pastDay: 'Thu, 20 Aug' })).value, '5,720 on Thu, 20 Aug');
     assert.equal(steps.note, 'About the same as usual');
     assert.equal(steps.bars.length, 14);
   });

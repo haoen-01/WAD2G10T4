@@ -38,32 +38,37 @@ export function readingPastDay(day: string, today: string): string | null {
   return day === today ? null : formatIsoDay(day);
 }
 
-/** The small timestamp under the hero's sentence: "Steps so far today" or "Steps from Tue, 18 Aug". */
+/**
+ * The small timestamp under the hero's sentence: "Steps so far today", or, for an older reading,
+ * "Latest reading from Tue, 18 Aug", so a past day is never taken for today.
+ */
 export function readingStamp(day: string, today: string): string {
-  return day === today ? 'Steps so far today' : `Steps from ${formatIsoDay(day)}`;
+  return day === today ? 'Steps so far today' : `Latest reading from ${formatIsoDay(day)}`;
+}
+
+/**
+ * The hero's headline in its natural phrases, one per line: a leading day ("Tue, 18 Aug"), the
+ * middle, and a closing "for {elder}". The words are never changed; a headline with neither
+ * comes back whole and wraps on its own.
+ */
+export function headlineLines(headline: string, elder: string): string[] {
+  const lines: string[] = [];
+  let rest = headline;
+  const day = /^[A-Z][a-z]{2}, \d{1,2} [A-Z][a-z]{2} /.exec(rest);
+  if (day) {
+    lines.push(day[0].trim());
+    rest = rest.slice(day[0].length);
+  }
+  const closing = elder ? ` for ${elder}` : '';
+  if (closing && rest.endsWith(closing) && rest.length > closing.length) {
+    lines.push(rest.slice(0, -closing.length), closing.trim());
+  } else {
+    lines.push(rest);
+  }
+  return lines;
 }
 
 /** "Monday, 2 November": today's date, said first in the hero. */
 export function longToday(today: string): string {
   return formatIsoDay(today, { style: 'long' });
-}
-
-/**
- * Where the hero's orange cross sits inside her headline, so it reads like the reference's
- * "life's ✚ best": before "for {elder}" ("A usual day ✚ for Mdm Lim"), else straight after her
- * name when the headline starts with it, else nowhere. The words themselves are never changed.
- */
-export function crossSplit(
-  headline: string,
-  elder: string,
-): { before: string; after: string } | null {
-  if (!elder) return null;
-  const forElder = headline.lastIndexOf(` for ${elder}`);
-  if (forElder > 0) {
-    return { before: headline.slice(0, forElder), after: headline.slice(forElder + 1) };
-  }
-  if (headline.startsWith(`${elder} `)) {
-    return { before: elder, after: headline.slice(elder.length + 1) };
-  }
-  return null;
 }

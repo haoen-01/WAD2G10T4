@@ -13,7 +13,7 @@ Not a health signal: the battery and the sync time say nothing about the senior.
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from silverloop.local_time import to_local
 from silverloop.models import WearableStatus
@@ -31,8 +31,21 @@ def _person_offset(person_id: str) -> int:
     return int(hashlib.sha256(person_id.encode()).hexdigest(), 16) % 12
 
 
-def simulated_wearable(person_id: str, has_readings: bool, now: datetime) -> WearableStatus:
-    """The watch as it would be at `now`. Not connected when no reading has ever come from it."""
+def simulated_wearable(
+    person_id: str,
+    has_readings: bool,
+    now: datetime,
+    latest_day: date | None = None,
+    readings_synthetic: bool = False,
+) -> WearableStatus:
+    """The watch as it would be at `now`. Not connected when no reading has ever come from it.
+
+    No sync time is given when it would claim a freshness the data does not have:
+    * `latest_day` (the newest daily reading) is before today (Singapore time) -- a watch that had
+      synced minutes ago would have sent today's steps;
+    * `readings_synthetic` -- the readings are sample data that no watch ever sent, so there was no
+      sync to time, whatever day they are dated.
+    """
     if not has_readings:
         return WearableStatus(
             connected=False,
@@ -52,9 +65,12 @@ def simulated_wearable(person_id: str, has_readings: bool, now: datetime) -> Wea
         battery = 100 - (hour - CHARGE_END_HOUR) * DRAIN_PER_HOUR - offset
     percent = max(FLOOR_PERCENT, min(100, round(battery)))
     synced_minutes_ago = (offset * 7 + local.minute) % 25
+    stale = latest_day is not None and latest_day < local.date()
     return WearableStatus(
         connected=True,
-        last_synced_at=now - timedelta(minutes=synced_minutes_ago),
+        last_synced_at=(
+            None if stale or readings_synthetic else now - timedelta(minutes=synced_minutes_ago)
+        ),
         battery_percent=percent,
         charging=charging,
         source="synthetic",

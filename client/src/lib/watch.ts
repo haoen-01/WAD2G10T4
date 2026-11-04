@@ -128,6 +128,8 @@ export interface WatchInput {
   syncedAgo: string | null;
   /** What the family calls the senior. */
   elder: string;
+  /** The reading's own day ("Thu, 20 Aug") when it is not today; null or absent for today. */
+  pastDay?: string | null;
 }
 
 /** The poses the watch turns to: its face, its back (the sensors) and its crown side. */
@@ -189,7 +191,11 @@ export function watchPoints(input: WatchInput): WatchPoint[] {
     {
       id: 'steps',
       label: 'Steps',
-      value: steps === null ? 'Not available' : `${formatNumber(steps)} today`,
+      // An older reading names its own day: it is never shown as today's.
+      value:
+        steps === null
+          ? 'Not available'
+          : `${formatNumber(steps)} ${input.pastDay ? `on ${input.pastDay}` : 'today'}`,
       side: 'left',
       icon: 'walk',
       pose: FRONT,

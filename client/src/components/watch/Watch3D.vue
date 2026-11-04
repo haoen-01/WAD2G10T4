@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import Icon from '@/components/ui/Icon.vue';
+import { percentOfUsual } from '@/lib/activity';
 import type { WatchPointId } from '@/lib/watch';
 
 /**
@@ -140,6 +141,12 @@ const bars = computed(() => {
 const stepsText = computed(() =>
   props.steps === null ? '—' : new Intl.NumberFormat('en-SG').format(props.steps),
 );
+/** The steps as a share of the usual day (the same sum as Home's sentence); null with no usual. */
+const percent = computed(() =>
+  props.steps === null || props.usualSteps === null
+    ? null
+    : percentOfUsual(props.steps, props.usualSteps),
+);
 </script>
 
 <template>
@@ -248,6 +255,7 @@ const stepsText = computed(() =>
                 <span class="small">{{ dayLabel ?? 'Today' }}</span>
                 <strong class="big">{{ stepsText }}</strong>
                 <span class="small">steps</span>
+                <span v-if="percent !== null" class="usual">{{ percent }}% of usual</span>
                 <span class="bars">
                   <span
                     v-for="(bar, index) in bars"
@@ -580,7 +588,7 @@ const stepsText = computed(() =>
 }
 
 .ring-icon {
-  margin-bottom: 26px;
+  margin-bottom: 22px;
   color: #4dd68c;
   font-size: 20px;
 }
@@ -588,6 +596,16 @@ const stepsText = computed(() =>
 .small {
   color: #a9b5b0;
   font-size: 10px;
+}
+
+/* "85% of usual": the ring's green, a step up from the small labels so it reads at a glance. */
+.usual {
+  margin-top: 2px;
+  color: #4dd68c;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .big {
@@ -606,8 +624,8 @@ const stepsText = computed(() =>
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  height: 18px;
-  margin-top: 8px;
+  height: 14px;
+  margin-top: 5px;
 }
 
 .bars span {

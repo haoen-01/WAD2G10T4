@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  crossSplit,
   HOME_LIST_CAP,
   capRows,
+  headlineLines,
   longToday,
   readingPastDay,
   readingStamp,
@@ -26,6 +26,28 @@ describe('capRows', () => {
   it('takes another cap, and never a negative one', () => {
     assert.deepEqual(capRows([1, 2, 3], 2), { shown: [1, 2], hidden: 1 });
     assert.deepEqual(capRows([1, 2], -1), { shown: [], hidden: 2 });
+  });
+});
+
+describe('headlineLines', () => {
+  it('breaks the headline at its day and its closing "for {elder}"', () => {
+    assert.deepEqual(headlineLines('Tue, 18 Aug was a usual day for Mdm Lim', 'Mdm Lim'), [
+      'Tue, 18 Aug',
+      'was a usual day',
+      'for Mdm Lim',
+    ]);
+    assert.deepEqual(headlineLines('A usual day for Mr Tan', 'Mr Tan'), [
+      'A usual day',
+      'for Mr Tan',
+    ]);
+  });
+
+  it('never changes the words, and leaves other headlines whole', () => {
+    const headline = 'Mdm Lim has been less active than usual for a few days';
+    assert.deepEqual(headlineLines(headline, 'Mdm Lim'), [headline]);
+    assert.deepEqual(headlineLines('Not enough readings yet', ''), ['Not enough readings yet']);
+    const lines = headlineLines('Thu, 20 Aug was a quieter day than usual for Mdm Lim', 'Mdm Lim');
+    assert.equal(lines.join(' '), 'Thu, 20 Aug was a quieter day than usual for Mdm Lim');
   });
 });
 
@@ -55,35 +77,10 @@ describe('the reading’s day', () => {
 
   it('names an older reading’s own day', () => {
     assert.equal(readingPastDay('2026-08-18', '2026-11-02'), 'Tue, 18 Aug');
-    assert.equal(readingStamp('2026-08-18', '2026-11-02'), 'Steps from Tue, 18 Aug');
+    assert.equal(readingStamp('2026-08-18', '2026-11-02'), 'Latest reading from Tue, 18 Aug');
   });
 
   it('writes today’s date out in full', () => {
     assert.equal(longToday('2026-11-02'), 'Monday, 2 November');
-  });
-});
-
-describe('crossSplit', () => {
-  it('puts the cross before "for {elder}"', () => {
-    assert.deepEqual(crossSplit('A usual day for Mdm Lim', 'Mdm Lim'), {
-      before: 'A usual day',
-      after: 'for Mdm Lim',
-    });
-    assert.deepEqual(crossSplit('Tue, 18 Aug was a quieter day than usual for Mr Tan', 'Mr Tan'), {
-      before: 'Tue, 18 Aug was a quieter day than usual',
-      after: 'for Mr Tan',
-    });
-  });
-
-  it('puts it after her name when the headline starts with it', () => {
-    assert.deepEqual(
-      crossSplit('Mdm Lim has been less active than usual for a few days', 'Mdm Lim'),
-      { before: 'Mdm Lim', after: 'has been less active than usual for a few days' },
-    );
-  });
-
-  it('leaves a headline without her name alone', () => {
-    assert.equal(crossSplit('Not enough watch data today', 'Mdm Lim'), null);
-    assert.equal(crossSplit('A usual day', ''), null);
   });
 });

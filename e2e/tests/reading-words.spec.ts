@@ -91,7 +91,12 @@ test.describe('saying today', () => {
     await expect(page.getByTestId('fortnight-sample')).toBeVisible();
     // Today's date comes first; the steps carry their own day.
     await expect(page.locator('.hero-date')).toHaveText('Sunday, 1 November');
-    await expect(page.getByTestId('hero-steps-label')).toHaveText('Steps from Tue, 18 Aug');
+    // The greeting with today's real date opens the hero, before the reading's own day.
+    await expect(page.locator('.hero-copy > *').first()).toContainText('Sunday, 1 November');
+    await expect(page.locator('.hero-title')).toContainText('Tue, 18 Aug');
+    await expect(page.getByTestId('hero-steps-label')).toHaveText(
+      'Latest reading from Tue, 18 Aug',
+    );
     await expect(page.locator('.hero-lede')).toContainText(/\d[\d,]* steps/);
     await expect(page.locator('.hero-lede')).toContainText(/of Mdm Lim’s usual day/);
     // Care+ does not record gender: the senior is named, never "she" or "he".

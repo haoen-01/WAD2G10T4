@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { resetDemo } from './support';
+import { resetDemo, showMoreOnHome } from './support';
 
 // The Watch page: the senior's simulated watch in 3D, opened from the watch status on Home. The
 // points come out once it has spun in; opening one shows its details, and Back closes them.
@@ -9,12 +9,12 @@ test.beforeEach(async ({ request }) => {
   await resetDemo(request);
 });
 
-test('Home opens the watch, and a point opens and closes its details', async ({ page }) => {
+test('the menu opens the watch, and a point opens and closes its details', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/login/family');
   await page.getByTestId('continue-family').click();
 
-  await page.getByTestId('watch-open').click();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Watch' }).click();
   await expect(page).toHaveURL(/\/watch$/);
   await expect(page.getByRole('heading', { name: 'Watch', level: 1 })).toBeVisible();
 
@@ -53,4 +53,32 @@ test('the watch turns with the buttons as well as by dragging, and never mention
   await expect(page.getByTestId('watch-detail-water')).toContainText('Example');
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('watch-detail-water')).toHaveCount(0);
+});
+
+test('tapping the watch on Home opens the Watch page; dragging only turns it', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await showMoreOnHome(page); // keeps the morning summary from opening over Home
+  await page.goto('/login/family');
+  await page.getByTestId('continue-family').click();
+  const stage = page.getByRole('slider', { name: /Turn the watch/ });
+  await expect(stage).toBeVisible();
+
+  // A drag turns it and stays on Home.
+  const box = (await stage.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/$/);
+
+  // A tap opens the Watch page.
+  await stage.click();
+  await expect(page).toHaveURL(/\/watch$/);
+  await expect(page.getByTestId('watch-point-steps')).toBeVisible();
+
+  // Enter does the same from the keyboard.
+  await page.goto('/');
+  await page.getByRole('slider', { name: /Turn the watch/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/watch$/);
 });

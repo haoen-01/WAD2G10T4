@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DailyMetric, PersonState, WearableStatus } from '@silverloop/api-client';
 import { computed, onBeforeUnmount, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import Icon from '@/components/ui/Icon.vue';
 import Watch3D from '@/components/watch/Watch3D.vue';
@@ -10,8 +11,8 @@ import { hoursLabel, nearestTurn, wrapAngle } from '@/lib/watch';
 /**
  * Her watch, live, as the picture in Home's hero: the same `Watch3D` the watch page draws, showing
  * her real readings, under the day they are from. Drag it (or use the arrow keys) to turn it; let
- * go and it coasts, then eases back to face you. At rest it stands still. The way into the full watch page is the "Simulated
- * watch" link in the watch line beside it (`WatchStatus`).
+ * go and it coasts, then eases back to face you. At rest it stands still. A tap (a press that
+ * hardly moves) or Enter opens the full Watch page, as does Watch in the menu.
  */
 const props = defineProps<{
   person: PersonState | null;
@@ -23,6 +24,7 @@ const props = defineProps<{
 }>();
 
 const reduced = useReducedMotion();
+const router = useRouter();
 
 const latest = computed(() => props.history?.[props.history.length - 1] ?? null);
 const clock = computed(() =>
@@ -45,6 +47,12 @@ let velocity = 0;
 let lastX = 0;
 let lastMove = 0;
 let lastTouched = 0;
+// Where and when the press began: a press that hardly moves is a tap, which opens the Watch page.
+let downX = 0;
+let downAt = 0;
+let travel = 0;
+const TAP_MAX_TRAVEL = 6;
+const TAP_MAX_MS = 400;
 let frameId = 0;
 let lastFrame = 0;
 
@@ -86,6 +94,9 @@ function onPointerDown(event: PointerEvent) {
   if (event.button !== 0) return;
   dragging.value = true;
   velocity = 0;
+  downX = event.clientX;
+  downAt = performance.now();
+  travel = 0;
   lastX = event.clientX;
   lastMove = performance.now();
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -95,6 +106,7 @@ function onPointerDown(event: PointerEvent) {
 function onPointerMove(event: PointerEvent) {
   if (!dragging.value) return;
   const now = performance.now();
+  travel = Math.max(travel, Math.abs(event.clientX - downX));
   const step = (event.clientX - lastX) * 0.5;
   offset += step;
   const dt = Math.max(1, now - lastMove) / 1000;
@@ -103,15 +115,34 @@ function onPointerMove(event: PointerEvent) {
   lastMove = now;
 }
 
-function onPointerUp() {
+function openWatch() {
+  void router.push({ name: 'watch' });
+}
+
+function onPointerUp(event: PointerEvent) {
   if (!dragging.value) return;
   dragging.value = false;
+  // A tap, not a turn: open the Watch page with its full readings.
+  if (
+    event.type === 'pointerup' &&
+    travel < TAP_MAX_TRAVEL &&
+    performance.now() - downAt < TAP_MAX_MS
+  ) {
+    velocity = 0;
+    openWatch();
+    return;
+  }
   if (performance.now() - lastMove > 80) velocity = 0; // held still before letting go
   velocity = reduced.value ? 0 : Math.max(-600, Math.min(600, velocity));
   lastTouched = performance.now();
 }
 
 function onKey(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    openWatch();
+    return;
+  }
   const turns: Record<string, number> = { ArrowLeft: -30, ArrowRight: 30 };
   if (!(event.key in turns)) return;
   event.preventDefault();
@@ -131,7 +162,7 @@ const turned = computed(() => Math.round((wrapAngle(yaw.value - REST_YAW) + 360)
       :class="{ dragging }"
       tabindex="0"
       role="slider"
-      aria-label="Turn the watch"
+      aria-label="Turn the watch. Press Enter to open the Watch page."
       aria-valuemin="0"
       aria-valuemax="359"
       :aria-valuenow="turned"
@@ -166,7 +197,7 @@ const turned = computed(() => Math.round((wrapAngle(yaw.value - REST_YAW) + 360)
       </div>
     </div>
     <figcaption class="watch-caption">
-      <Icon name="hand" class="watch-hint-icon" />Drag to turn the watch
+      <Icon name="hand" class="watch-hint-icon" />Drag to turn the watch, or tap to open it
     </figcaption>
   </figure>
 </template>

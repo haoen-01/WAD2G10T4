@@ -69,7 +69,7 @@ const colourClass = computed(() =>
   height: 2.5rem;
   overflow: hidden;
   border-radius: 50%;
-  color: var(--sl-avatar-on);
+  color: var(--sl-avatar-on, #fff);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -107,35 +107,38 @@ const colourClass = computed(() =>
 }
 
 .avatar-0 {
-  background: var(--sl-avatar-0);
+  background: var(--sl-avatar-0, #0b684f);
 }
 
 .avatar-1 {
-  background: var(--sl-avatar-1);
+  background: var(--sl-avatar-1, #1f5f8b);
 }
 
 .avatar-2 {
-  background: var(--sl-avatar-2);
+  background: var(--sl-avatar-2, #7a4b94);
 }
 
 .avatar-3 {
-  background: var(--sl-avatar-3);
+  background: var(--sl-avatar-3, #8a5a00);
 }
 
 .avatar-4 {
-  background: var(--sl-avatar-4);
+  background: var(--sl-avatar-4, #a1324a);
 }
 
 .avatar-5 {
-  background: var(--sl-avatar-5);
+  background: var(--sl-avatar-5, #3f5f6f);
 }
+
+/* Each colour falls back to the six the theme has always used (white text passes AA on each),
+   for a theme that does not define the avatar tokens. */
 
 /* The senior: the hero's own avatar (jade with white initials in light, ink with sun initials in
    dark) and a light ring that sets it off the sun field (no family member's colour). */
 .avatar-senior {
-  background: var(--sl-avatar-senior);
-  color: var(--sl-avatar-senior-on);
-  box-shadow: 0 0 0 4px var(--sl-hero-avatar-ring);
+  background: var(--sl-avatar-senior, #0b684f);
+  color: var(--sl-avatar-senior-on, #fff);
+  box-shadow: 0 0 0 4px var(--sl-hero-avatar-ring, transparent);
 }
 
 .avatar-photo {

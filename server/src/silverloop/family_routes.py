@@ -919,4 +919,11 @@ def register_family_routes(application: FastAPI) -> None:
             readings = request.app.state.repository.daily_metrics(person_id=person_id, days=1)
         except KeyError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Person not found") from exc
-        return simulated_wearable(person_id, bool(readings), datetime.now(UTC))
+        latest = readings[-1] if readings else None
+        return simulated_wearable(
+            person_id,
+            bool(readings),
+            datetime.now(UTC),
+            latest.day if latest else None,
+            readings_synthetic=latest is not None and latest.source == "synthetic",
+        )

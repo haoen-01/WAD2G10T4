@@ -14,10 +14,14 @@ test('Home shows whether the senior’s watch is connected, and its battery', as
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1, name: 'Care+' })).toBeVisible();
   const watch = page.getByTestId('watch-status');
-  await expect(watch).toContainText(/Watch connected · synced/);
+  // The demo's latest reading is an older, simulated day, so no sync time is claimed: the line names
+  // that day instead of "synced just now".
+  await expect(watch).toContainText('Watch connected · latest reading Tue, 18 Aug');
+  await expect(watch).not.toContainText('synced');
   // The level depends on the time of day (it is simulated), so only its shape is checked here.
   await expect(page.getByTestId('watch-battery')).toContainText(/\d+%/);
-  await expect(watch).toContainText('Simulated watch');
+  // No way in from here: the Watch page is in the menu.
+  await expect(watch.getByRole('link')).toHaveCount(0);
 });
 
 test('a low watch battery is red and asks the family to remind her to charge it', async ({
