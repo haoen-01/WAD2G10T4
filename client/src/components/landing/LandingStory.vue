@@ -304,7 +304,8 @@ onBeforeUnmount(() => {
 
   position: relative;
   width: 100vw;
-  margin: -1.5rem 0 2.5rem calc(50% - 50vw);
+  /* No space below: the sign-in section starts right where the story ends. */
+  margin: -1.5rem 0 0 calc(50% - 50vw);
   background:
     radial-gradient(50% 40% at 15% 10%, rgb(11 104 79 / 70%), transparent),
     radial-gradient(40% 30% at 60% 0%, rgb(111 220 174 / 18%), transparent),

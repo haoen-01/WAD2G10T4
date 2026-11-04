@@ -109,8 +109,12 @@ use `motion-v` or `@vueuse`).
   `holdThenMove` keeps each screenshot still for the first half of its share of the scroll, then
   eases to the next, so every screen stays long enough to read. A counter ("2 / 6") and bar show
   where you are.
-- **The end**: the last scene finishes exactly where the sign-in card (`#sign-in`) starts. "Get
-  started" at the top jumps straight there.
+- **The end**: the last scene finishes exactly where the sign-in section (`#sign-in` in
+  `LoginChooserView.vue`) starts. That section is a full screen tall (`min-height: 100dvh`) and
+  runs up behind the see-through header, so arriving there shows one background colour with the
+  choices in the middle, never a strip of the dark story. "Get started" jumps straight there, and
+  a gentle snap (`scroll-snap-type: y proximity` on this page only, `scroll-snap-align: start`)
+  settles the page there if you stop scrolling just short of it. No snap with reduced motion.
 - **Stacked and still** (the `.still` class): the pinning is dropped and the scenes become a
   normal page read from top to bottom. This happens with reduced motion, and also when the screen
   is too short for a pinned scene to fit (under 600px high once Care+'s text size is counted: a
