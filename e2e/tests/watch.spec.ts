@@ -63,7 +63,9 @@ test('tapping the watch on Home opens the Watch page; dragging or the arrows onl
   await page.goto('/login/family');
   await page.getByTestId('continue-family').click();
   const hero = page.getByTestId('hero-watch');
-  // The picture is a link to the Watch page, not a slider.
+  // The picture has its own short name (not the turn buttons' labels) and is a link to the Watch
+  // page, not a slider.
+  await expect(hero.getByRole('figure', { name: 'Mdm Lim’s watch', exact: true })).toBeVisible();
   const open = hero.getByRole('link', { name: 'Open Mdm Lim’s watch page' });
   await expect(open).toBeVisible();
   const turn = async () => Number(await open.getAttribute('data-turn'));
@@ -80,10 +82,22 @@ test('tapping the watch on Home opens the Watch page; dragging or the arrows onl
 
   // The visible buttons turn it too, without a drag.
   await expect.poll(turn, { timeout: 10_000 }).toBe(rest); // back to facing you
+  // A button turn stays where it was turned: it does not swing back on its own.
   await hero.getByRole('button', { name: 'Turn the watch right' }).click();
-  await expect.poll(turn).toBeGreaterThan(rest);
+  await expect.poll(turn).toBe(rest + 45);
+  await page.waitForTimeout(2500);
+  expect(await turn()).toBe(rest + 45);
   await hero.getByRole('button', { name: 'Turn the watch left' }).click();
+  await expect.poll(turn).toBe(rest);
   await expect(page).toHaveURL(/\/$/);
+
+  // A slow press that does not move is still a tap: it opens the Watch page.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await expect(page).toHaveURL(/\/watch$/);
+  await page.goBack();
 
   // A tap opens the Watch page.
   await open.click();

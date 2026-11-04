@@ -132,26 +132,63 @@ test.describe('on a phone', () => {
 test.describe('the family tab bar at the largest text size', () => {
   test.use({ viewport: { width: 375, height: 700 } });
 
-  test('all five tabs, Watch included, keep their labels inside their own tab', async ({
-    page,
-  }) => {
-    await enterAs(page, 'family');
-    for (const width of [375, 320]) {
-      await page.setViewportSize({ width, height: 700 });
-      await page.evaluate(() => (document.documentElement.style.fontSize = '150%'));
-      const links = menu(page).getByRole('link');
-      await expect(links).toHaveText(['Home', 'Watch', 'Walk', 'Calendar', 'Family']);
-      for (const link of await links.all()) {
-        const fits = await link.evaluate((el) => {
-          const label = el.querySelector('.mainnav-label')!.getBoundingClientRect();
-          const tab = el.getBoundingClientRect();
-          return label.left >= tab.left - 0.5 && label.right <= tab.right + 0.5;
-        });
-        expect(fits, `${await link.innerText()} at ${width}px`).toBe(true);
-        expect((await link.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(44);
-      }
+  /** Every label's font size, and whether each stays whole inside its own tab. */
+  async function checkTabs(page: Page, where: string): Promise<number> {
+    const links = menu(page).getByRole('link');
+    const sizes: number[] = [];
+    for (const link of await links.all()) {
+      const { fits, size } = await link.evaluate((el) => {
+        const label = el.querySelector('.mainnav-label')!;
+        const box = label.getBoundingClientRect();
+        const tab = el.getBoundingClientRect();
+        return {
+          fits:
+            box.left >= tab.left - 0.5 &&
+            box.right <= tab.right + 0.5 &&
+            box.top >= tab.top - 0.5 &&
+            box.bottom <= tab.bottom + 0.5,
+          size: parseFloat(getComputedStyle(label).fontSize),
+        };
+      });
+      expect(fits, `${await link.innerText()} ${where}`).toBe(true);
+      expect((await link.boundingBox())?.width ?? 0, where).toBeGreaterThanOrEqual(44);
+      sizes.push(size);
     }
-  });
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth, where).toBeLessThanOrEqual(clientWidth);
+    // The page's last content clears the bar, however many rows it has.
+    const padding = await page.evaluate(() =>
+      parseFloat(getComputedStyle(document.querySelector('.shell--tabs')!).paddingBottom),
+    );
+    const bar = (await menu(page).boundingBox())!;
+    expect(padding, where).toBeGreaterThanOrEqual(bar.height - 1);
+    return Math.min(...sizes);
+  }
+
+  for (const { who, tabs } of [
+    { who: 'the family', tabs: ['Home', 'Watch', 'Walk', 'Calendar', 'Family'] },
+    { who: 'no view chosen', tabs: ['Home', 'My day', 'Watch', 'Walk', 'Calendar', 'Family'] },
+  ]) {
+    test(`with ${who}, labels grow with the text size and stay inside their own tab`, async ({
+      page,
+    }) => {
+      if (who === 'the family') await enterAs(page, 'family');
+      else await page.goto('/');
+      await expect(menu(page).getByRole('link')).toHaveText(tabs);
+      for (const width of [375, 320]) {
+        await page.setViewportSize({ width, height: 700 });
+        await page.evaluate(() => (document.documentElement.style.fontSize = '100%'));
+        const normal = await checkTabs(page, `at ${width}px, 100%`);
+        await page.evaluate(() => (document.documentElement.style.fontSize = '150%'));
+        const large = await checkTabs(page, `at ${width}px, 150%`);
+        // The zoom setting is never undone by squeezing the labels to fit.
+        expect(large, `at ${width}px`).toBeCloseTo(normal * 1.5, 0);
+      }
+    });
+  }
 });
 
 test.describe('on a very small phone', () => {

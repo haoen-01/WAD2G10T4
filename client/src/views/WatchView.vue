@@ -2,7 +2,6 @@
 import type { DailyMetric } from '@silverloop/api-client';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { RouterLink } from 'vue-router';
 
 import type { IconName } from '@/components/ui/Icon.vue';
 import Icon from '@/components/ui/Icon.vue';
@@ -534,10 +533,6 @@ const RING = 2 * Math.PI * 22;
 
 <template>
   <div class="watch-page">
-    <RouterLink to="/" class="back-link">
-      <Icon name="chevron-left" class="me-1" />Back to Home
-    </RouterLink>
-
     <header class="watch-head">
       <div>
         <h1 class="watch-title">Watch</h1>
@@ -817,20 +812,6 @@ const RING = 2 * Math.PI * 22;
   --stage-h: 600px;
   --ease-premium: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  margin-bottom: 0.75rem;
-  color: var(--sl-ink-soft);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.back-link:hover,
-.back-link:focus-visible {
-  color: var(--sl-ink);
 }
 
 .watch-head {

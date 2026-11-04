@@ -48,9 +48,21 @@ describe('appointment draft', () => {
       [
         'Still to fill in: the day, the start time and the end time.',
         'Guessed, so please check: the category.',
-        'At the same time as: Physio.',
+        'Same time as the Physio.',
         'Nothing is saved until you press Add.',
       ],
+    );
+  });
+
+  it('names every clashing appointment in a plain sentence', () => {
+    const notes = draftNotes({
+      missing: [],
+      assumed: [],
+      clashes: ['Physio', 'Eye check-up', 'Doctor’s appointment'],
+    });
+    assert.equal(
+      notes[0],
+      'Same time as the Physio, the Eye check-up and the Doctor’s appointment.',
     );
   });
 

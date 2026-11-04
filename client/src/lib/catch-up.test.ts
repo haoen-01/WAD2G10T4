@@ -7,7 +7,14 @@ const NOW = new Date('2026-11-03T10:00:00Z');
 
 describe('catch-up', () => {
   it('remembers each group separately', () => {
-    assert.notEqual(lastVisitKey('grp_a'), lastVisitKey('grp_b'));
+    assert.notEqual(lastVisitKey('sarah', 'grp_a'), lastVisitKey('sarah', 'grp_b'));
+  });
+
+  it('remembers each person separately, so a shared browser does not mix them up', () => {
+    assert.notEqual(lastVisitKey('sarah', 'grp_a'), lastVisitKey('john', 'grp_a'));
+    assert.equal(lastVisitKey('sarah', 'grp_a'), lastVisitKey('sarah', 'grp_a'));
+    // A viewer whose id contains the separator cannot collide with another viewer and group.
+    assert.notEqual(lastVisitKey('a/b', 'c'), lastVisitKey('a', 'b/c'));
   });
 
   it('reads only a real moment in the past as the last visit', () => {

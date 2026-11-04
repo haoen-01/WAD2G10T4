@@ -64,9 +64,6 @@ export default defineComponent({
     compareWords,
     formatSteps,
     isSampleSource,
-    signed(n: number): string {
-      return `${n > 0 ? '+' : ''}${Math.round(n)}%`;
-    },
   },
 });
 </script>
@@ -132,21 +129,24 @@ export default defineComponent({
             :day-label="pastDay ?? 'Today'"
             :elder="elder"
           />
+          <!-- The card's main figure first and largest: how much of a usual day; then the two
+               step counts it comes from. -->
           <dl class="ring-facts">
-            <div>
-              <dt data-testid="hero-steps-label">{{ reading.stepsLabel }}</dt>
-              <dd class="tabular">
-                {{ formatSteps(person.signal.current_steps) }}
-                ({{ signed(person.signal.delta_percent) }} from usual)
+            <div class="fact-focal">
+              <dt>of a usual day</dt>
+              <dd
+                class="display-num focal-num"
+                :class="{ 'fact-low': low }"
+                data-testid="hero-percent"
+              >
+                <NumberTicker v-if="percent !== null" :value="percent" /><template v-else
+                  >–</template
+                ><small>%</small>
               </dd>
             </div>
             <div>
-              <dt>Of a usual day</dt>
-              <dd class="tabular" :class="{ 'fact-low': low }" data-testid="hero-percent">
-                <NumberTicker v-if="percent !== null" :value="percent" /><template v-else
-                  >–</template
-                >%
-              </dd>
+              <dt data-testid="hero-steps-label">{{ reading.stepsLabel }}</dt>
+              <dd class="tabular">{{ formatSteps(person.signal.current_steps) }}</dd>
             </div>
             <div>
               <dt>Usual day</dt>
@@ -214,17 +214,47 @@ export default defineComponent({
   font-weight: 600;
 }
 
+/* The main figure: a display number with its caption under it ("59%" / "of a usual day"). The
+   caption stays first in the list so it is read before the number. */
+.fact-focal {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.ring-facts .focal-num {
+  font-size: 3.2rem;
+  font-weight: 800;
+}
+
+.focal-num small {
+  font-size: 0.45em;
+  font-weight: 700;
+}
+
 /* Below the gentle-nudge line: the same coral as the chart, with the number to say it too. */
 .fact-low {
   color: var(--sl-coral-deep);
 }
 
-/* Phones: the facts in a row under the watch, wrapping when the text is large. */
+/* Phones: the main figure across the top, the two step counts side by side under it (wrapping when
+   the text is large). */
 @media (max-width: 575.98px) {
   .ring-facts {
     grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
     width: 100%;
     gap: 0.6rem 1rem;
+  }
+
+  .fact-focal {
+    grid-column: 1 / -1;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .ring-facts .focal-num {
+    font-size: 2.6rem;
   }
 }
 </style>

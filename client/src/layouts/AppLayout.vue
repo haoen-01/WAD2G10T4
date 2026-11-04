@@ -24,8 +24,7 @@ import { useViewMode } from '@/composables/useViewMode';
 import { useWalk } from '@/composables/useWalk';
 import { AUTH_ENABLED } from '@/lib/config';
 import { homeFor, isLoginPath, isPathInView } from '@/lib/view-mode';
-import { useActivityStore } from '@/stores/activity';
-import { useSessionStore } from '@/stores/session';
+import { clearViewerStores } from '@/stores/reset';
 
 const { loading, currentUser, signOut } = useAuth();
 const { mode, leaveDemoView } = useViewMode();
@@ -57,10 +56,10 @@ const ALL_LINKS: { to: string; label: string; exact: boolean; icon: IconName }[]
   { to: '/family', label: 'Family', exact: false, icon: 'users' },
 ];
 
-// The family sees Home, Watch, Walk, Calendar and Family; the senior sees only their own screen. Nobody signed
-// in sees none, except with sign-in off and no demo view chosen, when every screen is listed. The API enforces each role too, except for
-// the calendar and family screens, which hold sample data in the browser and have no API behind
-// them.
+// The family sees Home, Watch, Walk, Calendar and Family; the senior sees only their own screen.
+// Nobody signed in sees none, except with sign-in off and no demo view chosen, when every screen is
+// listed. Hiding a link is only for tidiness: the API checks each person's role and group on every
+// call behind these screens (the calendar and family data included).
 const links = computed(() => {
   const current = mode.value;
   if (current) return ALL_LINKS.filter((link) => isPathInView(current, link.to));
@@ -72,11 +71,10 @@ const VIEW_NAMES = { family: 'Family', senior: 'Senior' } as const;
 
 /**
  * Signing out (or leaving the demo view): the shared stores forget this person first, so nothing of
- * theirs (who they are, the senior's readings) is shown to whoever comes next.
+ * theirs (who they are, the senior's readings, the family calendar) is shown to whoever comes next.
  */
 function leave() {
-  useSessionStore().clear();
-  useActivityStore().reset();
+  clearViewerStores();
   void (AUTH_ENABLED ? signOut() : leaveDemo());
 }
 

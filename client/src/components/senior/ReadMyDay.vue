@@ -54,6 +54,14 @@ function pickVoiceFrom(event: Event) {
   speech.setVoiceChoice((event.target as HTMLSelectElement).value || null);
 }
 
+/** What the short status line says (announced, so kept to a few words). */
+const status = computed(() => {
+  if (paused.value) return 'Reading paused.';
+  if (reading.value) return 'Reading your day.';
+  if (day.value && !canSpeak) return 'Your day is shown below.';
+  return '';
+});
+
 function togglePause() {
   if (paused.value) speech.resume();
   else speech.pause();
@@ -67,11 +75,11 @@ function togglePause() {
     data-testid="read-my-day"
   >
     <h2 id="read-my-day-heading" class="h4">Your day, read to you</h2>
-    <div class="d-flex flex-wrap gap-2">
+    <!-- Full width, one above the other, on a phone; side by side from the small breakpoint up. -->
+    <div class="d-grid d-sm-flex flex-sm-wrap gap-2">
       <button
         type="button"
         class="btn btn-primary btn-lg read-btn"
-        :aria-pressed="canSpeak ? reading : undefined"
         :disabled="loading"
         @click="readMyDay"
       >
@@ -83,14 +91,16 @@ function togglePause() {
         v-if="reading"
         type="button"
         class="btn btn-outline-primary btn-lg read-btn"
-        :aria-pressed="paused"
         data-testid="read-my-day-pause"
         @click="togglePause"
       >
         <Icon :name="paused ? 'play' : 'pause'" class="me-2" />{{ paused ? 'Resume' : 'Pause' }}
       </button>
     </div>
-    <div v-if="canSpeak && speech.voiceText.value" class="small text-body-secondary mt-2">
+    <!-- A short line for screen readers as the reading starts, pauses or ends: never the whole
+         script, which is on screen to read. -->
+    <p class="visually-hidden" role="status" data-testid="my-day-status">{{ status }}</p>
+    <div v-if="canSpeak && speech.voiceText.value" class="text-body-secondary mt-2">
       <p class="mb-0" :title="speech.voiceName.value ?? undefined" data-testid="my-day-voice">
         Voice: {{ speech.voiceText.value }}
       </p>
@@ -136,7 +146,7 @@ function togglePause() {
       Your day could not be fetched just now. Your calendar and reminders below are still up to
       date.
     </p>
-    <div v-if="day" class="mt-3" role="status" :data-mode="day.mode" data-testid="my-day-script">
+    <div v-if="day" class="mt-3" :data-mode="day.mode" data-testid="my-day-script">
       <p class="script mb-2">{{ day.script }}</p>
       <p class="small text-body-secondary mb-0">{{ myDaySource(day) }}</p>
       <details v-if="day.steps.length" class="steps small mt-2">
@@ -155,9 +165,17 @@ function togglePause() {
 .read-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 4rem;
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+/* A phone: full width, with slimmer sides so the label stays on one line at the largest text size. */
+@media (max-width: 575.98px) {
+  .read-btn {
+    padding-inline: 0.75rem;
+  }
 }
 /* The senior screen's touch targets: at least 48 px for the folds and the voice list. */
 .voice-pick summary,

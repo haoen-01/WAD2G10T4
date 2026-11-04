@@ -9,9 +9,12 @@ import { writtenBy } from './agent';
 
 const KEY_PREFIX = 'careplus.lastVisit.v1.';
 
-/** The storage key for one group's last visit; each group is caught up on separately. */
-export function lastVisitKey(groupId: string): string {
-  return `${KEY_PREFIX}${groupId}`;
+/**
+ * The storage key for one viewer's last visit to one group. Each group is caught up on separately,
+ * and so is each person: a second account on a shared browser never inherits the first's "since".
+ */
+export function lastVisitKey(viewer: string, groupId: string): string {
+  return `${KEY_PREFIX}${encodeURIComponent(viewer)}/${encodeURIComponent(groupId)}`;
 }
 
 /** A stored last visit, or null when there is none or it is not a real moment in the past. */

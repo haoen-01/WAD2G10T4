@@ -24,6 +24,14 @@ function list(names: readonly string[]): string {
   return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
 }
 
+/** Appointment titles as they were typed, each with "the", joined with "and" ("the Physio and
+ *  the Eye check-up"). */
+function joinTitles(titles: readonly string[]): string {
+  const named = titles.map((title) => `the ${title}`);
+  if (named.length <= 1) return named.join('');
+  return `${named.slice(0, -1).join(', ')} and ${named[named.length - 1]}`;
+}
+
 /** The form fields a draft can fill in. Notes are never filled in from a description. */
 export interface DraftableFields {
   title: string;
@@ -106,7 +114,7 @@ export function draftNotes(
   if (kept.length) notes.push(`Kept what you had typed for ${list(kept)}.`);
   if (draft.missing.length) notes.push(`Still to fill in: ${list(draft.missing)}.`);
   if (draft.assumed.length) notes.push(`Guessed, so please check: ${list(draft.assumed)}.`);
-  if (draft.clashes.length) notes.push(`At the same time as: ${draft.clashes.join(', ')}.`);
+  if (draft.clashes.length) notes.push(`Same time as ${joinTitles(draft.clashes)}.`);
   notes.push('Nothing is saved until you press Add.');
   return notes;
 }

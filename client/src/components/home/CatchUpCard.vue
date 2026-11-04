@@ -11,23 +11,27 @@ import {
   parseLastVisit,
   stepLabel,
 } from '@/lib/catch-up';
+import { viewerKey } from '@/composables/useMe';
 import { getCatchUp } from '@/services/careApi';
 
 /**
- * "Since you last visited": what changed in the family group since this browser last opened Home
- * for it (on a first visit, "Where things stand"). Extra detail: while it is being put together a
+ * "Since you last visited": what changed in the family group since this person last opened Home for
+ * it on this browser (on a first visit, "Where things stand"). The heading follows the `since` the
+ * API answered for, so it always agrees with the summary under it. Extra detail: while it is being put together a
  * quiet placeholder holds its place; if it cannot be read, the card stays hidden and the rest of
  * Home is unaffected.
  */
 const props = defineProps<{ groupId: string }>();
 
 const catchUp = ref<CatchUp | null>(null);
-const since = ref<string | null>(null);
 const loading = ref(true);
 
 function readSince(groupId: string): string | null {
   try {
-    return parseLastVisit(window.localStorage.getItem(lastVisitKey(groupId)), new Date());
+    return parseLastVisit(
+      window.localStorage.getItem(lastVisitKey(viewerKey(), groupId)),
+      new Date(),
+    );
   } catch {
     return null; // Storage blocked: every visit reads as the first.
   }
@@ -35,7 +39,7 @@ function readSince(groupId: string): string | null {
 
 function markVisited(groupId: string): void {
   try {
-    window.localStorage.setItem(lastVisitKey(groupId), new Date().toISOString());
+    window.localStorage.setItem(lastVisitKey(viewerKey(), groupId), new Date().toISOString());
   } catch {
     // Storage blocked: nothing to remember.
   }
@@ -44,9 +48,9 @@ function markVisited(groupId: string): void {
 async function load(groupId: string): Promise<void> {
   catchUp.value = null;
   loading.value = true;
-  since.value = readSince(groupId);
+  const since = readSince(groupId);
   try {
-    const result = await getCatchUp(groupId, since.value);
+    const result = await getCatchUp(groupId, since);
     // Another group was picked while this one was read: its catch-up is not for this card.
     if (groupId !== props.groupId) return;
     catchUp.value = result;
@@ -80,7 +84,7 @@ watch(
   >
     <template #title>
       <span class="sl-icon-chip" aria-hidden="true"><Icon name="sparkle" /></span
-      >{{ catchUpHeading(since) }}
+      >{{ catchUpHeading(catchUp.since) }}
     </template>
     <p class="summary mb-2">{{ catchUp.summary }}</p>
     <ul v-if="catchUp.highlights.length" class="highlights mb-2">

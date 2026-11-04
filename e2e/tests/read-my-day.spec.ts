@@ -18,9 +18,16 @@ interface Said {
 }
 
 /** The voices the fake browser offers: Edge's local ones at once, and any `late` ones after 400 ms. */
+interface FakeVoice {
+  name: string;
+  lang: string;
+  /** Whether the device speaks it itself; by default the `first` ones do and the `late` ones
+   *  (Edge's online voices) do not. */
+  localService?: boolean;
+}
 interface VoiceSetup {
-  first: { name: string; lang: string }[];
-  late?: { name: string; lang: string }[];
+  first: FakeVoice[];
+  late?: FakeVoice[];
 }
 
 const EDGE_LOCAL = [
@@ -46,12 +53,12 @@ async function fakeSpeech(page: Page, voices: VoiceSetup = { first: EDGE_LOCAL }
     const state = { hold: false, paused: false, current: null as FakeUtterance | null };
     Object.assign(window, { said, speechState: state });
     const synth = window.speechSynthesis;
-    let list = setup.first.map((voice) => ({ ...voice, localService: true, default: false }));
+    let list = setup.first.map((voice) => ({ localService: true, ...voice, default: false }));
     if (setup.late) {
       setTimeout(() => {
         list = [
           ...list,
-          ...setup.late!.map((v) => ({ ...v, localService: false, default: false })),
+          ...setup.late!.map((v) => ({ localService: false, ...v, default: false })),
         ];
         synth.dispatchEvent(new Event('voiceschanged'));
       }, 400);
@@ -145,9 +152,18 @@ test('the reading can be paused, resumed and stopped', async ({ page }) => {
   await card.getByRole('button', { name: 'Read my day' }).click();
   const pause = card.getByTestId('read-my-day-pause');
   await expect(pause).toHaveText(/Pause/);
+  // A short status is announced, not the whole day's script.
+  await expect(card.getByTestId('my-day-status')).toHaveText('Reading your day.');
+  await expect(card.getByTestId('my-day-script')).not.toHaveAttribute('role');
   await pause.click();
   await expect(pause).toHaveText(/Resume/);
-  await expect(pause).toHaveAttribute('aria-pressed', 'true');
+  // The label says what the button will do next (a changing label, not a toggle state).
+  await expect(card.getByRole('button', { name: 'Resume' })).toBeVisible();
+  await expect(pause).not.toHaveAttribute('aria-pressed');
+  await expect(card.getByRole('button', { name: 'Stop reading' })).not.toHaveAttribute(
+    'aria-pressed',
+  );
+  await expect(card.getByTestId('my-day-status')).toHaveText('Reading paused.');
 
   await page.evaluate(() => {
     (window as unknown as { speechState: { hold: boolean } }).speechState.hold = false;
@@ -161,7 +177,12 @@ test('the reading can be paused, resumed and stopped', async ({ page }) => {
   await expect(pause).toHaveCount(0);
 });
 
-test('in Edge it waits for the natural voices and reads with Luna, not Zira', async ({ page }) => {
+// Online browser voices (Edge's "Online (Natural)" ones, Chrome's "Google …" ones) are spoken by
+// Microsoft's or Google's servers, so the senior's day would leave the device: they are never used.
+
+test('in Edge it never reads with an online voice, even Luna: only with the device’s own', async ({
+  page,
+}) => {
   await fakeSpeech(page, { first: EDGE_LOCAL, late: EDGE_ONLINE });
   await page.goto('/login/senior');
   await page.getByTestId('continue-senior').click();
@@ -169,12 +190,20 @@ test('in Edge it waits for the natural voices and reads with Luna, not Zira', as
   const card = page.getByTestId('read-my-day');
   await card.getByRole('button', { name: 'Read my day' }).click();
   await expect(card.getByTestId('my-day-voice')).toHaveText(
-    'Voice: Luna · Natural · English (Singapore)',
+    'Voice: Zira · English (United States)',
   );
   await expect(card.getByRole('button', { name: 'Read my day' })).toBeVisible({ timeout: 15_000 });
   const voices = new Set((await said(page)).map((sentence) => sentence.voice));
-  // One voice for the whole reading, and it is Luna.
-  expect([...voices]).toEqual(['Microsoft Luna Online (Natural) - English (Singapore)']);
+  // One voice for the whole reading, and it is on the device.
+  expect([...voices]).toEqual(['Microsoft Zira - English (United States)']);
+  // The online voices are not offered either.
+  await card.getByText('Choose a voice').click();
+  await expect(
+    card.getByTestId('my-day-voice-choice').locator('option', { hasText: 'Online' }),
+  ).toHaveCount(0);
+  await expect(
+    card.getByTestId('my-day-voice-choice').locator('option', { hasText: 'Luna' }),
+  ).toHaveCount(0);
 });
 
 test('without natural voices it falls back to the best one there is, and says which', async ({
@@ -194,75 +223,82 @@ test('without natural voices it falls back to the best one there is, and says wh
   expect([...voices]).toEqual(['Microsoft Zira - English (United States)']);
 });
 
-test('a lesser natural voice listed first does not lock out Luna arriving later', async ({
+test('in Chrome, its Google voices (spoken online) are passed over for the device’s own', async ({
   page,
 }) => {
   await fakeSpeech(page, {
     first: [
-      ...EDGE_LOCAL,
-      { name: 'Microsoft Aria Online (Natural) - English (United States)', lang: 'en-US' },
-    ],
-    late: [{ name: 'Microsoft Luna Online (Natural) - English (Singapore)', lang: 'en-SG' }],
-  });
-  await page.goto('/login/senior');
-  await page.getByTestId('continue-senior').click();
-  const card = page.getByTestId('read-my-day');
-  await card.getByRole('button', { name: 'Read my day' }).click();
-  await expect(card.getByTestId('my-day-voice')).toHaveText(
-    'Voice: Luna · Natural · English (Singapore)',
-  );
-});
-
-test('in Chrome, with no Luna, it uses Chrome’s natural voice and says so', async ({ page }) => {
-  await fakeSpeech(page, {
-    first: [
       { name: 'Microsoft Zira - English (United States)', lang: 'en-US' },
-      { name: 'Google US English', lang: 'en-US' },
-      { name: 'Google UK English Male', lang: 'en-GB' },
-      { name: 'Google US English 1 (Natural)', lang: 'en-US' },
+      { name: 'Google US English', lang: 'en-US', localService: false },
+      { name: 'Google UK English Male', lang: 'en-GB', localService: false },
+      { name: 'Google US English 1 (Natural)', lang: 'en-US', localService: false },
     ],
   });
   await page.goto('/login/senior');
   await page.getByTestId('continue-senior').click();
   const card = page.getByTestId('read-my-day');
   await card.getByRole('button', { name: 'Read my day' }).click();
-  await expect(card.getByTestId('my-day-voice')).toHaveText('Voice: Google US English 1 (Natural)');
-  await expect(card.getByRole('button', { name: 'Read my day' })).toBeVisible({ timeout: 15_000 });
-  const voices = new Set((await said(page)).map((sentence) => sentence.voice));
-  expect([...voices]).toEqual(['Google US English 1 (Natural)']);
-});
-
-test('the voice can be chosen by hand, and Chrome says Luna is only in Edge', async ({ page }) => {
-  await fakeSpeech(page, {
-    first: [
-      { name: 'Microsoft Zira - English (United States)', lang: 'en-US' },
-      { name: 'Google US English 1 (Natural)', lang: 'en-US' },
-    ],
-  });
-  await page.goto('/login/senior');
-  await page.getByTestId('continue-senior').click();
-  const card = page.getByTestId('read-my-day');
-  await expect(card.getByTestId('my-day-voice-hint')).toHaveText(
-    'The Singapore voice (Luna) is only available in Microsoft Edge.',
-  );
-  await card.getByText('Choose a voice').click();
-  await card
-    .getByTestId('my-day-voice-choice')
-    .selectOption('Microsoft Zira - English (United States)');
   await expect(card.getByTestId('my-day-voice')).toHaveText(
     'Voice: Zira · English (United States)',
   );
+  await expect(card.getByRole('button', { name: 'Read my day' })).toBeVisible({ timeout: 15_000 });
+  const voices = new Set((await said(page)).map((sentence) => sentence.voice));
+  expect([...voices]).toEqual(['Microsoft Zira - English (United States)']);
+});
+
+test('the voice can be chosen by hand from the device’s own voices', async ({ page }) => {
+  await fakeSpeech(page, {
+    first: [
+      { name: 'Microsoft Zira - English (United States)', lang: 'en-US' },
+      { name: 'Microsoft Mark - English (United States)', lang: 'en-US' },
+      { name: 'Google US English 1 (Natural)', lang: 'en-US', localService: false },
+    ],
+  });
+  await page.goto('/login/senior');
+  await page.getByTestId('continue-senior').click();
+  const card = page.getByTestId('read-my-day');
+  // The device has a voice of its own, so there is nothing to warn about.
+  await expect(card.getByTestId('my-day-voice')).toHaveText(
+    'Voice: Zira · English (United States)',
+  );
+  await expect(card.getByTestId('my-day-voice-hint')).toHaveCount(0);
+  await card.getByText('Choose a voice').click();
+  const choice = card.getByTestId('my-day-voice-choice');
+  await expect(choice.locator('option', { hasText: 'Google' })).toHaveCount(0);
+  await choice.selectOption('Microsoft Mark - English (United States)');
+  await expect(card.getByTestId('my-day-voice')).toHaveText(
+    'Voice: Mark · English (United States)',
+  );
 
   await card.getByRole('button', { name: 'Read my day' }).click();
   await expect(card.getByRole('button', { name: 'Read my day' })).toBeVisible({ timeout: 15_000 });
   const voices = new Set((await said(page)).map((sentence) => sentence.voice));
-  expect([...voices]).toEqual(['Microsoft Zira - English (United States)']);
+  expect([...voices]).toEqual(['Microsoft Mark - English (United States)']);
 
   // Remembered in this browser.
   await page.reload();
   await expect(page.getByTestId('my-day-voice')).toHaveText(
-    'Voice: Zira · English (United States)',
+    'Voice: Mark · English (United States)',
   );
+});
+
+test('with only online voices, nothing is read aloud and the card says why', async ({ page }) => {
+  await fakeSpeech(page, { first: [], late: EDGE_ONLINE });
+  await page.goto('/login/senior');
+  await page.getByTestId('continue-senior').click();
+  const card = page.getByTestId('read-my-day');
+  await card.getByRole('button', { name: 'Read my day' }).click();
+  await expect(card.getByTestId('my-day-voice-hint')).toHaveText(
+    'This device has no reading voice of its own, so Care+ cannot read your day aloud here.',
+    { timeout: 15_000 },
+  );
+  await expect(card.getByTestId('my-day-voice')).toHaveText(
+    'Voice: No reading voice on this device',
+  );
+  // The words are still on screen to read, and the browser said nothing.
+  await expect(card.getByTestId('my-day-script')).toContainText('Mdm Lim');
+  await expect(card.getByRole('button', { name: 'Read my day' })).toBeVisible();
+  expect(await said(page)).toHaveLength(0);
 });
 
 // ── The Kokoro voice on the Care+ server ─────────────────────────────────────────────────────
@@ -325,12 +361,15 @@ test('with Kokoro on the server, every sentence is spoken in the Heart voice', a
 
   const card = page.getByTestId('read-my-day');
   await expect(card.getByTestId('my-day-voice')).toHaveText('Voice: Heart · Kokoro natural voice');
-  // The Luna hint is about browser voices, so it does not apply to Kokoro.
+  // The no-voice hint is about the browser's voices, so it does not apply to Kokoro.
   await expect(card.getByTestId('my-day-voice-hint')).toHaveCount(0);
 
   await card.getByRole('button', { name: 'Read my day' }).click();
   const pause = card.getByTestId('read-my-day-pause');
   await expect(pause).toHaveText(/Pause/);
+  // A short status is announced, not the whole day's script.
+  await expect(card.getByTestId('my-day-status')).toHaveText('Reading your day.');
+  await expect(card.getByTestId('my-day-script')).not.toHaveAttribute('role');
   await pause.click();
   await expect(pause).toHaveText(/Resume/);
   await pause.click();

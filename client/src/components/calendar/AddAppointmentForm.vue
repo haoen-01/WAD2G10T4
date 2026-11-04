@@ -63,7 +63,14 @@ const keptFields = ref<DraftableField[]>([]);
 const filledFields = ref<DraftableField[]>([]);
 /** Fields the person has typed into themselves since the last fill: a fill never overwrites them. */
 const edited = new Set<DraftableField>();
-const touch = (field: DraftableField) => edited.add(field);
+/** Fields the last fill wrote into, softly tinted until the person changes them (decoration only:
+ *  the note under "Describe it" says in words what was filled in, kept or guessed). */
+const tinted = ref<DraftableField[]>([]);
+const touch = (field: DraftableField) => {
+  edited.add(field);
+  tinted.value = tinted.value.filter((item) => item !== field);
+};
+const tint = (field: DraftableField) => ({ 'was-filled': tinted.value.includes(field) });
 
 async function fillFromText() {
   const text = described.value.trim();
@@ -92,6 +99,7 @@ async function fillFromText() {
     for (const field of result.filled) edited.delete(field);
     keptFields.value = result.kept;
     filledFields.value = result.filled;
+    tinted.value = result.filled;
     filled.value = draft;
   } catch (caught) {
     // The form keeps everything already in it; only the message changes.
@@ -144,14 +152,18 @@ function submit() {
   >
     <h2 id="add-title" class="h5 mb-0">{{ editing ? 'Edit' : 'New appointment' }}</h2>
     <div v-if="!editing && groupId" class="describe" data-testid="describe-appointment">
-      <label :for="`${id}-describe`" class="form-label">Describe it (optional)</label>
+      <label :for="`${id}-describe`" class="form-label mb-1">Describe it (optional)</label>
+      <!-- The example is a hint that wraps, not a placeholder that would be cut off. -->
+      <p :id="`${id}-describe-hint`" class="sl-note mb-2">
+        For example: Eye check-up next Tuesday 10:30 to 11:30 at Bedok Polyclinic
+      </p>
       <div class="d-flex flex-wrap gap-2">
         <input
           :id="`${id}-describe`"
           v-model="described"
-          class="form-control flex-grow-1 describe-input"
+          class="form-control describe-input"
           maxlength="300"
-          placeholder="e.g. Eye check-up next Tuesday 10:30 to 11:30 at Bedok Polyclinic"
+          :aria-describedby="`${id}-describe-hint`"
           data-testid="describe-text"
           @keydown.enter.prevent="fillFromText"
         />
@@ -196,6 +208,7 @@ function submit() {
         :id="`${id}-title`"
         v-model="title"
         class="form-control"
+        :class="tint('title')"
         @input="touch('title')"
         maxlength="120"
         required
@@ -229,6 +242,7 @@ function submit() {
           :id="`${id}-date`"
           v-model="date"
           class="form-control"
+          :class="tint('date')"
           type="date"
           required
           @input="touch('date')"
@@ -241,6 +255,7 @@ function submit() {
           :id="`${id}-start`"
           v-model="start"
           class="form-control"
+          :class="tint('start')"
           type="time"
           required
           @input="touch('start')"
@@ -252,6 +267,7 @@ function submit() {
           :id="`${id}-end`"
           v-model="end"
           class="form-control"
+          :class="tint('end')"
           type="time"
           required
           @input="touch('end')"
@@ -295,6 +311,7 @@ function submit() {
           :id="`${id}-repeat`"
           v-model="repeat"
           class="form-select"
+          :class="tint('repeat')"
           data-testid="add-repeat"
           @change="touch('repeat')"
         >
@@ -313,6 +330,7 @@ function submit() {
           :id="`${id}-where`"
           v-model="location"
           class="form-control"
+          :class="tint('location')"
           maxlength="160"
           @input="touch('location')"
         />
@@ -342,9 +360,16 @@ function submit() {
   background: var(--sl-mist);
 }
 
+/* Beside the button when there is room (a wide form), above it on a phone. */
 .describe-input {
-  min-width: min(100%, 16rem);
+  flex: 1 1 11rem;
   width: auto;
+  min-width: 0;
+}
+
+/* A field "Describe it" just filled in: a soft tint until it is changed by hand. */
+.was-filled {
+  background-color: var(--sl-jade-soft);
 }
 
 .kinds {

@@ -12,13 +12,14 @@ import { hoursLabel, nearestTurn } from '@/lib/watch';
  * The senior's (simulated) watch in Home's hero: the same `Watch3D` the Watch page draws, showing
  * the latest readings, with the day they are from on its screen.
  *
- * - The picture is a link: a tap (a press that hardly moves), or Enter once it has focus, opens
- *   the Watch page.
+ * - The picture is a link: a press that moves less than 6 px (however long it is held), or Enter
+ *   once it has focus, opens the Watch page.
  * - Dragging it sideways turns it; the two buttons beside the hint turn it too, so turning never
  *   needs a drag.
- * - At rest it stands still: frames run only while it is being turned, coasts after a flick, or
- *   eases back to face you. With reduced motion there is no coasting, no easing back and no eased
- *   button turn: it moves only as far as the finger or the button moves it.
+ * - At rest it stands still: frames run only while it is being turned, coasts after a flick, or,
+ *   after a drag, eases back to face you. A button turn stays where it was turned. With reduced
+ *   motion there is no coasting, no easing back and no eased button turn: it moves only as far as
+ *   the finger or the button moves it.
  */
 const props = defineProps<{
   person: PersonState | null;
@@ -46,8 +47,8 @@ const REST_PITCH = 4;
 const BUTTON_TURN = 45;
 /** How long it waits, untouched, before it comes back round to face you. */
 const SETTLE_MS = 1800;
+/** A press that travels less than this (in px) is a tap, however long it is held. */
 const TAP_MAX_TRAVEL = 6;
-const TAP_MAX_MS = 400;
 
 const yaw = ref(REST_YAW);
 const dragging = ref(false);
@@ -57,9 +58,10 @@ let velocity = 0;
 let lastX = 0;
 let lastMove = 0;
 let lastTouched = 0;
-// Where and when the press began: a press that hardly moves is a tap, which follows the link.
+// True once a button has turned it: it stays there (only a drag's turn eases back to face you).
+let held = false;
+// Where the press began: a press that hardly moves is a tap, which follows the link.
 let downX = 0;
-let downAt = 0;
 let travel = 0;
 let wasDrag = false;
 let frameId = 0;
@@ -84,6 +86,8 @@ function frame(time: number) {
       offset += velocity * dt;
       velocity *= Math.pow(0.04, dt);
       moving = true;
+    } else if (held) {
+      // Turned by a button: it stays where it was asked to go.
     } else if (time - lastTouched > SETTLE_MS) {
       // Then it comes back round to face you, the short way.
       const home = nearestTurn(offset, 0);
@@ -120,7 +124,6 @@ function onPointerDown(event: PointerEvent) {
   velocity = 0;
   target = null;
   downX = event.clientX;
-  downAt = performance.now();
   travel = 0;
   lastX = event.clientX;
   lastMove = performance.now();
@@ -132,6 +135,9 @@ function onPointerMove(event: PointerEvent) {
   if (!dragging.value) return;
   const now = performance.now();
   travel = Math.max(travel, Math.abs(event.clientX - downX));
+  // Under the tap distance it has not started turning, so a still press never nudges it.
+  if (travel < TAP_MAX_TRAVEL) return;
+  held = false;
   const step = (event.clientX - lastX) * 0.5;
   offset += step;
   const dt = Math.max(1, now - lastMove) / 1000;
@@ -144,11 +150,9 @@ function onPointerMove(event: PointerEvent) {
 function onPointerUp(event: PointerEvent) {
   if (!dragging.value) return;
   dragging.value = false;
-  // Anything but a quick press that hardly moved was a turn, so the click after it is not a tap.
-  wasDrag =
-    event.type !== 'pointerup' ||
-    travel >= TAP_MAX_TRAVEL ||
-    performance.now() - downAt >= TAP_MAX_MS;
+  // A press that travelled 6 px or more was a turn, so the click after it is not a tap. Only the
+  // distance counts: a slow, still press is still a tap.
+  wasDrag = event.type !== 'pointerup' || travel >= TAP_MAX_TRAVEL;
   if (performance.now() - lastMove > 80) velocity = 0; // held still before letting go
   velocity = reduced.value || !wasDrag ? 0 : Math.max(-600, Math.min(600, velocity));
   lastTouched = performance.now();
@@ -167,6 +171,7 @@ function onClick(event: MouseEvent, navigate: (event?: MouseEvent) => unknown) {
 /** The turn buttons: the same turn a drag gives, a step at a time. */
 function turn(direction: -1 | 1) {
   velocity = 0;
+  held = true;
   lastTouched = performance.now();
   if (reduced.value) {
     offset += direction * BUTTON_TURN;
@@ -179,48 +184,52 @@ function turn(direction: -1 | 1) {
 </script>
 
 <template>
-  <figure class="hero-watch mb-0" data-testid="hero-watch">
-    <RouterLink v-slot="{ href, navigate }" :to="{ name: 'watch' }" custom>
-      <a
-        :href="href"
-        class="watch-stage"
-        :class="{ dragging }"
-        draggable="false"
-        :aria-label="`Open ${elder}’s watch page`"
-        data-testid="hero-watch-open"
-        :data-turn="Math.round(yaw - REST_YAW)"
-        @click="onClick($event, navigate)"
-        @dragstart.prevent
-        @pointerdown="onPointerDown"
-        @pointermove="onPointerMove"
-        @pointerup="onPointerUp"
-        @pointercancel="onPointerUp"
-      >
-        <span class="watch-disc" aria-hidden="true"></span>
-        <span class="watch-scale">
-          <Watch3D
-            :yaw="yaw"
-            :pitch="REST_PITCH"
-            face="home"
-            :steps="person?.signal.current_steps ?? null"
-            :usual-steps="person?.baseline.median_steps ?? null"
-            :step-bars="(history ?? []).map((day) => day.steps)"
-            :active-minutes="latest?.active_minutes ?? null"
-            :sleep-label="
-              typeof latest?.sleep_hours === 'number' ? hoursLabel(latest.sleep_hours) : null
-            "
-            :wear-label="latest ? hoursLabel(latest.wear_hours) : null"
-            :battery="wearable?.battery_percent ?? null"
-            :charging="wearable?.charging ?? false"
-            :connected="wearable?.connected ?? false"
-            :time="clock"
-            :docked="false"
-            :day-label="dayLabel"
-          />
-        </span>
-      </a>
-    </RouterLink>
-    <figcaption class="watch-caption">
+  <!-- The picture (a figure with its own short name) and, under it, the turn buttons with the hint
+       between them. The buttons are outside the figure so they never become its name. -->
+  <div class="hero-watch" data-testid="hero-watch">
+    <figure class="watch-figure mb-0" :aria-label="`${elder}’s watch`">
+      <RouterLink v-slot="{ href, navigate }" :to="{ name: 'watch' }" custom>
+        <a
+          :href="href"
+          class="watch-stage"
+          :class="{ dragging }"
+          draggable="false"
+          :aria-label="`Open ${elder}’s watch page`"
+          data-testid="hero-watch-open"
+          :data-turn="Math.round(yaw - REST_YAW)"
+          @click="onClick($event, navigate)"
+          @dragstart.prevent
+          @pointerdown="onPointerDown"
+          @pointermove="onPointerMove"
+          @pointerup="onPointerUp"
+          @pointercancel="onPointerUp"
+        >
+          <span class="watch-disc" aria-hidden="true"></span>
+          <span class="watch-scale">
+            <Watch3D
+              :yaw="yaw"
+              :pitch="REST_PITCH"
+              face="home"
+              :steps="person?.signal.current_steps ?? null"
+              :usual-steps="person?.baseline.median_steps ?? null"
+              :step-bars="(history ?? []).map((day) => day.steps)"
+              :active-minutes="latest?.active_minutes ?? null"
+              :sleep-label="
+                typeof latest?.sleep_hours === 'number' ? hoursLabel(latest.sleep_hours) : null
+              "
+              :wear-label="latest ? hoursLabel(latest.wear_hours) : null"
+              :battery="wearable?.battery_percent ?? null"
+              :charging="wearable?.charging ?? false"
+              :connected="wearable?.connected ?? false"
+              :time="clock"
+              :docked="false"
+              :day-label="dayLabel"
+            />
+          </span>
+        </a>
+      </RouterLink>
+    </figure>
+    <div class="watch-caption">
       <button
         type="button"
         class="btn btn-outline-secondary turn-btn"
@@ -231,9 +240,9 @@ function turn(direction: -1 | 1) {
       >
         <Icon name="chevron-left" />
       </button>
-      <span class="watch-hint"
-        >Drag or use the arrows to turn it. Tap it to open the Watch page.</span
-      >
+      <p class="watch-hint mb-0">
+        Drag or use the arrows to turn it. Select it to open the Watch page.
+      </p>
       <button
         type="button"
         class="btn btn-outline-secondary turn-btn"
@@ -244,8 +253,8 @@ function turn(direction: -1 | 1) {
       >
         <Icon name="chevron-right" />
       </button>
-    </figcaption>
-  </figure>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -256,12 +265,20 @@ function turn(direction: -1 | 1) {
   min-width: 0;
 }
 
+/* The stage and the light behind the watch are sized in px, like the watch itself, so the three
+   keep their proportions at every text size (the zoom setting grows the words, not the picture). */
+.watch-figure {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
 .watch-stage {
   position: relative;
   display: grid;
   place-items: center;
-  width: min(100%, 17rem);
-  height: 21rem;
+  width: min(100%, 272px);
+  height: 336px;
   /* The turned watch never widens the page: what spills past the stage's sides is clipped. */
   overflow-x: clip;
   border-radius: var(--sl-radius);
@@ -284,8 +301,8 @@ function turn(direction: -1 | 1) {
 .watch-disc {
   position: absolute;
   inset: 50% auto auto 50%;
-  width: 16rem;
-  height: 16rem;
+  width: 256px;
+  height: 256px;
   border-radius: 50%;
   background: radial-gradient(
     circle,
@@ -338,12 +355,12 @@ function turn(direction: -1 | 1) {
 
 @media (max-width: 575.98px) {
   .watch-stage {
-    height: 18rem;
+    height: 288px;
   }
 
   .watch-disc {
-    width: 14rem;
-    height: 14rem;
+    width: 224px;
+    height: 224px;
   }
 
   .watch-scale {
