@@ -7,15 +7,15 @@ import { ref, watch } from 'vue';
  *   rem, so every screen grows with it. Older eyes are the reason this exists.
  * - Light or dark. It sets `data-bs-theme` on <html>, which both Bootstrap and `theme.css` follow.
  *   With nothing chosen yet, it follows the device's own setting.
- * - Care+ cursors, on unless turned off. It puts `sl-cursors` on <html>, which swaps the mouse
- *   pointer for Care+'s green ones (see "Cursors" in `theme.css`; only with a mouse or trackpad).
+ *
+ * Care+'s green cursors are not a setting: they are always on with a mouse or trackpad (see
+ * "Cursors" in `theme.css`).
  */
 export type Theme = 'light' | 'dark';
 
 export const ZOOM_STEPS = [80, 90, 100, 110, 125, 150] as const;
 const ZOOM_KEY = 'careplus.zoom.v1';
 const THEME_KEY = 'careplus.theme.v1';
-const CURSORS_KEY = 'careplus.cursors.v1';
 /** The text size buttons this replaced, so a size chosen before carries over. */
 const OLD_TEXT_SIZE_KEY = 'silverloop.textSize.v1';
 
@@ -50,14 +50,6 @@ function readTheme(): Theme {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-function readCursors(): boolean {
-  try {
-    return storage()?.getItem(CURSORS_KEY) !== 'off';
-  } catch {
-    return true;
-  }
-}
-
 function save(key: string, value: string) {
   try {
     storage()?.setItem(key, value);
@@ -68,7 +60,6 @@ function save(key: string, value: string) {
 
 const zoom = ref(readZoom());
 const theme = ref<Theme>(readTheme());
-const cursors = ref(readCursors());
 
 function applyZoom(percent: number) {
   document.documentElement.style.fontSize = percent === 100 ? '' : `${percent}%`;
@@ -76,12 +67,8 @@ function applyZoom(percent: number) {
 function applyTheme(next: Theme) {
   document.documentElement.setAttribute('data-bs-theme', next);
 }
-function applyCursors(on: boolean) {
-  document.documentElement.classList.toggle('sl-cursors', on);
-}
 applyZoom(zoom.value);
 applyTheme(theme.value);
-applyCursors(cursors.value);
 
 watch(zoom, (next) => {
   applyZoom(next);
@@ -91,20 +78,12 @@ watch(theme, (next) => {
   applyTheme(next);
   save(THEME_KEY, next);
 });
-watch(cursors, (on) => {
-  applyCursors(on);
-  save(CURSORS_KEY, on ? 'on' : 'off');
-});
 
 export function useDisplay() {
   const index = () => ZOOM_STEPS.indexOf(zoom.value as (typeof ZOOM_STEPS)[number]);
   return {
     zoom,
     theme,
-    cursors,
-    toggleCursors: () => {
-      cursors.value = !cursors.value;
-    },
     zoomIn: () => {
       zoom.value = ZOOM_STEPS[Math.min(index() + 1, ZOOM_STEPS.length - 1)];
     },

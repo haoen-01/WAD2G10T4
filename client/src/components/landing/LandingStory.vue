@@ -118,6 +118,20 @@ function paint() {
   }
 }
 
+/**
+ * "Get started" goes straight to the sign-in choices: an instant jump, not a smooth scroll that
+ * would race through the whole story on the way. Keyboard focus moves there too, so a keyboard or
+ * screen reader user carries on from the right place. (Without script the link still works.)
+ */
+function getStarted(event: MouseEvent) {
+  const target = document.getElementById('sign-in');
+  if (!target) return;
+  event.preventDefault();
+  target.scrollIntoView({ behavior: 'instant', block: 'start' });
+  history.replaceState(history.state, '', '#sign-in');
+  target.focus({ preventScroll: true });
+}
+
 function schedule() {
   if (!frame) frame = requestAnimationFrame(paint);
 }
@@ -178,7 +192,7 @@ onBeforeUnmount(() => {
           <p class="hero-lede">
             Care+ helps a family share the care of an older parent, gently and with her say-so.
           </p>
-          <a class="btn btn-primary btn-lg sl-cta" href="#sign-in">
+          <a class="btn btn-primary btn-lg sl-cta" href="#sign-in" @click="getStarted">
             Get started <Icon name="arrow-down" class="ms-1" />
           </a>
         </div>

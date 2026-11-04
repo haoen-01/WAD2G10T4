@@ -36,7 +36,7 @@ const CHOICES: { audience: ViewMode; title: string; text: string; icon: IconName
 <template>
   <LandingStory />
 
-  <div id="sign-in" class="sign-in">
+  <div id="sign-in" class="sign-in" tabindex="-1">
     <AuthShell
       :level="2"
       title="Start caring together."
@@ -96,6 +96,11 @@ const CHOICES: { audience: ViewMode; title: string; text: string; icon: IconName
 
 .sign-in > * {
   width: 100%;
+}
+
+/* It takes focus only so "Get started" can hand the keyboard over; it is not a control. */
+.sign-in:focus {
+  outline: none;
 }
 
 /* Only on this page, and only "proximity": the snap acts near the sign-in section, nowhere else.

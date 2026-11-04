@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { openSettings } from './support';
 
 // The UI revamp (docs/ui-revamp.md): the living background, panels that glow near the mouse, the
-// menu's glass bubble that follows the mouse, and the Care+ cursors with their switch.
+// menu's glass bubble that follows the mouse, the Care+ cursors, and "Get started" on /login.
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -85,28 +85,35 @@ test('the bubble follows keyboard focus too', async ({ page }) => {
   await expect.poll(() => bubbleGap(page, 'Calendar')).toBeLessThanOrEqual(1);
 });
 
-test('Care+ cursors are on by default, and the switch in Settings turns them off for good', async ({
+test('Care+ cursors are always on: links and buttons show the hand, and there is no switch', async ({
   page,
 }) => {
   await enterAsFamily(page);
-  const html = page.locator('html');
-  await expect(html).toHaveClass(/\bsl-cursors\b/);
-
-  let panel = await openSettings(page);
-  const toggle = panel.getByRole('button', { name: 'Care+ cursors' });
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-  await expect(html).not.toHaveClass(/\bsl-cursors\b/);
-
-  // Remembered in this browser.
-  await page.reload();
-  await expect(html).not.toHaveClass(/\bsl-cursors\b/);
-  panel = await openSettings(page);
-  await expect(panel.getByRole('button', { name: 'Care+ cursors' })).toHaveAttribute(
-    'aria-pressed',
-    'false',
+  const cursorOf = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((element) => getComputedStyle(element).cursor);
+  expect(await cursorOf('.mainnav-link')).toContain('/cursors/hand.svg');
+  expect(await cursorOf('[data-testid="open-morning-summary"], button.btn-primary')).toContain(
+    '/cursors/hand.svg',
   );
+  const panel = await openSettings(page);
+  await expect(panel.getByRole('button', { name: 'Care+ cursors' })).toHaveCount(0);
+});
+
+test('"Get started" jumps straight to the sign-in choices, without playing the story', async ({
+  page,
+}) => {
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Get started' }).click();
+  // At once: no smooth scroll through the story on the way.
+  const top = await page.evaluate(() =>
+    Math.round(document.getElementById('sign-in')!.getBoundingClientRect().top),
+  );
+  expect(Math.abs(top)).toBeLessThanOrEqual(1);
+  await expect(page.locator('#sign-in')).toBeFocused();
+  await expect(page.getByTestId('choose-family')).toBeInViewport();
 });
 
 test('with reduced motion nothing in the background drifts or follows', async ({ page }) => {

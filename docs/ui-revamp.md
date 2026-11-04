@@ -11,7 +11,7 @@ no new package, no animation library in the layout, and no WebGL.
 | Light round the main buttons    | `theme.css` (`.btn-primary`, `.sl-cta`)                                 |
 | Outline buttons that fill       | `theme.css` (`.btn-outline-primary`, `.btn-outline-secondary`)          |
 | Liquid glass menu bubble        | `components/ui/MainNav.vue`, `lib/nav-bubble.ts`                        |
-| Care+ cursors and their switch  | `public/cursors/*.svg`, `theme.css` ("Cursors"), `useDisplay.ts`        |
+| Care+ cursors                   | `public/cursors/*.svg`, `theme.css` ("Cursors")                         |
 | Heading font                    | `public/fonts/bricolage-grotesque-latin-wght-normal.woff2`, `theme.css` |
 | Scrolling landing page          | `components/landing/LandingStory.vue`, `lib/landing-scroll.ts`          |
 | Morning summary                 | `components/home/MorningSummary.vue`, `lib/morning-summary.ts`          |
@@ -76,19 +76,18 @@ One fixed layer behind every page (`position: fixed; z-index: -1`), rendered onc
 
 ## Care+ cursors
 
-- 13 small SVG pictures in `public/cursors/`.
+- 12 small SVG pictures in `public/cursors/`.
 - `theme.css` defines one variable per kind of cursor (`--sl-cur-press`, `--sl-cur-text`,
-  `--sl-cur-grab`, ...). Each is a normal keyword (`pointer`, `text`, `grab`) until
-  `html.sl-cursors` is set and the device has a mouse or trackpad (`@media (pointer: fine)`). Then
-  it becomes `url('/cursors/hand.svg') 13 2, pointer`: the picture, the point that clicks, and the
-  keyword to fall back on.
-- Elements just use `cursor: var(--sl-cur-…)`: links show the book, buttons the hand, text boxes
+  `--sl-cur-grab`, ...). Each is a normal keyword (`pointer`, `text`, `grab`); when the device
+  has a mouse or trackpad (`@media (pointer: fine)`) it becomes a picture, such as
+  `url('/cursors/hand.svg') 13 2, pointer`: the picture, the point that clicks, and the keyword to
+  fall back on. They are always on: there is no setting to turn them off.
+- Elements just use `cursor: var(--sl-cur-…)`: links and buttons show the hand, text boxes
   the I-beam, tick boxes the tick, the "Add" buttons the plus. Dragging a calendar visit or Kaki
   shows the open hand, then the closed hand while dragging. The availability painter shows a
   green brush for Free and a grey one for Busy. A won medal shows the spin arrows, and something
   that cannot be pressed yet shows the "not yet" sign.
-- The pointer button in Display settings switches them off (`careplus.cursors.v1` in this
-  browser). On a phone the button is hidden, because there is no cursor.
+- Phones and tablets never see them, because a finger has no cursor.
 
 ## Scrolling landing page (`/login`)
 
@@ -112,9 +111,12 @@ use `motion-v` or `@vueuse`).
 - **The end**: the last scene finishes exactly where the sign-in section (`#sign-in` in
   `LoginChooserView.vue`) starts. That section is a full screen tall (`min-height: 100dvh`) and
   runs up behind the see-through header, so arriving there shows one background colour with the
-  choices in the middle, never a strip of the dark story. "Get started" jumps straight there, and
-  a gentle snap (`scroll-snap-type: y proximity` on this page only, `scroll-snap-align: start`)
-  settles the page there if you stop scrolling just short of it. No snap with reduced motion.
+  choices in the middle, never a strip of the dark story. "Get started" jumps straight there in one
+  step (`getStarted` in `LandingStory.vue`: `scrollIntoView({ behavior: 'instant' })`, rather than
+  the page's usual smooth scroll, which would race through the whole story) and moves keyboard
+  focus to the section. A gentle snap (`scroll-snap-type: y proximity` on this page only,
+  `scroll-snap-align: start`) settles the page there if you stop scrolling just short of it. No
+  snap with reduced motion.
 - **Stacked and still** (the `.still` class): the pinning is dropped and the scenes become a
   normal page read from top to bottom. This happens with reduced motion, and also when the screen
   is too short for a pinned scene to fit (under 600px high once Care+'s text size is counted: a
