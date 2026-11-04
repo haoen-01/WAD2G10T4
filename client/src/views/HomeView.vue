@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import type { DailyMetric, PersonState, WearableStatus } from '@silverloop/api-client';
+import { storeToRefs } from 'pinia';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 import ErrorAlert from '@/components/ErrorAlert.vue';
 import ActivityFeed from '@/components/home/ActivityFeed.vue';
+import CatchUpCard from '@/components/home/CatchUpCard.vue';
 import CheckInCard from '@/components/home/CheckInCard.vue';
 import DayTimeline from '@/components/home/DayTimeline.vue';
 import FortnightPanel from '@/components/home/FortnightPanel.vue';
@@ -16,19 +17,16 @@ import WeatherCard from '@/components/home/WeatherCard.vue';
 import WeekAhead from '@/components/home/WeekAhead.vue';
 import Icon from '@/components/ui/Icon.vue';
 import LoadingSpinner from '@/components/ui/LoadingSpinner.vue';
-import { useAction } from '@/composables/useAction';
 import { useAsks } from '@/composables/useAsks';
 import { useFamily } from '@/composables/useFamily';
-import { currentGroup, loadMe } from '@/composables/useMe';
+import { currentGroup } from '@/composables/useMe';
 import { useNow } from '@/composables/useNow';
 import { useTasks } from '@/composables/useTasks';
 import { showToast } from '@/composables/useToast';
 import { addDays } from '@/lib/calendar';
 import { needingHelp, stillNeedsHelper, upcomingWithin } from '@/lib/coverage';
 import type { Appointment, FamilyMember } from '@/lib/family';
-import { homeSeniorOf } from '@/lib/family-group';
 import { formatIsoDay } from '@/lib/format-date';
-import { DEMO_PERSON_ID } from '@/lib/labels';
 import {
   buildSummary,
   MORNING_KEY,
@@ -38,65 +36,33 @@ import {
 } from '@/lib/morning-summary';
 import { isSampleSource } from '@/lib/reading-days';
 import { greetingFor, visitWhen } from '@/lib/today';
-import { getPersonMetrics, getPersonState, getWearable } from '@/services/careApi';
+import { useActivityStore } from '@/stores/activity';
 
-const { error, run } = useAction();
 const family = useFamily();
 // Who has been asked to go along (the amber "Asked Emily · waiting" tags), read fresh on opening.
 useAsks();
 const now = useNow();
 
-// The senior's watch (simulated until a real device): shown in the hero so the family can remind
-// them to charge it. Extra detail: if it cannot be read, the rest of Home still shows.
-const wearable = ref<WearableStatus | null>(null);
-const wearableFailed = ref(false);
-async function loadWearable() {
-  wearableFailed.value = false;
-  if (!personId.value) {
-    wearable.value = null;
-    return;
-  }
-  try {
-    wearable.value = await getWearable(personId.value);
-  } catch {
-    wearableFailed.value = true;
-  }
-}
-const person = ref<PersonState | null>(null);
-const loading = ref(true);
+// The senior's activity (their status, the fortnight of readings and the simulated watch), from the
+// Pinia activity store the Watch page shares (`stores/activity.ts`): one set of requests for both,
+// so the hero's watch and the Watch page show the same reading. The fortnight and the watch are
+// extra detail: if either fails, the rest of Home still shows. With no senior linked to the chosen
+// group yet, nothing about any senior is read.
+const activity = useActivityStore();
+const { personId, person, history, historyFailed, wearable, wearableFailed, error } =
+  storeToRefs(activity);
+// Loading until the first read is in: Home never says "not available" before it has asked.
+const loading = computed(() => activity.loading || !activity.loaded);
+const loadHistory = activity.loadHistory;
 
-// The fortnight of readings is extra detail: if it fails, the overview still shows.
-const history = ref<DailyMetric[] | null>(null);
-const historyFailed = ref(false);
-
-// The senior this family member cares for (the one picked in the navbar, if more than one).
-// Null while that group has no senior linked: then nothing about any senior is read.
-const personId = ref<string | null>(DEMO_PERSON_ID);
-
-async function load() {
-  await run(async () => {
-    await loadMe().catch(() => null);
-    personId.value = homeSeniorOf(currentGroup.value, DEMO_PERSON_ID);
-    person.value = personId.value ? await getPersonState(personId.value) : null;
-  });
-  if (!person.value) history.value = null;
-  void loadWearable();
-  loading.value = false;
-  if (person.value) void loadHistory();
+/** Reads the senior's activity again (Try again, or another senior picked in the navbar). */
+async function load(force = true) {
+  await activity.load({ force });
   openSummaryOnceToday();
 }
 
-async function loadHistory() {
-  historyFailed.value = false;
-  if (!personId.value) return;
-  try {
-    history.value = await getPersonMetrics(personId.value, 14);
-  } catch {
-    historyFailed.value = true;
-  }
-}
-
-onMounted(load);
+// Opening Home reuses what the Watch page read a moment ago; anything older is read again.
+onMounted(() => void load(false));
 watch(
   () => currentGroup.value?.group_id,
   (next, previous) => {
@@ -234,6 +200,7 @@ function openSummaryOnceToday() {
       :loading="loading"
       :wearable="wearable"
       :wearable-failed="wearableFailed"
+      :history="history"
       :now="now"
       :greeting="greeting"
       :viewer="viewer"
@@ -263,7 +230,10 @@ function openSummaryOnceToday() {
       @close="summaryOpen = false"
     />
 
-    <ErrorAlert v-if="error" :message="error" class="mb-4" @retry="load" />
+    <ErrorAlert v-if="error" :message="error" class="mb-4" @retry="load()" />
+
+    <!-- What changed in the family group since this browser last opened Home for it. -->
+    <CatchUpCard v-if="currentGroup" :group-id="currentGroup.group_id" class="mb-4" />
 
     <!-- The senior's day by the hour, live: appointments, tasks and the family. -->
     <DayTimeline v-if="!loading" id="home-timeline" class="mb-4" :elder="elder" />

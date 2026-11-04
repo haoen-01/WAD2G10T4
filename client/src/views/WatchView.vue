@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import type { DailyMetric, PersonState, WearableStatus } from '@silverloop/api-client';
+import type { DailyMetric } from '@silverloop/api-client';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { RouterLink } from 'vue-router';
+import { storeToRefs } from 'pinia';
 
 import type { IconName } from '@/components/ui/Icon.vue';
 import Icon from '@/components/ui/Icon.vue';
 import Watch3D from '@/components/watch/Watch3D.vue';
 import WatchDetail from '@/components/watch/WatchDetail.vue';
-import { currentGroup, loadMe } from '@/composables/useMe';
 import { useNow } from '@/composables/useNow';
 import { useReducedMotion } from '@/composables/useReducedMotion';
-import { homeSeniorOf } from '@/lib/family-group';
-import { DEMO_PERSON_ID } from '@/lib/labels';
+import { todayIso } from '@/lib/calendar';
+import { readingPastDay } from '@/lib/home';
 import {
   careTimeline,
   easeInOutCubic,
@@ -24,7 +23,7 @@ import {
   type WatchPoint,
 } from '@/lib/watch';
 import { syncedAgo } from '@/lib/wearable';
-import { getPersonMetrics, getPersonState, getWearable } from '@/services/careApi';
+import { useActivityStore } from '@/stores/activity';
 
 /**
  * The senior's simulated watch, in 3D. It spins in once, the points around it draw out, then it
@@ -39,29 +38,16 @@ const now = useNow();
 const reduced = useReducedMotion();
 
 // ---- The senior's data (all read-only, all existing routes) ----
-const person = ref<PersonState | null>(null);
-const metrics = ref<DailyMetric[]>([]);
-const wearable = ref<WearableStatus | null>(null);
-const loading = ref(true);
-const noSenior = ref(false);
+// From the Pinia activity store Home shares (`stores/activity.ts`): opening the Watch page from Home
+// reuses the reading Home has just made, so both show the same steps and the same percentage.
+const activity = useActivityStore();
+const { person, wearable, noSenior, latestDay: latest } = storeToRefs(activity);
+const metrics = computed<DailyMetric[]>(() => activity.history ?? []);
+// Reading until the first read is in.
+const loading = computed(() => activity.loading || !activity.loaded);
 
-async function load() {
-  await loadMe().catch(() => null);
-  const personId = homeSeniorOf(currentGroup.value, DEMO_PERSON_ID);
-  if (!personId) {
-    noSenior.value = true;
-    loading.value = false;
-    return;
-  }
-  const [state, days, watch] = await Promise.allSettled([
-    getPersonState(personId),
-    getPersonMetrics(personId, 14),
-    getWearable(personId),
-  ]);
-  if (state.status === 'fulfilled') person.value = state.value;
-  if (days.status === 'fulfilled') metrics.value = days.value;
-  if (watch.status === 'fulfilled') wearable.value = watch.value;
-  loading.value = false;
+function load(): Promise<void> {
+  return activity.load();
 }
 
 const elder = computed(() => person.value?.display_name ?? 'your senior');
@@ -70,8 +56,13 @@ const synced = computed(() =>
     ? syncedAgo(wearable.value.last_synced_at, now.value).replace(/^synced /, '')
     : null,
 );
+/** The latest reading's own day ("Thu, 20 Aug") when it is not today, so it never reads as today. */
+const pastDay = computed(() =>
+  person.value ? readingPastDay(person.value.current_day, todayIso(now.value)) : null,
+);
 const points = computed(() =>
   watchPoints({
+    pastDay: pastDay.value,
     steps: person.value?.signal.current_steps ?? null,
     usualSteps: person.value?.baseline.median_steps ?? null,
     metrics: metrics.value,
@@ -85,7 +76,6 @@ const iconOf = (name: string) => name as IconName;
 const pointOf = (id: string) => points.value.find((point) => point.id === id) ?? null;
 const care = computed(() => careTimeline(wearable.value));
 const careOpen = ref(false);
-const latest = computed(() => metrics.value[metrics.value.length - 1] ?? null);
 const battery = computed(() => wearable.value?.battery_percent ?? null);
 const clock = computed(() =>
   new Intl.DateTimeFormat('en-SG', { hour: 'numeric', minute: '2-digit', hour12: true })
@@ -543,10 +533,6 @@ const RING = 2 * Math.PI * 22;
 
 <template>
   <div class="watch-page">
-    <RouterLink to="/" class="back-link">
-      <Icon name="chevron-left" class="me-1" />Back to Home
-    </RouterLink>
-
     <header class="watch-head">
       <div>
         <h1 class="watch-title">Watch</h1>
@@ -705,6 +691,7 @@ const RING = 2 * Math.PI * 22;
                 :face="selected ? selected.id : 'home'"
                 :steps="person?.signal.current_steps ?? null"
                 :usual-steps="person?.baseline.median_steps ?? null"
+                :day-label="pastDay ?? 'Today'"
                 :step-bars="metrics.map((metric) => metric.steps)"
                 :active-minutes="latest?.active_minutes ?? null"
                 :sleep-label="
@@ -825,20 +812,6 @@ const RING = 2 * Math.PI * 22;
   --stage-h: 600px;
   --ease-premium: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  margin-bottom: 0.75rem;
-  color: var(--sl-ink-soft);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.back-link:hover,
-.back-link:focus-visible {
-  color: var(--sl-ink);
 }
 
 .watch-head {

@@ -29,6 +29,11 @@ Chromium browser (through `e2e/`) and the frozen Python environment in `server/`
 
 Open <http://127.0.0.1:3000> for the demo and <http://127.0.0.1:8000/docs> for API exploration.
 
+The "Read my day" Kokoro voice is optional and not installed by setup. To use it, run
+`uv --directory server sync --group tts`, then once
+`uv --directory server run python -m silverloop.tts download`; without it the browser reads aloud
+with its own voice. See [read-my-day-voice.md](read-my-day-voice.md).
+
 ## Moving an existing checkout to the client/server layout
 
 If your checkout predates the `client/`, `server/` and `e2e/` split, first delete the folders and

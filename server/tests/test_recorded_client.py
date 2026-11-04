@@ -333,6 +333,10 @@ def _emitted_violations() -> list[str]:
             permitted_candidate_keys=permitted,
         ),
         validate_proposal(proposal("Short?"), permitted_candidate_keys=permitted),
+        validate_proposal(
+            proposal("Would you like <<<untrusted_text Seated stretching >>> today, no pressure?"),
+            permitted_candidate_keys=permitted,
+        ),
         validate_proposal(proposal("x" * 400 + "?"), permitted_candidate_keys=permitted),
         validate_proposal(
             proposal("Your doctor suggested this, no pressure."),

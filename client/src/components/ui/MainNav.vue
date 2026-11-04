@@ -5,11 +5,15 @@ import { RouterLink, useRoute } from 'vue-router';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
 import { sameSpan, type Span, STRETCH_MS, stretchSpan } from '@/lib/nav-bubble';
+import { LABEL_ROOM, pillLeft, tabRows } from '@/lib/tab-rows';
 
 /**
  * The main menu, in three looks:
  * - `tabs` (the family, phone): a bottom tab bar, `position: fixed`, so the layout renders it
- *   outside the sticky header (a filtered ancestor would trap a fixed child).
+ *   outside the sticky header (a filtered ancestor would trap a fixed child). Its labels grow with
+ *   the text size like everything else; when they no longer fit side by side (a narrow phone at a
+ *   large text size), the bar takes a second row rather than shrinking them, and tells the page
+ *   how tall it now is through `--sl-tabbar-core`, so content and toasts stay clear of it.
  * - `pill` (the family, wide screens): a pill in the middle of the header row.
  *   Both slide one glass bubble (with a rainbow rim) behind the current link. On the pill it also
  *   follows the mouse or keyboard focus, stretching like liquid between links, and goes back to
@@ -34,6 +38,11 @@ const pointing = ref(false);
 /** True for the moment the bubble is stretched between two links. */
 const stretching = ref(false);
 let resizeObserver: ResizeObserver | null = null;
+/** Tab bar only: the rows it is using, and how many tabs to a row. */
+const rows = ref(1);
+const perRow = ref(props.links.length);
+/** The tab bar's one-row height, read from theme.css before this bar changes it. */
+let rowHeight = '';
 let stretchTimer = 0;
 /** Where the bubble is now, so the next move can stretch from it. */
 let shown: Span | null = null;
@@ -41,10 +50,19 @@ let shown: Span | null = null;
 const reducedMotion = () =>
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
-/** Sets the bubble's place (CSS turns these two numbers into its position and width). */
+/**
+ * Sets the bubble's place (CSS turns these two numbers into its position and width). The tab bar's
+ * pill has a width of its own, centred on the tab and held inside the bar (`pillLeft`).
+ */
 function place(span: Span) {
-  list.value?.style.setProperty('--ind-x', `${span.x}px`);
-  list.value?.style.setProperty('--ind-w', `${span.w}px`);
+  const el = list.value;
+  if (!el) return;
+  el.style.setProperty('--ind-x', `${span.x}px`);
+  el.style.setProperty('--ind-w', `${span.w}px`);
+  if (props.variant === 'tabs') {
+    const pill = el.querySelector<HTMLElement>('.mainnav-indicator')?.offsetWidth ?? 0;
+    el.style.setProperty('--ind-left', `${pillLeft(span.x, span.w, pill, el.clientWidth)}px`);
+  }
 }
 
 /**
@@ -54,6 +72,8 @@ function place(span: Span) {
 function moveTo(link: HTMLElement, stretch = false) {
   window.clearTimeout(stretchTimer);
   stretching.value = false;
+  // Tab bar on two rows: the pill also moves down to the current tab's row.
+  list.value?.style.setProperty('--ind-y', `${link.offsetTop}px`);
   const target = { x: link.offsetLeft, w: link.offsetWidth };
   if (stretch && ready.value && shown && !sameSpan(shown, target) && !reducedMotion()) {
     stretching.value = true;
@@ -68,10 +88,38 @@ function moveTo(link: HTMLElement, stretch = false) {
   shown = target;
 }
 
+/**
+ * Tab bar: one row if every label fits its tab whole, else as many rows as it takes. The labels are
+ * measured at their real size (never shrunk), so this follows the zoom setting.
+ */
+function fitRows() {
+  const el = list.value;
+  if (!el || props.variant !== 'tabs') return;
+  const widths = [...el.querySelectorAll<HTMLElement>('.mainnav-label')].map(
+    (label) => label.getBoundingClientRect().width,
+  );
+  const fit = tabRows(widths, el.clientWidth, LABEL_ROOM);
+  rows.value = fit.rows;
+  perRow.value = fit.perRow;
+  const root = document.documentElement.style;
+  if (fit.rows > 1) root.setProperty('--sl-tabbar-core', `calc(${fit.rows} * ${rowHeight})`);
+  else root.removeProperty('--sl-tabbar-core');
+}
+
+/** Watch the bar, and its labels: a new text size changes their width even when the bar's does not. */
+function observeAll() {
+  const el = list.value;
+  if (!resizeObserver || !el) return;
+  resizeObserver.disconnect();
+  resizeObserver.observe(el);
+  for (const label of el.querySelectorAll('.mainnav-label')) resizeObserver.observe(label);
+}
+
 /** Put the bubble under the current link. */
 function measure() {
   const el = list.value;
   if (!el || props.variant === 'bar') return;
+  fitRows();
   const active = el.querySelector<HTMLElement>('a.active');
   hasActive.value = !!active;
   // While the mouse or focus is on a link the bubble stays there; it comes back on leaving.
@@ -103,6 +151,12 @@ function onLeave(event: PointerEvent | FocusEvent) {
 }
 
 onMounted(async () => {
+  if (props.variant === 'tabs') {
+    document.documentElement.style.removeProperty('--sl-tabbar-core');
+    rowHeight =
+      getComputedStyle(document.documentElement).getPropertyValue('--sl-tabbar-core').trim() ||
+      '3.5rem';
+  }
   await nextTick();
   measure();
   // Two frames: let the first position paint with no transition, then enable sliding.
@@ -110,13 +164,14 @@ onMounted(async () => {
   if (typeof ResizeObserver !== 'undefined' && list.value) {
     // Zoom, rotation and web fonts loading all change where the links sit.
     resizeObserver = new ResizeObserver(measure);
-    resizeObserver.observe(list.value);
+    observeAll();
   }
   void document.fonts?.ready.then(measure);
 });
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
+  if (props.variant === 'tabs') document.documentElement.style.removeProperty('--sl-tabbar-core');
   window.clearTimeout(stretchTimer);
 });
 
@@ -124,6 +179,7 @@ watch(
   () => [route.fullPath, props.links.length],
   async () => {
     await nextTick();
+    observeAll();
     measure();
   },
 );
@@ -138,11 +194,13 @@ watch(
         'is-ready': ready,
         'has-active': hasActive || pointing,
         'is-stretching': stretching,
+        'is-rows': rows > 1,
       }"
+      :style="variant === 'tabs' ? { '--tab-rows': rows, '--tab-per-row': perRow } : undefined"
       @pointerleave="onLeave"
       @focusout="onLeave"
     >
-      <li v-for="link in links" :key="link.to">
+      <li v-for="link in links" :key="link.to" class="mainnav-item">
         <RouterLink
           class="mainnav-link"
           :to="link.to"
@@ -389,16 +447,26 @@ watch(
   margin: 0 auto;
 }
 
-.mainnav--tabs li:not(.mainnav-indicator) {
+.mainnav--tabs .mainnav-item {
   flex: 1 1 0;
   min-width: 0;
+}
+
+/* Two (or more) rows: tabs of one size, a row's worth each, the last row centred. */
+.mainnav--tabs .mainnav-list.is-rows {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mainnav--tabs .mainnav-list.is-rows .mainnav-item {
+  flex: 0 0 calc(100% / var(--tab-per-row));
 }
 
 .mainnav--tabs .mainnav-link {
   flex-direction: column;
   justify-content: flex-start;
   width: 100%;
-  height: var(--sl-tabbar-core);
+  height: calc(var(--sl-tabbar-core) / var(--tab-rows, 1));
   padding-top: 0.35rem;
   font-size: 0.8rem;
   line-height: 1.2;
@@ -425,8 +493,11 @@ watch(
   height: 1.5rem;
 }
 
+/* One line at the chosen text size. It is never shrunk to fit: when the labels would not fit side
+   by side, the bar takes another row instead (see `fitRows`). */
 .mainnav--tabs .mainnav-label {
   margin-top: 0.1rem;
+  white-space: nowrap;
 }
 
 /* On the tab bar the dot sits at the icon's top-right corner. */
@@ -435,12 +506,13 @@ watch(
   right: calc(50% - 1.1rem);
 }
 
-/* The pill is 4rem wide and 2rem tall, centred on the current tab, level with the icons. */
+/* The pill is 4rem wide and 2rem tall, centred on the current tab (held inside the bar when the
+   tab is narrower than the pill; see `place`), level with the icons. */
 .mainnav--tabs .mainnav-indicator {
   top: 0.35rem;
   width: 4rem;
   height: 2rem;
-  transform: translateX(calc(var(--ind-x, 0px) + (var(--ind-w, 4rem) - 4rem) / 2));
+  transform: translate(var(--ind-left, 0px), var(--ind-y, 0px));
 }
 
 /* Wide screens: a pill in the header row. The current link is a solid jade pill with white text. */
@@ -499,8 +571,10 @@ watch(
     display: none;
   }
 
+  /* The sides shrink with the screen (never past 0.9rem), so six links still fit at the largest
+     text size. */
   .mainnav--pill .mainnav-link {
-    padding: 0.4rem 0.9rem;
+    padding: 0.4rem min(0.9rem, 1.4vw);
   }
 }
 </style>

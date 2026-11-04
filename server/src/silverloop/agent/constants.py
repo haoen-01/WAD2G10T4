@@ -6,7 +6,7 @@ model change is one reviewed edit rather than a string built out of environment 
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Any, Final
 
 # The planner model. `Settings.llm_model` may override it for an experiment; it is never
 # constructed by concatenation.
@@ -21,6 +21,16 @@ BEDROCK_DEFAULT_MODEL_ID: Final[str] = "anthropic.claude-opus-5"
 def default_model_id(provider: str) -> str:
     """The pinned model for a provider. Unknown providers fall back to the first-party id."""
     return BEDROCK_DEFAULT_MODEL_ID if provider == "bedrock" else DEFAULT_MODEL_ID
+
+
+def resolve_model(settings: Any) -> str:
+    """The model every agent loop asks for: `LLM_MODEL` when set; for `openai`, the team's
+    existing `OPENAI_MODEL` (the one the assistant already uses); else the provider's pin."""
+    if override := settings.llm_model.strip():
+        return override
+    if settings.llm_provider == "openai":
+        return settings.openai_model.strip()
+    return default_model_id(settings.llm_provider)
 
 
 # Version stamp recorded on every agent evidence record, so a stored proposal can always be

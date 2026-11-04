@@ -9,6 +9,7 @@ import LinkFamily from '@/components/senior/LinkFamily.vue';
 import MyFamily from '@/components/senior/MyFamily.vue';
 import UpcomingEvents from '@/components/senior/UpcomingEvents.vue';
 import StepsHero from '@/components/senior/StepsHero.vue';
+import ReadMyDay from '@/components/senior/ReadMyDay.vue';
 import SuggestionCard from '@/components/senior/SuggestionCard.vue';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
@@ -175,6 +176,7 @@ async function seeCalendar() {
         tabindex="0"
       >
         <StepsHero :person="person" :week="week" />
+        <ReadMyDay :person-id="personId" class="mt-4" />
         <div class="row g-4 mt-1">
           <div class="col-lg-5">
             <UpcomingEvents

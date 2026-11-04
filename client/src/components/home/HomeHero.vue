@@ -1,26 +1,27 @@
 <script lang="ts">
-import type { PersonState, WearableStatus } from '@silverloop/api-client';
+import type { DailyMetric, PersonState, WearableStatus } from '@silverloop/api-client';
 import { defineComponent, type PropType } from 'vue';
 
+import HeroWatch from '@/components/home/HeroWatch.vue';
 import NumberTicker from '@/components/motion/NumberTicker.vue';
 import StatusWhyPanel from '@/components/home/StatusWhyPanel.vue';
 import WatchStatus from '@/components/home/WatchStatus.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
-import LoopRing from '@/components/ui/LoopRing.vue';
 import WalkLink from '@/components/walk/WalkLink.vue';
 import { GENTLE_NUDGE_PERCENT, compareWords, formatSteps, percentOfUsual } from '@/lib/activity';
 import { todayIso } from '@/lib/calendar';
+import { readingPastDay } from '@/lib/home';
 import { attentionBadge, decisionBadge } from '@/lib/labels';
 import { homeReadingWords, isSampleSource } from '@/lib/reading-days';
 
 /**
- * The top of Home: the greeting, how far she walked on the latest reading's day against her usual
- * day (as a sentence and as a ring), her watch (connected, battery), the status badges and, in one line,
- * why Care+ says so (`StatusWhyPanel`).
+ * The top of Home: the greeting, how far the senior walked on the latest reading's day against
+ * their usual day (as a sentence, and on the 3D watch beside it), the watch's status (connected,
+ * battery), the status badges and, in one line, why Care+ says so (`StatusWhyPanel`).
  */
 export default defineComponent({
   name: 'HomeHero',
-  components: { LoopRing, NumberTicker, StatusBadge, StatusWhyPanel, WalkLink, WatchStatus },
+  components: { HeroWatch, NumberTicker, StatusBadge, StatusWhyPanel, WalkLink, WatchStatus },
 
   props: {
     person: { type: Object as PropType<PersonState | null>, default: null },
@@ -28,6 +29,8 @@ export default defineComponent({
     /** The senior's watch, or `null` while it is being read (or if reading it failed). */
     wearable: { type: Object as PropType<WearableStatus | null>, default: null },
     wearableFailed: { type: Boolean, default: false },
+    /** The last two weeks of daily readings, oldest first, for the watch's screen; null if unread. */
+    history: { type: Array as PropType<DailyMetric[] | null>, default: null },
     now: { type: Date, required: true },
     greeting: { type: String, required: true },
     /** The family member using the app, if one is chosen. */
@@ -35,15 +38,14 @@ export default defineComponent({
     elder: { type: String, required: true },
   },
 
-  data() {
-    // A smaller loop on a phone, so the facts can sit beside it.
-    return { narrow: window.matchMedia('(max-width: 575.98px)').matches };
-  },
-
   computed: {
     /** "Today" only when the latest reading is from today; otherwise that reading's own day. */
     reading() {
       return homeReadingWords(this.person?.current_day ?? '', todayIso(this.now), this.elder);
+    },
+    /** The latest reading's own day ("Tue, 18 Aug") when it is not today, else null. */
+    pastDay(): string | null {
+      return this.person ? readingPastDay(this.person.current_day, todayIso(this.now)) : null;
     },
     /** The latest reading's steps as a percentage of the usual day. */
     percent(): number | null {
@@ -62,15 +64,12 @@ export default defineComponent({
     compareWords,
     formatSteps,
     isSampleSource,
-    signed(n: number): string {
-      return `${n > 0 ? '+' : ''}${Math.round(n)}%`;
-    },
   },
 });
 </script>
 
 <template>
-  <!-- Bootstrap grid: the sentence and the loop side by side from the large breakpoint up,
+  <!-- Bootstrap grid: the sentence and the watch side by side from the large breakpoint up,
        stacked (sentence first) below it. -->
   <header class="hero row align-items-center gy-4 gx-lg-5">
     <div class="col-12 col-lg">
@@ -95,6 +94,7 @@ export default defineComponent({
         :failed="wearableFailed"
         :elder="elder"
         :now="now"
+        :reading-day="pastDay"
       />
       <WalkLink class="mt-2" />
 
@@ -118,27 +118,35 @@ export default defineComponent({
             >Sample</span
           >
         </div>
-        <div class="d-flex flex-nowrap align-items-center gap-3 gap-sm-4">
-          <LoopRing
-            :value="(percent ?? 0) / 100"
-            :size="narrow ? 148 : 196"
-            :stroke="narrow ? 14 : 18"
-            :color="low ? 'var(--sl-coral)' : 'var(--sl-jade)'"
-            :track="low ? 'var(--sl-coral-soft)' : 'var(--sl-jade-soft)'"
-          >
-            <span class="display-num ring-num"
-              ><NumberTicker v-if="percent !== null" :value="percent" /><template v-else>–</template
-              ><small>%</small></span
-            >
-            <span class="ring-caption">of a usual day</span>
-          </LoopRing>
+        <!-- The watch, then what it shows in words (the 3D watch is a picture only). Side by side
+             from the small breakpoint up; on a phone the facts sit under the watch. -->
+        <div class="d-flex flex-column flex-sm-row align-items-center gap-3 gap-sm-4">
+          <HeroWatch
+            :person="person"
+            :history="history"
+            :wearable="wearable"
+            :now="now"
+            :day-label="pastDay ?? 'Today'"
+            :elder="elder"
+          />
+          <!-- The card's main figure first and largest: how much of a usual day; then the two
+               step counts it comes from. -->
           <dl class="ring-facts">
+            <div class="fact-focal">
+              <dt>of a usual day</dt>
+              <dd
+                class="display-num focal-num"
+                :class="{ 'fact-low': low }"
+                data-testid="hero-percent"
+              >
+                <NumberTicker v-if="percent !== null" :value="percent" /><template v-else
+                  >–</template
+                ><small>%</small>
+              </dd>
+            </div>
             <div>
               <dt data-testid="hero-steps-label">{{ reading.stepsLabel }}</dt>
-              <dd class="tabular">
-                {{ formatSteps(person.signal.current_steps) }}
-                ({{ signed(person.signal.delta_percent) }} from usual)
-              </dd>
+              <dd class="tabular">{{ formatSteps(person.signal.current_steps) }}</dd>
             </div>
             <div>
               <dt>Usual day</dt>
@@ -189,28 +197,6 @@ export default defineComponent({
   }
 }
 
-.ring-num {
-  font-size: 3.2rem;
-}
-
-@media (max-width: 575.98px) {
-  .ring-num {
-    font-size: 2.4rem;
-  }
-}
-
-.ring-num small {
-  font-size: 0.45em;
-  font-weight: 700;
-}
-
-.ring-caption {
-  margin-top: 0.25rem;
-  color: var(--sl-ink-soft);
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
 .ring-facts {
   display: grid;
   gap: 0.6rem;
@@ -226,5 +212,62 @@ export default defineComponent({
 .ring-facts dd {
   margin: 0;
   font-weight: 600;
+}
+
+/* The main figure: a display number with its caption under it ("59%" / "of a usual day"). The
+   caption stays first in the list so it is read before the number. */
+.fact-focal {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.ring-facts .focal-num {
+  font-size: 3.2rem;
+  font-weight: 800;
+}
+
+.focal-num small {
+  font-size: 0.45em;
+  font-weight: 700;
+}
+
+/* Below the gentle-nudge line: the same coral as the chart, with the number to say it too. */
+.fact-low {
+  color: var(--sl-coral-deep);
+}
+
+/* Phones: the main figure across the top, the two step counts side by side under it (wrapping when
+   the text is large). */
+@media (max-width: 575.98px) {
+  .ring-facts {
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    width: 100%;
+    gap: 0.6rem 1rem;
+  }
+
+  /* The caption beside the number while it fits on one line; when it would not (a narrow phone
+     at a large text size), it drops whole under the number instead of wrapping beside it.
+     `wrap-reverse` keeps the number on the upper line, as the caption comes first in the list. */
+  .fact-focal {
+    grid-column: 1 / -1;
+    flex-flow: row-reverse wrap-reverse;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 0 0.5rem;
+  }
+
+  .fact-focal dt {
+    white-space: nowrap;
+  }
+
+  .ring-facts .focal-num {
+    font-size: 2.6rem;
+  }
+
+  /* The watch's hint lays itself out by the card's width (see `HeroWatch`). Phones only: there
+     the card is full width, so measuring it never changes its size. */
+  .hero-card {
+    container: hero-card / inline-size;
+  }
 }
 </style>

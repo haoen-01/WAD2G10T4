@@ -562,6 +562,7 @@ onBeforeUnmount(() => {
           :appointment="formFor === 'new' ? null : formFor"
           :free="freeForDraft"
           :family-size="state.members.length"
+          :group-id="groupId"
           @save="saveForm"
           @cancel="formFor = null"
         />

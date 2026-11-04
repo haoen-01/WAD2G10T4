@@ -105,6 +105,21 @@ _Avoid_: fall alert, emergency alert
 adds and changes tasks; the senior and the family tick each day done. A medicine task is a label
 the family writes, never advice.
 
+**Catch-up.** The family Home card that says, on a first visit, where things stand and, on a
+return, what changed since the member last looked: family updates, visits that still need someone,
+and today's tasks. It only repeats what the member can already see.
+_Avoid_: digest, summary report
+
+**Read my day (My day script).** A short script of the senior's day (today's appointments and
+reminders, and tomorrow's first appointment) that the senior can have read aloud, by the Kokoro
+voice on the Care+ server or an on-device browser voice, never an online one.
+
+**Appointment draft.** The appointment form filled in from a sentence a family member typed
+("lunch with Ma tmr 12pm"). It saves nothing; the member checks it and adds it themselves.
+
+**Agent step.** One thing an agent did on its way to an answer: a read tool it called, or its
+submission and whether the deterministic check approved it. Shown under "How Care+ wrote this".
+
 ## Backend only (no screen)
 
 These exist in the API and its tests but no current screen shows them.

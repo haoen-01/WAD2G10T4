@@ -227,6 +227,24 @@ Subpackages:
   `models.py` defines the typed audit records (`AgentRun`, `AgentToolCall`, `PlannerMode`). See
   [The activity-planning subsystem](#the-activity-planning-subsystem).
 
+  The family-facing agents (catch-up, "Read my day", the typed appointment draft) share one
+  read-only bounded loop, `agent/loop.py`: the model calls read-only tools over a context the
+  route already assembled through the stores' permission-checked reads, then one submit tool that
+  a deterministic check approves or sends back with reasons. Nothing is written; the draft only
+  fills the form the member then saves. `LLM_ENABLED` is off by default, and with it off, offline,
+  past the per-person agent limit, on a provider error, past the request deadline or after a
+  rejection, the same answer is assembled deterministically, and the response says which
+  (`mode`, `source`, `steps`). See [ADR 0015](adr/0015-read-only-family-agents.md).
+
+- `tts/` -- the opt-in "Read my day" voice: Kokoro-82M on the API's own CPU, from the `tts`
+  dependency group (`uv sync --group tts`). Without it the speech route answers 503 and the
+  browser reads with its own on-device voices only. See `docs/read-my-day-voice.md`.
+
+On the client, Pinia stores (`client/src/stores/`: `session`, `activity`, `calendar`) own the
+state several screens share (who is signed in and which senior is shown, the senior's activity,
+the family calendar). They hold only what the API returned, and `stores/reset.ts`
+`clearViewerStores()` clears all of them on sign-out and when the session expires.
+
 ## Request lifecycle
 
 The Vue app calls a route in `main.py` (or `family_routes.py`) with Axios, through
