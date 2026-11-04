@@ -288,15 +288,26 @@ function silentWav(milliseconds: number): Buffer {
   return Buffer.concat([header, data]);
 }
 
-async function kokoroRoutes(page: Page, speech: 'works' | 'fails') {
+async function kokoroRoutes(page: Page, speech: 'works' | 'fails', voicesAsked: string[] = []) {
   const sentences: string[] = [];
   await page.route('**/my-day/voice', (route) =>
     route.fulfill({
-      json: { available: true, voice: 'af_heart', label: 'Heart · Kokoro natural voice' },
+      json: {
+        available: true,
+        voice: 'af_heart',
+        label: 'Heart · Kokoro natural voice',
+        voices: [
+          { voice: 'af_heart', label: 'Heart · Kokoro natural voice' },
+          { voice: 'af_bella', label: 'Bella · Kokoro natural voice' },
+          { voice: 'bf_emma', label: 'Emma (British) · Kokoro natural voice' },
+        ],
+      },
     }),
   );
   await page.route('**/my-day/speech', async (route) => {
-    sentences.push((route.request().postDataJSON() as { text: string }).text);
+    const body = route.request().postDataJSON() as { text: string; voice?: string };
+    sentences.push(body.text);
+    voicesAsked.push(body.voice ?? 'default');
     if (speech === 'fails') {
       await route.fulfill({ status: 503, json: { detail: 'Kokoro model files are missing.' } });
       return;
@@ -314,8 +325,7 @@ test('with Kokoro on the server, every sentence is spoken in the Heart voice', a
 
   const card = page.getByTestId('read-my-day');
   await expect(card.getByTestId('my-day-voice')).toHaveText('Voice: Heart · Kokoro natural voice');
-  // The browser-voice chooser and the Luna hint do not apply to Kokoro.
-  await expect(card.getByText('Choose a voice')).toHaveCount(0);
+  // The Luna hint is about browser voices, so it does not apply to Kokoro.
   await expect(card.getByTestId('my-day-voice-hint')).toHaveCount(0);
 
   await card.getByRole('button', { name: 'Read my day' }).click();
@@ -367,4 +377,63 @@ test('Stop ends a Kokoro reading at once', async ({ page }) => {
   const after = sentences.length;
   await page.waitForTimeout(1500);
   expect(sentences.length).toBeLessThanOrEqual(after + 1); // at most the one already being fetched
+});
+
+test('a Kokoro voice can be chosen by name, and every sentence asks for it', async ({ page }) => {
+  await fakeSpeech(page);
+  const voicesAsked: string[] = [];
+  await kokoroRoutes(page, 'works', voicesAsked);
+  await page.goto('/login/senior');
+  await page.getByTestId('continue-senior').click();
+  const card = page.getByTestId('read-my-day');
+  await expect(card.getByTestId('my-day-voice')).toHaveText('Voice: Heart · Kokoro natural voice');
+
+  await card.getByText('Choose a voice').click();
+  const choice = card.getByTestId('my-day-voice-choice');
+  // Kokoro's voices first, by friendly name; the browser's own voices are still there below.
+  await expect(choice.locator('optgroup').first()).toHaveAttribute(
+    'label',
+    'Natural voices (Care+)',
+  );
+  await expect(choice.locator('option', { hasText: 'Zira' })).toHaveCount(1);
+  await choice.selectOption({ label: 'Emma (British) · Kokoro natural voice' });
+  await expect(card.getByTestId('my-day-voice')).toHaveText(
+    'Voice: Emma (British) · Kokoro natural voice',
+  );
+
+  await card.getByRole('button', { name: 'Read my day' }).click();
+  await expect(card.getByRole('button', { name: 'Read my day' })).toBeVisible({ timeout: 20_000 });
+  expect(voicesAsked.length).toBeGreaterThan(1);
+  expect(new Set(voicesAsked)).toEqual(new Set(['bf_emma']));
+  expect(await said(page)).toHaveLength(0);
+
+  // Remembered in this browser.
+  await page.reload();
+  await expect(page.getByTestId('my-day-voice')).toHaveText(
+    'Voice: Emma (British) · Kokoro natural voice',
+  );
+});
+
+test('choosing a browser voice reads with the browser even while Kokoro is there', async ({
+  page,
+}) => {
+  await fakeSpeech(page);
+  const voicesAsked: string[] = [];
+  await kokoroRoutes(page, 'works', voicesAsked);
+  await page.goto('/login/senior');
+  await page.getByTestId('continue-senior').click();
+  const card = page.getByTestId('read-my-day');
+  await expect(card.getByTestId('my-day-voice')).toHaveText('Voice: Heart · Kokoro natural voice');
+  await card.getByText('Choose a voice').click();
+  await card
+    .getByTestId('my-day-voice-choice')
+    .selectOption('Microsoft Zira - English (United States)');
+  await expect(card.getByTestId('my-day-voice')).toHaveText(
+    'Voice: Zira · English (United States)',
+  );
+  await card.getByRole('button', { name: 'Read my day' }).click();
+  await expect(card.getByRole('button', { name: 'Read my day' })).toBeVisible({ timeout: 20_000 });
+  expect(voicesAsked).toHaveLength(0);
+  const voices = new Set((await said(page)).map((sentence) => sentence.voice));
+  expect([...voices]).toEqual(['Microsoft Zira - English (United States)']);
 });

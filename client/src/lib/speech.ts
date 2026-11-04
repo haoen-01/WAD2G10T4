@@ -122,6 +122,26 @@ export function speechChunks(script: string): string[] {
 /** Where this browser remembers a voice the listener chose themselves. */
 export const VOICE_CHOICE_KEY = 'careplus.voice.v1';
 
+/**
+ * A remembered choice is a browser voice's name, or one of the Care+ server's Kokoro voices
+ * written as "kokoro:af_bella", so the two can share one list.
+ */
+const KOKORO_CHOICE = 'kokoro:';
+
+export function kokoroChoice(voice: string): string {
+  return `${KOKORO_CHOICE}${voice}`;
+}
+
+/** The Kokoro voice a choice names, or null when it names a browser voice (or nothing). */
+export function kokoroVoiceOf(choice: string | null): string | null {
+  return choice?.startsWith(KOKORO_CHOICE) ? choice.slice(KOKORO_CHOICE.length) : null;
+}
+
+/** Whether a choice asks for the browser's own speech rather than Kokoro. */
+export function choosesBrowser(choice: string | null): boolean {
+  return choice !== null && kokoroVoiceOf(choice) === null;
+}
+
 /** The browser's English voices, best first: what "Choose a voice" lists. */
 export function englishVoices<T extends VoiceLike>(voices: readonly T[]): T[] {
   return voices

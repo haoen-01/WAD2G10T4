@@ -10,9 +10,10 @@ import { getMyDay, getMyDaySpeech, getMyDayVoice } from '@/services/careApi';
 
 /**
  * "Read my day": one big button that asks the API for a short run-through of today and reads it
- * aloud with the browser's own speech, in one warm voice, a sentence at a time (nothing is recorded
- * or sent anywhere for that; see `useReadAloud`). While it reads, the big button stops it and a
- * second button pauses and resumes. The words stay on screen too, for anyone who would rather
+ * aloud, a sentence at a time: in a natural Kokoro voice made on the Care+ server's own CPU when it
+ * is there, else with the browser's own speech in its warmest voice (see `useReadAloud`). "Choose a
+ * voice" lists both. While it reads, the big button stops it and a second button pauses and
+ * resumes. The words stay on screen too, for anyone who would rather
  * read, or whose browser cannot speak.
  */
 const props = defineProps<{ personId: string }>();
@@ -20,8 +21,10 @@ const props = defineProps<{ personId: string }>();
 // The natural Kokoro voice on the Care+ server when it is there; the browser's own voice if not.
 const speech = useReadAloud({
   status: () => getMyDayVoice(props.personId),
-  audio: (sentence) => getMyDaySpeech(props.personId, sentence),
+  audio: (sentence, voice) => getMyDaySpeech(props.personId, sentence, voice),
 });
+// Kokoro's voices and the browser's, in one list; grouped only when there are both.
+const voiceCount = computed(() => speech.serverVoices.value.length + speech.voices.value.length);
 const { canSpeak } = speech;
 const day = ref<MyDay | null>(null);
 const loading = ref(false);
@@ -96,10 +99,7 @@ function togglePause() {
       >
         {{ speech.hint.value }}
       </p>
-      <details
-        v-if="speech.engine.value === 'browser' && speech.voices.value.length > 1"
-        class="mt-1"
-      >
+      <details v-if="voiceCount > 1" class="mt-1">
         <summary>Choose a voice</summary>
         <label :for="`${voiceId}-voice`" class="visually-hidden">Voice</label>
         <select
@@ -110,9 +110,23 @@ function togglePause() {
           @change="pickVoiceFrom"
         >
           <option value="">Best available (automatic)</option>
-          <option v-for="item in speech.voices.value" :key="item.name" :value="item.name">
-            {{ item.label }}
-          </option>
+          <template v-if="speech.serverVoices.value.length">
+            <optgroup label="Natural voices (Care+)">
+              <option v-for="item in speech.serverVoices.value" :key="item.name" :value="item.name">
+                {{ item.label }}
+              </option>
+            </optgroup>
+            <optgroup v-if="speech.voices.value.length" label="This browser’s voices">
+              <option v-for="item in speech.voices.value" :key="item.name" :value="item.name">
+                {{ item.label }}
+              </option>
+            </optgroup>
+          </template>
+          <template v-else>
+            <option v-for="item in speech.voices.value" :key="item.name" :value="item.name">
+              {{ item.label }}
+            </option>
+          </template>
         </select>
       </details>
     </div>

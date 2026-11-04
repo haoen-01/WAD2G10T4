@@ -3,7 +3,10 @@ import { describe, it } from 'node:test';
 
 import {
   chooseVoice,
+  choosesBrowser,
   englishVoices,
+  kokoroChoice,
+  kokoroVoiceOf,
   lunaHint,
   isNaturalVoice,
   isPreferredVoice,
@@ -148,5 +151,15 @@ describe('choosing a voice', () => {
     assert.match(lunaHint([zira], edgeAgent) ?? '', /has not loaded in Edge/);
     assert.equal(lunaHint([zira, luna], edgeAgent), null);
     assert.equal(lunaHint([], chromeAgent), null);
+  });
+
+  it('tells a Kokoro voice choice from a browser voice choice', () => {
+    assert.equal(kokoroChoice('af_bella'), 'kokoro:af_bella');
+    assert.equal(kokoroVoiceOf('kokoro:af_bella'), 'af_bella');
+    assert.equal(kokoroVoiceOf('Microsoft Zira - English (United States)'), null);
+    assert.equal(kokoroVoiceOf(null), null);
+    assert.equal(choosesBrowser('Microsoft Zira - English (United States)'), true);
+    assert.equal(choosesBrowser('kokoro:af_bella'), false);
+    assert.equal(choosesBrowser(null), false); // automatic: Kokoro first when it is there
   });
 });

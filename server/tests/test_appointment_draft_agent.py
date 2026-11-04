@@ -176,8 +176,70 @@ def test_an_assumed_end_is_one_hour_after_the_start() -> None:
     context.resolved.add(date(2026, 11, 4))
     draft = Draft("Dentist", "medical", date(2026, 11, 4), "15:00", "16:00", assumed=["end"])
     assert validate_draft(draft, context) == []
+    # The agent forgetting to list it as assumed is not a reason to throw away the time.
+    draft.assumed = []
+    assert validate_draft(draft, context) == []
     draft.end = "17:00"
     assert validate_draft(draft, context)
+
+
+@pytest.mark.parametrize(
+    ("text", "start", "end"),
+    [
+        ("Eye check-up tomorrow at 2pm", "14:00", "15:00"),
+        ("Eye check-up tomorrow at 2:30 PM", "14:30", "15:30"),
+        ("Eye check-up tomorrow 14:30", "14:30", "15:30"),
+        ("Eye check-up tomorrow at 9am", "09:00", "10:00"),
+        ("tomorrow at 9am eye check-up", "09:00", "10:00"),
+        ("Eye check-up tomorrow at 2", "14:00", "15:00"),
+        ("Eye check-up tomorrow at 9", "09:00", "10:00"),
+        ("Eye check-up tomorrow at noon", "12:00", "13:00"),
+        ("Eye check-up tomorrow at 1430", "14:30", "15:30"),
+        ("Eye check-up tomorrow 1430hrs", "14:30", "15:30"),
+        ("Eye check-up tomorrow 2 o'clock", "14:00", "15:00"),
+        ("Eye check-up tomorrow afternoon 3", "15:00", "16:00"),
+        ("Eye check-up tomorrow at 3 in the afternoon", "15:00", "16:00"),
+        ("Eye check-up tomorrow morning at 9.30", "09:30", "10:30"),
+        ("Eye check-up tomorrow 2-3pm", "14:00", "15:00"),
+    ],
+)
+def test_the_time_is_filled_in_however_it_was_typed(text: str, start: str, end: str) -> None:
+    context = _context(text)
+    draft = fallback_draft(context)
+    # The time fills in, the day is still tomorrow, and the time words are not left in the title.
+    assert (draft.start, draft.end) == (start, end)
+    assert draft.date == date(2026, 11, 4)
+    assert draft.title == "Eye check-up"
+    assert validate_draft(draft, context) == []
+
+
+def test_a_bare_hour_the_agent_fills_in_passes_the_check() -> None:
+    # "at 2" used to have no typed time, so the agent's 14:00 was rejected and the time left empty.
+    context = _context("Eye check-up tomorrow at 2")
+    context.resolved.add(date(2026, 11, 4))
+    draft = Draft(
+        title="Eye check-up",
+        kind="medical",
+        date=date(2026, 11, 4),
+        start="14:00",
+        end="15:00",
+        assumed=["end"],
+        missing=["location"],
+    )
+    assert validate_draft(draft, context) == []
+    assert any(
+        "not a time that was typed" in v
+        for v in validate_draft(
+            Draft(**{**draft.__dict__, "start": "16:00", "end": "17:00"}), context
+        )
+    )
+
+
+def test_numbers_that_are_not_times_stay_out_of_the_form() -> None:
+    assert typed_times("You have 2 reminders")[1] == set()
+    assert typed_times("Party on 5 Nov 2026")[1] == set()
+    # "at 2 Simei Street" is a place, not 2 o'clock.
+    assert typed_times("Physio at 2 Simei Street")[1] == set()
 
 
 def test_with_the_flag_off_a_plain_parser_fills_in_what_it_recognises() -> None:

@@ -105,3 +105,16 @@ test('an unknown address says so and offers a way home', async ({ page }) => {
   await page.goto('/nope');
   await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
 });
+
+test('a simulated rainy day says its rain is simulated, not live weather', async ({
+  page,
+  request,
+}) => {
+  // The e2e run never fetches live weather (offline profile), so this rain is the simulation's.
+  await advance(request, 'rain_explains_decline');
+  await page.goto('/');
+  const why = page.getByTestId('status-why');
+  await why.getByText('Why?').click();
+  await expect(why.locator('.why-line')).toContainText('rainy day (simulated)');
+  await expect(why.locator('.why-line')).not.toContainText('live weather');
+});

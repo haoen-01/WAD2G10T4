@@ -331,11 +331,18 @@ export async function getMyDayVoice(personId: string): Promise<SpeechVoice> {
   return response.data;
 }
 
-/** One sentence of "Read my day", spoken by the Kokoro voice (a WAV). 503 when it cannot speak. */
-export async function getMyDaySpeech(personId: string, text: string): Promise<Blob> {
+/**
+ * One sentence of "Read my day", spoken by a Kokoro voice (a WAV): `voice` is one the voice route
+ * listed, or null for the server's default. 503 when it cannot speak.
+ */
+export async function getMyDaySpeech(
+  personId: string,
+  text: string,
+  voice: string | null = null,
+): Promise<Blob> {
   const response = await http.post<Blob>(
     `/v1/people/${personId}/my-day/speech`,
-    { text },
+    voice ? { text, voice } : { text },
     { responseType: 'blob', timeout: AGENT_TIMEOUT_MS },
   );
   return response.data;

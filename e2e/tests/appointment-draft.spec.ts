@@ -45,6 +45,29 @@ test('a typed sentence fills in the form, and only Add saves it', async ({ page,
   expect(await titles(request)).toContain('Dental check');
 });
 
+for (const [typed, from, to] of [
+  ['Hearing test tomorrow at 2', '14:00', '15:00'],
+  ['Hearing test tomorrow at 2:30 PM', '14:30', '15:30'],
+  ['Hearing test tomorrow 14:30', '14:30', '15:30'],
+  ['Hearing test tomorrow at noon', '12:00', '13:00'],
+] as const) {
+  test(`"${typed}" fills in the time and keeps the day`, async ({ page, request }) => {
+    await page.goto('/calendar');
+    await page.getByTestId('add-appointment').click();
+    const form = page.getByTestId('appointment-form');
+    await form.getByTestId('describe-text').fill(typed);
+    await form.getByTestId('describe-fill').click();
+    await expect(form.getByTestId('describe-result')).toContainText(
+      'Nothing is saved until you press Add.',
+    );
+    await expect(form.getByLabel('Date', { exact: true })).toHaveValue(isoDay(1));
+    await expect(form.getByLabel('From', { exact: true })).toHaveValue(from);
+    await expect(form.getByLabel('To', { exact: true })).toHaveValue(to);
+    await expect(form.getByTestId('add-title')).toHaveValue('Hearing test');
+    expect(await titles(request)).not.toContain('Hearing test');
+  });
+}
+
 test('filled-in fields can be edited, and what you typed yourself is never overwritten', async ({
   page,
   request,

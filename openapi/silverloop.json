@@ -5422,6 +5422,28 @@
               }
             ],
             "title": "Note"
+          },
+          "weather_source": {
+            "type": "string",
+            "enum": [
+              "simulated",
+              "live",
+              "unavailable"
+            ],
+            "title": "Weather Source",
+            "default": "simulated"
+          },
+          "weather_valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Valid Until"
           }
         },
         "type": "object",
@@ -7591,6 +7613,18 @@
             "maxLength": 500,
             "minLength": 1,
             "title": "Text"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
           }
         },
         "type": "object",
@@ -7627,6 +7661,13 @@
               }
             ],
             "title": "Label"
+          },
+          "voices": {
+            "items": {
+              "$ref": "#/components/schemas/SpeechVoiceOption"
+            },
+            "type": "array",
+            "title": "Voices"
           }
         },
         "type": "object",
@@ -7636,7 +7677,26 @@
           "label"
         ],
         "title": "SpeechVoice",
-        "description": "Whether \"Read my day\" can use the Kokoro voice here, and how to name it. When not, the\nbrowser reads with its own voice."
+        "description": "Whether \"Read my day\" can use the Kokoro voice here, the default voice and its name, and the\nother Kokoro voices on offer. When not available, the browser reads with its own voice."
+      },
+      "SpeechVoiceOption": {
+        "properties": {
+          "voice": {
+            "type": "string",
+            "title": "Voice"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "voice",
+          "label"
+        ],
+        "title": "SpeechVoiceOption",
+        "description": "One Kokoro voice the listener may choose, and its name on the card."
       },
       "StatedContextExplanation": {
         "properties": {

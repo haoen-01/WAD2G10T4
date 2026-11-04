@@ -1,6 +1,7 @@
 """The "Read my day" voice: Kokoro-82M, run locally on the CPU (see `engine.py`)."""
 
 from silverloop.tts.engine import (
+    VOICES,
     SpeechUnavailable,
     speak,
     unavailable_reason,
@@ -10,6 +11,7 @@ from silverloop.tts.engine import (
 from silverloop.tts.spoken import spoken_text
 
 __all__ = [
+    "VOICES",
     "SpeechUnavailable",
     "speak",
     "spoken_text",

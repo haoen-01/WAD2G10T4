@@ -147,7 +147,8 @@ def test_the_route_returns_audio_for_the_seniors_readers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "silverloop.family_routes.speak", lambda text, settings: b"RIFF-fake-" + text.encode()
+        "silverloop.family_routes.speak",
+        lambda text, settings, voice=None: b"RIFF-fake-" + text.encode(),
     )
     _group_with_owner(client)
     person_id = client.get("/v1/me", headers=_headers("senior-1")).json()["person_id"]
@@ -165,7 +166,7 @@ def test_the_route_answers_503_when_kokoro_cannot_speak(
     client: TestClient,  # noqa: F811
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def unavailable(text: str, settings: Settings) -> bytes:
+    def unavailable(text: str, settings: Settings, voice: str | None = None) -> bytes:
         raise SpeechUnavailable("Kokoro model files are missing.")
 
     monkeypatch.setattr("silverloop.family_routes.speak", unavailable)
@@ -191,11 +192,70 @@ def test_the_voice_route_says_whether_kokoro_can_speak(
     url = f"/v1/people/{person_id}/my-day/voice"
     monkeypatch.setattr("silverloop.family_routes.unavailable_reason", lambda settings: None)
     body = client.get(url, headers=_headers("senior-1")).json()
-    assert body == {"available": True, "voice": "af_heart", "label": "Heart · Kokoro natural voice"}
+    assert (body["available"], body["voice"], body["label"]) == (
+        True,
+        "af_heart",
+        "Heart · Kokoro natural voice",
+    )
+    # Every voice on offer, by its friendly name, the default first.
+    assert body["voices"][0] == {"voice": "af_heart", "label": "Heart · Kokoro natural voice"}
+    assert {"voice": "bf_emma", "label": "Emma (British) · Kokoro natural voice"} in body["voices"]
     monkeypatch.setattr(
         "silverloop.family_routes.unavailable_reason", lambda settings: "model files are missing"
     )
     body = client.get(url, headers=_headers("senior-1")).json()
-    assert body == {"available": False, "voice": None, "label": None}
+    assert body == {"available": False, "voice": None, "label": None, "voices": []}
     _onboard(client, "family-z", "family", "Stranger")
     assert client.get(url, headers=_headers("family-z")).status_code == 404
+
+
+def test_a_chosen_voice_is_spoken_and_cached_apart(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    class _Voiced(_FakeKokoro):
+        def create(self, text: str, **options: Any) -> tuple[np.ndarray, int]:
+            calls.append((options["voice"], options["lang"]))
+            return super().create(text)
+
+    engine = _Engine()
+    monkeypatch.setattr(engine, "_load", lambda _settings: _Voiced())
+    engine.speak("Hello.", _settings())
+    engine.speak("Hello.", _settings(), "bf_emma")
+    engine.speak("Hello.", _settings(), "bf_emma")  # cached
+    assert calls == [("af_heart", "en-us"), ("bf_emma", "en-gb")]
+
+
+def test_the_route_speaks_a_listed_voice_and_refuses_any_other(
+    client: TestClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    voices: list[str | None] = []
+
+    def fake(text: str, settings: Settings, voice: str | None = None) -> bytes:
+        voices.append(voice)
+        return b"RIFF-fake"
+
+    monkeypatch.setattr("silverloop.family_routes.speak", fake)
+    _group_with_owner(client)
+    person_id = client.get("/v1/me", headers=_headers("senior-1")).json()["person_id"]
+    url = f"/v1/people/{person_id}/my-day/speech"
+    headers = _headers("senior-1")
+    assert (
+        client.post(url, json={"text": "Hi.", "voice": "af_bella"}, headers=headers).status_code
+        == 200
+    )
+    assert client.post(url, json={"text": "Hi."}, headers=headers).status_code == 200
+    refused = client.post(url, json={"text": "Hi.", "voice": "../../etc"}, headers=headers)
+    assert refused.status_code == 422
+    assert voices == ["af_bella", None]
+
+
+@pytest.mark.skipif(
+    not (_MODELS / "kokoro-v1.0.onnx").is_file(),
+    reason="Kokoro model files are not downloaded here (python -m silverloop.tts download).",
+)
+def test_every_offered_voice_is_in_the_voices_file() -> None:
+    from kokoro_onnx import Kokoro
+
+    kokoro = Kokoro(str(_MODELS / "kokoro-v1.0.onnx"), str(_MODELS / tts_engine.VOICES_FILE))
+    assert set(tts_engine.VOICES) <= set(kokoro.get_voices())

@@ -301,6 +301,11 @@ class ContextSignal(BaseModel):
     air_quality: str = "normal"
     holiday: bool = False
     note: str | None = None
+    # Where `rainy` came from: the scripted simulation, a current live NEA reading for this very
+    # day, or a live lookup that had nothing current to say (then `rainy` is not live).
+    weather_source: Literal["simulated", "live", "unavailable"] = "simulated"
+    # While `weather_source` is live: until when that reading or forecast speaks for.
+    weather_valid_until: datetime | None = None
 
 
 class BaselineSummary(BaseModel):
@@ -2275,15 +2280,25 @@ class SpeechRequest(BaseModel):
     logged; only a hash of it keys the in-memory audio cache."""
 
     text: str = Field(min_length=1, max_length=500)
+    # One of `SpeechVoice.voices`; None means the server's own default voice.
+    voice: str | None = Field(default=None, max_length=40)
+
+
+class SpeechVoiceOption(BaseModel):
+    """One Kokoro voice the listener may choose, and its name on the card."""
+
+    voice: str
+    label: str
 
 
 class SpeechVoice(BaseModel):
-    """Whether "Read my day" can use the Kokoro voice here, and how to name it. When not, the
-    browser reads with its own voice."""
+    """Whether "Read my day" can use the Kokoro voice here, the default voice and its name, and the
+    other Kokoro voices on offer. When not available, the browser reads with its own voice."""
 
     available: bool
     voice: str | None
     label: str | None
+    voices: list[SpeechVoiceOption] = Field(default_factory=list)
 
 
 class AppointmentDraftRequest(BaseModel):

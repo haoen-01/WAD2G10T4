@@ -6,8 +6,11 @@ import {
   SPEECH_RATE,
   VOICE_CHOICE_KEY,
   chooseVoice,
+  choosesBrowser,
   englishVoices,
   isPreferredVoice,
+  kokoroChoice,
+  kokoroVoiceOf,
   lunaHint,
   speechChunks,
   voiceLabel,
@@ -17,10 +20,16 @@ export type ReadAloudState = 'idle' | 'speaking' | 'paused';
 /** Who is speaking: the Kokoro voice on the Care+ server, or the browser's own speech. */
 export type ReadAloudEngine = 'kokoro' | 'browser';
 
-/** The Care+ server's natural voice (Kokoro), when the caller can reach it. */
+/** The Care+ server's natural voices (Kokoro), when the caller can reach them. */
 export interface ServerVoice {
-  status: () => Promise<{ available: boolean; label: string | null }>;
-  audio: (sentence: string) => Promise<Blob>;
+  status: () => Promise<{
+    available: boolean;
+    label: string | null;
+    voice?: string | null;
+    voices?: { voice: string; label: string }[];
+  }>;
+  /** One sentence in `voice` (null: the server's default voice). */
+  audio: (sentence: string, voice: string | null) => Promise<Blob>;
 }
 
 /**
@@ -86,9 +95,20 @@ export function useReadAloud(server?: ServerVoice) {
   const voiceText = ref<string | null>(null);
   /** "Choose a voice": the browser's English voices, best first, and why Luna is missing if it is. */
   const voices = ref<{ name: string; label: string }[]>([]);
+  /** "Choose a voice": the server's Kokoro voices, while Kokoro can speak ("kokoro:…" names). */
+  const serverVoices = ref<{ name: string; label: string }[]>([]);
   const hint = ref<string | null>(null);
-  /** The listener's own pick of browser voice, remembered here; null means "the best available". */
-  const chosenName = ref<string | null>(hasBrowserSpeech ? readChoice() : null);
+  /**
+   * The listener's own pick, remembered here: a browser voice's name or a Kokoro voice
+   * ("kokoro:af_bella"). Null means "the best available": Kokoro's default when it is there.
+   */
+  const chosenName = ref<string | null>(
+    typeof window !== 'undefined' && (hasBrowserSpeech || server) ? readChoice() : null,
+  );
+  // Kokoro, as the server last described it: null until it answers, or once it has failed.
+  let serverDefault: { voice: string | null; label: string | null } | null = null;
+  // The Kokoro voice this reading asks for (null: the server's default).
+  let kokoroVoice: string | null = null;
 
   // Browser speech: chosen afresh for each reading (the browser may have added better voices since
   // the last), then kept for every sentence of that reading.
@@ -113,14 +133,35 @@ export function useReadAloud(server?: ServerVoice) {
   // Ask for the voices as soon as the card is on screen, and keep the list and the shown choice up
   // to date as the browser adds voices, so the first press rarely has to wait.
   const refreshShownVoice = () => {
-    if (!hasBrowserSpeech || engine.value !== 'browser') return;
+    if (!hasBrowserSpeech) return;
     const all = window.speechSynthesis.getVoices();
+    // The list stays current under Kokoro too, so a browser voice can still be chosen.
     voices.value = englishVoices(all).map((item) => ({ name: item.name, label: voiceLabel(item) }));
+    if (engine.value !== 'browser') return;
     hint.value = lunaHint(all, navigator.userAgent);
     if (state.value === 'idle') showBrowserVoice(chooseVoice(all, chosenName.value));
   };
 
-  /** The listener picks a browser voice (null: back to the best). Used from the next reading. */
+  /**
+   * Who reads next, from the listener's choice: Kokoro (in the chosen voice, else its default)
+   * whenever it can speak and no browser voice was chosen; the browser's own speech otherwise.
+   */
+  function settleEngine() {
+    if (serverDefault && !choosesBrowser(chosenName.value)) {
+      const wanted = kokoroVoiceOf(chosenName.value);
+      const chosen = serverVoices.value.find((item) => item.name === kokoroChoice(wanted ?? ''));
+      engine.value = 'kokoro';
+      kokoroVoice = chosen ? wanted : serverDefault.voice;
+      voiceName.value = 'kokoro';
+      voiceText.value = chosen?.label ?? serverDefault.label;
+      hint.value = null;
+      return;
+    }
+    engine.value = 'browser';
+    refreshShownVoice();
+  }
+
+  /** The listener picks a voice (null: back to the best). Used from the next reading. */
   function setVoiceChoice(name: string | null) {
     chosenName.value = name;
     try {
@@ -129,10 +170,13 @@ export function useReadAloud(server?: ServerVoice) {
     } catch {
       // storage blocked: the choice lasts until the page is closed
     }
-    refreshShownVoice();
+    if (state.value === 'idle') settleEngine();
   }
 
+  /** Kokoro failed: it is no longer offered, and this reading and every later one use the browser. */
   function useBrowser() {
+    serverDefault = null;
+    serverVoices.value = [];
     engine.value = 'browser';
     refreshShownVoice();
   }
@@ -151,10 +195,12 @@ export function useReadAloud(server?: ServerVoice) {
         .status()
         .then((status) => {
           if (!status.available) return;
-          engine.value = 'kokoro';
-          voiceName.value = 'kokoro';
-          voiceText.value = status.label;
-          hint.value = null;
+          serverDefault = { voice: status.voice ?? null, label: status.label };
+          serverVoices.value = (status.voices ?? []).map((item) => ({
+            name: kokoroChoice(item.voice),
+            label: item.label,
+          }));
+          if (state.value === 'idle') settleEngine();
         })
         .catch(() => undefined); // the browser's own voice it is
     }
@@ -224,7 +270,7 @@ export function useReadAloud(server?: ServerVoice) {
   // ── Kokoro ───────────────────────────────────────────────────────────────────
 
   function fetchSentence(at: number): Promise<Blob> {
-    sentenceAudio[at] ??= server!.audio(chunks[at]);
+    sentenceAudio[at] ??= server!.audio(chunks[at], kokoroVoice);
     return sentenceAudio[at];
   }
 
@@ -293,6 +339,7 @@ export function useReadAloud(server?: ServerVoice) {
   async function speak(script: string) {
     if (!canSpeak) return;
     stop();
+    settleEngine(); // a voice chosen during the last reading applies from this one
     const run = ++reading;
     chunks = speechChunks(script);
     index = 0;
@@ -364,6 +411,7 @@ export function useReadAloud(server?: ServerVoice) {
     voiceName,
     voiceText,
     voices,
+    serverVoices,
     hint,
     chosenName,
     setVoiceChoice,

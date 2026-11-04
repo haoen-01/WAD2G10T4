@@ -19,7 +19,14 @@ const props = defineProps<{
 const line = computed(() => {
   const context = props.person.signal.context;
   const parts = [props.person.rationale[0] ?? props.person.signal.quality.reasons[0] ?? ''];
-  if (context.rainy) parts.push('rainy day');
+  // Says where the weather came from: a live NEA reading for today, or the simulation.
+  if (context.rainy) {
+    parts.push(
+      context.weather_source === 'live' ? 'raining now (live weather)' : 'rainy day (simulated)',
+    );
+  } else if (context.weather_source === 'unavailable') {
+    parts.push('live weather unavailable');
+  }
   if (context.air_quality && context.air_quality !== 'normal') {
     parts.push(`air quality ${context.air_quality}`);
   }

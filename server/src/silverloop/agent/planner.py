@@ -617,7 +617,14 @@ def _brief(context: ToolContext) -> str:
     """The volatile half of the prompt: what is true about this person right now."""
     conditions = []
     if context.rainy:
-        conditions.append("it is raining")
+        # Live rain is named as such; the simulated wording is unchanged (recorded demo prompts).
+        conditions.append(
+            "it is raining (a current live NEA reading)"
+            if context.weather_source == "live"
+            else "it is raining"
+        )
+    elif context.weather_source == "unavailable":
+        conditions.append("live weather is unavailable, so assume nothing about it")
     if context.holiday:
         conditions.append("it is a public holiday")
     condition_line = (

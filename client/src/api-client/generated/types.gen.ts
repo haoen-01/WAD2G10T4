@@ -828,6 +828,14 @@ export type ContextSignal = {
      * Note
      */
     note?: string | null;
+    /**
+     * Weather Source
+     */
+    weather_source?: 'simulated' | 'live' | 'unavailable';
+    /**
+     * Weather Valid Until
+     */
+    weather_valid_until?: string | null;
 };
 
 /**
@@ -2107,13 +2115,17 @@ export type SpeechRequest = {
      * Text
      */
     text: string;
+    /**
+     * Voice
+     */
+    voice?: string | null;
 };
 
 /**
  * SpeechVoice
  *
- * Whether "Read my day" can use the Kokoro voice here, and how to name it. When not, the
- * browser reads with its own voice.
+ * Whether "Read my day" can use the Kokoro voice here, the default voice and its name, and the
+ * other Kokoro voices on offer. When not available, the browser reads with its own voice.
  */
 export type SpeechVoice = {
     /**
@@ -2128,6 +2140,26 @@ export type SpeechVoice = {
      * Label
      */
     label: string | null;
+    /**
+     * Voices
+     */
+    voices?: Array<SpeechVoiceOption>;
+};
+
+/**
+ * SpeechVoiceOption
+ *
+ * One Kokoro voice the listener may choose, and its name on the card.
+ */
+export type SpeechVoiceOption = {
+    /**
+     * Voice
+     */
+    voice: string;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**

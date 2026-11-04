@@ -197,7 +197,7 @@ const speech = useReadAloud({
     personId.value
       ? getMyDayVoice(personId.value)
       : Promise.resolve({ available: false, label: null }),
-  audio: (sentence) => getMyDaySpeech(personId.value!, sentence),
+  audio: (sentence, voice) => getMyDaySpeech(personId.value!, sentence, voice),
 });
 const listen = computed(() => ({
   available: speech.canSpeak && catchUp.value !== null,

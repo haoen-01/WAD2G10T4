@@ -92,14 +92,16 @@ class _Engine:
             return str(error)
         return None
 
-    def speak(self, text: str, settings: Settings) -> bytes:
-        """`text` spoken by Kokoro, as a 16-bit mono WAV. Raises `SpeechUnavailable`."""
+    def speak(self, text: str, settings: Settings, voice: str | None = None) -> bytes:
+        """`text` spoken by Kokoro in `voice` (the configured voice when None), as a 16-bit mono
+        WAV. Raises `SpeechUnavailable`."""
         if not settings.tts_enabled:
             raise SpeechUnavailable("TTS_ENABLED is false.")
+        voice = voice or settings.tts_voice
         said = spoken_text(text)[:MAX_TEXT_CHARS]
         key = hashlib.sha256(
             "\x1f".join(
-                [settings.tts_model_file, settings.tts_voice, f"{settings.tts_speed:.3f}", said]
+                [settings.tts_model_file, voice, f"{settings.tts_speed:.3f}", said]
             ).encode()
         ).hexdigest()
         with self._lock:
@@ -107,10 +109,10 @@ class _Engine:
                 self._cache.move_to_end(key)
                 return cached
             kokoro = self._load(settings)
-            language = "en-gb" if settings.tts_voice.startswith("b") else "en-us"
+            language = "en-gb" if voice.startswith("b") else "en-us"
             try:
                 samples, rate = kokoro.create(
-                    said, voice=settings.tts_voice, speed=settings.tts_speed, lang=language
+                    said, voice=voice, speed=settings.tts_speed, lang=language
                 )
             except Exception as error:  # noqa: BLE001 - a failed sentence degrades to the browser
                 raise SpeechUnavailable(
@@ -139,20 +141,28 @@ def _wav(samples: Any, rate: int) -> bytes:
 _ENGINE = _Engine()
 
 
-def speak(text: str, settings: Settings) -> bytes:
-    return _ENGINE.speak(text, settings)
+def speak(text: str, settings: Settings, voice: str | None = None) -> bytes:
+    return _ENGINE.speak(text, settings, voice)
 
 
 def unavailable_reason(settings: Settings) -> str | None:
     return _ENGINE.available(settings)
 
 
-_VOICE_NAMES = {"af_heart": "Heart", "af_bella": "Bella", "bf_emma": "Emma"}
+# The Kokoro voices "Choose a voice" offers, best first, as the card names them: a few clearly
+# different ones, so the choice stays easy. All are in the v1.0 voices file; Heart and Bella are
+# Kokoro's best-graded. A request may only name one of these.
+VOICES: dict[str, str] = {
+    "af_heart": "Heart",
+    "af_bella": "Bella",
+    "bf_emma": "Emma (British)",
+    "am_michael": "Michael (male)",
+}
 
 
 def voice_label(voice: str) -> str:
     """The voice as the card names it: "Heart · Kokoro natural voice"."""
-    name = _VOICE_NAMES.get(voice, voice.split("_")[-1].capitalize())
+    name = VOICES.get(voice, voice.split("_")[-1].capitalize())
     return f"{name} · Kokoro natural voice"
 
 

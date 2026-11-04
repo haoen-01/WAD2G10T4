@@ -56,6 +56,7 @@ from silverloop.models import (
     SeniorNameRequest,
     SpeechRequest,
     SpeechVoice,
+    SpeechVoiceOption,
     Task,
     TaskDayRequest,
     TaskList,
@@ -64,7 +65,7 @@ from silverloop.models import (
 )
 from silverloop.senior_day import build_context as build_my_day_context
 from silverloop.senior_day import my_day
-from silverloop.tts import SpeechUnavailable, speak, unavailable_reason, voice_label
+from silverloop.tts import VOICES, SpeechUnavailable, speak, unavailable_reason, voice_label
 from silverloop.wearable_status import simulated_wearable
 
 
@@ -774,7 +775,10 @@ def register_family_routes(application: FastAPI) -> None:
         if unavailable_reason(settings) is not None:
             return SpeechVoice(available=False, voice=None, label=None)
         return SpeechVoice(
-            available=True, voice=settings.tts_voice, label=voice_label(settings.tts_voice)
+            available=True,
+            voice=settings.tts_voice,
+            label=voice_label(settings.tts_voice),
+            voices=[SpeechVoiceOption(voice=voice, label=voice_label(voice)) for voice in VOICES],
         )
 
     @application.post(
@@ -797,8 +801,11 @@ def register_family_routes(application: FastAPI) -> None:
         cloud service). The same readers as `my-day`. 503 when Kokoro or its model files are not
         installed, or it failed: the browser then reads with its own voice."""
         check_reader(request, person_id, current_user)
+        settings = request.app.state.settings
+        if body.voice is not None and body.voice not in VOICES and body.voice != settings.tts_voice:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown voice.")
         try:
-            audio = speak(body.text, request.app.state.settings)
+            audio = speak(body.text, settings, body.voice)
         except SpeechUnavailable as error:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
         # Private: the audio is one person's day. The browser may keep it for this session.
