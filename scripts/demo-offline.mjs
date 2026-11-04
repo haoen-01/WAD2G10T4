@@ -10,6 +10,10 @@
 //   1. The web app's JavaScript packages must be installed (client/node_modules).
 //   2. `uv` (the Python tool the API runs through) must be installed and on the PATH.
 //   3. The API's Python packages must be installed. If they are missing, it runs `uv sync` itself.
+//
+// `--agent` (`pnpm demo:agent`) also turns the outreach planner on, replaying the committed
+// synthetic recording (`server/recordings/demo-planner.json`) instead of calling any model, so
+// nothing is sent anywhere. Remake it with `uv run python -m silverloop.agent.demo_recording record`.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -18,6 +22,8 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const clientDirectory = join(repoRoot, 'client');
 const serverDirectory = join(repoRoot, 'server');
+const agentDemo = process.argv.includes('--agent');
+const recording = join(serverDirectory, 'recordings', 'demo-planner.json');
 
 function stop(lines) {
   console.error(`\n${lines.join('\n')}\n`);
@@ -75,7 +81,14 @@ const child = spawn(process.execPath, [join(repoRoot, 'scripts', 'dev.mjs')], {
     SILVERLOOP_RUNTIME_PROFILE: 'offline',
     DATABASE_URL: 'sqlite+pysqlite:///./.demo/silverloop.db',
     ADAPTER_MODE: 'fixture',
-    LLM_ENABLED: 'false',
+    LLM_ENABLED: agentDemo ? 'true' : 'false',
+    ...(agentDemo
+      ? {
+          LLM_PROVIDER: 'recorded',
+          LLM_RECORDING_PATH: recording,
+          LLM_MODEL: 'synthetic-scripted-stand-in-v1',
+        }
+      : {}),
     AUTH_ENABLED: 'false',
     VITE_AUTH_ENABLED: 'false',
   },

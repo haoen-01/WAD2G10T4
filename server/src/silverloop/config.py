@@ -69,7 +69,10 @@ class Settings(BaseSettings):
     # SDK, and exists so agent behaviour can be measured offline. It is a measurement surface,
     # never a deployment one: a request with no recorded answer degrades to the deterministic
     # ranker exactly like a provider outage.
-    llm_provider: Literal["anthropic", "bedrock", "recorded"] = "anthropic"
+    #
+    # `openai` is OpenAI's Chat Completions, behind the same surface (`agent.openai_client`). It
+    # reuses the assistant's `OPENAI_API_KEY`, `OPENAI_MODEL` and `OPENAI_BASE_URL` below.
+    llm_provider: Literal["anthropic", "bedrock", "openai", "recorded"] = "anthropic"
     llm_api_key: str = ""
     # `recorded` only. A recording file, or a directory of them. Relative paths resolve against
     # the process working directory.
@@ -152,6 +155,19 @@ class Settings(BaseSettings):
     openai_timeout_seconds: float = 20.0
     # Questions one person may ask in 10 minutes, so a stuck key or a loop cannot run up a bill.
     assistant_rate_per_10_min: int = 30
+
+    # "Read my day" voice (silverloop.tts): Kokoro-82M on ONNX Runtime, on this server's CPU. No
+    # cloud service and no key: nothing leaves the machine. Optional and opt-in -- it needs
+    # `uv --directory server sync --group tts` and the model files
+    # (`uv --directory server run python -m silverloop.tts download`); without them the speech
+    # route answers 503 and the browser reads aloud with its own voice instead.
+    tts_enabled: bool = True
+    # Relative paths resolve against server.
+    tts_model_dir: str = "models/kokoro"
+    tts_model_file: str = "kokoro-v1.0.onnx"
+    tts_voice: str = "af_heart"
+    # A little slower than Kokoro's default, as a calm companion would read.
+    tts_speed: float = 0.92
 
     auth_enabled: bool = True
     supabase_url: str = ""

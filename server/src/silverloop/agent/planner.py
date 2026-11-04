@@ -55,7 +55,7 @@ from silverloop.agent.constants import (
     ITERATION_HARD_CEILING,
     MAX_ACTIVITY_OPTIONS_RETURNED,
     MAX_TOKENS,
-    default_model_id,
+    resolve_model,
 )
 from silverloop.agent.guardrails import (
     ActivityOrderProposal,
@@ -454,7 +454,7 @@ def plan_activity_ranking(
             "fallback_disabled", unavailable or "The planner client is unavailable.", None
         )
 
-    model = settings.llm_model.strip() or default_model_id(settings.llm_provider)
+    model = resolve_model(settings)
     state = PlannerState(settings.llm_max_iterations)
     modern = settings.llm_request_profile == "modern"
     tools = activity_tool_definitions(strict=modern)
@@ -719,6 +719,8 @@ def _build_client(settings: Settings, timeout: float) -> tuple[Any, str | None]:
     """
     if settings.llm_provider == "recorded":
         return _build_recorded_client(settings)
+    if settings.llm_provider == "openai":
+        return _build_openai_client(settings, timeout)
 
     try:
         import anthropic
@@ -741,6 +743,28 @@ def _build_client(settings: Settings, timeout: float) -> tuple[Any, str | None]:
     except Exception as error:  # noqa: BLE001 - any construction failure must degrade, not raise
         return None, f"Could not construct the Anthropic client: {error}"
     return client, None
+
+
+def _build_openai_client(settings: Settings, timeout: float) -> tuple[Any, str | None]:
+    """OpenAI Chat Completions behind the `messages.create` surface (`agent.openai_client`).
+
+    The key is the team's existing `OPENAI_API_KEY`, the one the assistant already uses; with no
+    key there is no client, and every loop records `fallback_disabled` and says why.
+    """
+    from silverloop.agent.openai_client import OpenAIChatClient
+
+    api_key = settings.openai_api_key.strip()
+    if not api_key:
+        return None, "LLM_PROVIDER=openai requires OPENAI_API_KEY."
+    return (
+        OpenAIChatClient(
+            api_key=api_key,
+            base_url=settings.openai_base_url,
+            timeout=timeout,
+            effort=settings.llm_effort,
+        ),
+        None,
+    )
 
 
 def _build_recorded_client(settings: Settings) -> tuple[Any, str | None]:
@@ -897,7 +921,7 @@ def plan_outreach(
             elapsed_ms(),
         )
 
-    model = settings.llm_model.strip() or default_model_id(settings.llm_provider)
+    model = resolve_model(settings)
     state = PlannerState(settings.llm_max_iterations)
     # Older models reject adaptive thinking, `output_config` and `strict` tools with a 400 rather
     # than ignoring them, so the request is shaped for the model on the other end. Only the three

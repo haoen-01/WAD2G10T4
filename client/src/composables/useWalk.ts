@@ -212,7 +212,7 @@ const demoState = computed(() => sim.value);
 
 /** Today's calendar, as spans of time, so a long stay at an appointment does not alert. */
 const busy = computed<BusyWindow[]>(() =>
-  calendarAppointments.map((appointment) => ({
+  calendarAppointments().map((appointment) => ({
     title: appointment.title,
     startMs: new Date(`${appointment.date}T${appointment.start}`).getTime(),
     endMs: new Date(`${appointment.date}T${appointment.end}`).getTime(),

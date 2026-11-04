@@ -1,4 +1,5 @@
 import type {
+  AppointmentDraft,
   AccountRole,
   AssistantChatRequest,
   AssistantReply,
@@ -10,6 +11,9 @@ import type {
   AvailabilityStatus,
   CalendarAppointment,
   CareGroup,
+  CatchUp,
+  MyDay,
+  SpeechVoice,
   CheckInRequest,
   CreateGroupRequest,
   DailyMetric,
@@ -37,6 +41,14 @@ import type {
 } from '@silverloop/api-client';
 
 import { http } from './http';
+
+/**
+ * How long the browser waits for an agent-written answer (catch-up, "Read my day", "Fill in the
+ * form"). A live model takes several turns of a few seconds each, far over the 15 s every other
+ * request gets, and the API gives up on the model at 40 s (`agent/loop.py` `DEADLINE_SECONDS`) and
+ * answers without it, so this only has to outlast that.
+ */
+export const AGENT_TIMEOUT_MS = 60_000;
 
 /**
  * Every call the screens make to the Care+ API, as plain Axios requests. The response types come
@@ -182,6 +194,16 @@ export async function createAppointment(
   return response.data;
 }
 
+/** Fill in the appointment form from what was typed. Saves nothing; `createAppointment` does. */
+export async function draftAppointment(groupId: string, text: string): Promise<AppointmentDraft> {
+  const response = await http.post<AppointmentDraft>(
+    `/v1/groups/${groupId}/appointments/draft`,
+    { text },
+    { timeout: AGENT_TIMEOUT_MS },
+  );
+  return response.data;
+}
+
 /** Changes an appointment (the whole series, if it repeats). */
 export async function updateAppointment(
   groupId: string,
@@ -293,7 +315,49 @@ export async function getWearable(personId: string): Promise<WearableStatus> {
   return response.data;
 }
 
+/** "Read my day": a short script of the senior's day, for the browser to read aloud. */
+export async function getMyDay(personId: string): Promise<MyDay> {
+  const response = await http.get<MyDay>(`/v1/people/${personId}/my-day`, {
+    timeout: AGENT_TIMEOUT_MS,
+  });
+  return response.data;
+}
+
+/** Whether "Read my day" can use the Kokoro voice on the Care+ server, and its name. */
+export async function getMyDayVoice(personId: string): Promise<SpeechVoice> {
+  const response = await http.get<SpeechVoice>(`/v1/people/${personId}/my-day/voice`, {
+    timeout: AGENT_TIMEOUT_MS, // the first ask loads the model
+  });
+  return response.data;
+}
+
+/**
+ * One sentence of "Read my day", spoken by a Kokoro voice (a WAV): `voice` is one the voice route
+ * listed, or null for the server's default. 503 when it cannot speak.
+ */
+export async function getMyDaySpeech(
+  personId: string,
+  text: string,
+  voice: string | null = null,
+): Promise<Blob> {
+  const response = await http.post<Blob>(
+    `/v1/people/${personId}/my-day/speech`,
+    voice ? { text, voice } : { text },
+    { responseType: 'blob', timeout: AGENT_TIMEOUT_MS },
+  );
+  return response.data;
+}
+
 // ── Family activity feed ─────────────────────────────────────────────────────
+
+/** "Since you last visited": what changed after `since`, what needs someone, today's tasks. */
+export async function getCatchUp(groupId: string, since: string | null): Promise<CatchUp> {
+  const response = await http.get<CatchUp>(`/v1/groups/${groupId}/catch-up`, {
+    params: since ? { since } : {},
+    timeout: AGENT_TIMEOUT_MS,
+  });
+  return response.data;
+}
 
 /** The group's feed, newest first. Pass the last page's `next_before` as `before` for older entries. */
 export async function getGroupActivity(

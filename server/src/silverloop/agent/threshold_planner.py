@@ -38,7 +38,7 @@ from silverloop.agent import planner as planner_module
 from silverloop.agent.constants import (
     MAX_TOKENS,
     THRESHOLD_AGENT_VERSION,
-    default_model_id,
+    resolve_model,
 )
 from silverloop.agent.models import AgentToolCall, AgentUsage
 from silverloop.agent.planner import (
@@ -872,7 +872,7 @@ def _run_threshold_loop(
             "fallback_disabled", unavailable or "The calibration agent client is unavailable.", None
         )
 
-    model = settings.llm_model.strip() or default_model_id(settings.llm_provider)
+    model = resolve_model(settings)
     state = PlannerState(settings.llm_max_iterations)
     modern, request_extras = _request_shape(settings)
     tools = tools_for(strict=modern)

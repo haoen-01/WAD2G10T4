@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "banner": "SYNTHETIC -- produced by a scripted stand-in, not by any language model. It exercises the planner's real tools and guardrail offline.",
+  "loop": "outreach+activity",
+  "generator": "silverloop.agent.demo_recording",
+  "entries": [
+    {
+      "key": "9e5b9af613ff5fc6c029e2cc9dac1232b051e8a51b2f9715317bce563731a584",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "latency_ms": 0,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_1_a",
+          "name": "get_candidate_options",
+          "input": {}
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_1_b",
+          "name": "get_outreach_history",
+          "input": {}
+        }
+      ]
+    },
+    {
+      "key": "06084996ef276e9381e0cce8ac4e971437c98bedb503b8d2e136ce3d1732a97c",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "latency_ms": 0,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_3_p",
+          "name": "propose_outreach",
+          "input": {
+            "candidate_key": "gentle_nudge:chair_mobility",
+            "message": "Would you like to try Five-minute movement option today? It is completely optional, and no pressure at all. It can be done seated.",
+            "reasoning": "Chose 'Five-minute movement option' from 3 permitted option(s): it was not recently turned down and has the strongest record of being taken up."
+          }
+        }
+      ]
+    },
+    {
+      "key": "57b9baeeaddfa7c2ed68801a65002da19c3122f4e58b8028dd1366d2bb44cf5c",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "latency_ms": 0,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_1_a",
+          "name": "get_candidate_options",
+          "input": {}
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_1_b",
+          "name": "get_outreach_history",
+          "input": {}
+        }
+      ]
+    },
+    {
+      "key": "f121ff6c09f14072b5410c3aa5902d71b246c271b42b6f3cbd34adc56ad4ae9c",
+      "model": "synthetic-scripted-stand-in-v1",
+      "note": "",
+      "stop_reason": "tool_use",
+      "usage": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "latency_ms": 0,
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_3_p",
+          "name": "propose_outreach",
+          "input": {
+            "candidate_key": "programme:aac-chair-mobility",
+            "message": "Would you like to try Chair Mobility & Balance today? It is completely optional, and no pressure at all.",
+            "reasoning": "Chose 'Chair Mobility & Balance' from 2 permitted option(s): it was not recently turned down and has the strongest record of being taken up."
+          }
+        }
+      ]
+    }
+  ]
+}
