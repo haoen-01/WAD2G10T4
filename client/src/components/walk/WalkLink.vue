@@ -6,7 +6,7 @@ import Icon from '@/components/ui/Icon.vue';
 import { useWalk } from '@/composables/useWalk';
 import { STATE_WORDS } from '@/lib/walk';
 
-/** On Home, under her watch: "Walking near the pond · See live", while she shares her walk. */
+/** On Home, under the watch: "Walking near the pond · See live", while the senior shares their walk. */
 const walk = useWalk();
 
 const out = computed(
@@ -27,7 +27,7 @@ const out = computed(
       <span>{{ STATE_WORDS[walk.state.value] }} near {{ walk.near.value }}</span>
       <span class="fw-bold">See live</span>
     </template>
-    <span v-else>See her walks</span>
+    <span v-else>See {{ walk.seniorName.value }}’s walks</span>
     <Icon name="chevron-right" />
   </RouterLink>
 </template>

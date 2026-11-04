@@ -20,13 +20,19 @@ export default defineComponent({
     failed: { type: Boolean, default: false },
     /** Whether the person's status loaded (the chart is only fetched after it). */
     hasPerson: { type: Boolean, default: false },
-    /** Her usual day's steps, for the chart's line. */
+    /** The senior's usual day's steps, for the chart's line. */
     usual: { type: Number, required: true },
+    /** The senior's name, for "Mr Tan’s usual day"; empty when it is not known. */
+    elder: { type: String, default: '' },
   },
 
   emits: ['retry'],
 
   computed: {
+    /** Whose usual day and recent days: "Mr Tan’s", or "their" with no name (never a guessed "her"). */
+    owner(): string {
+      return this.elder ? `${this.elder}’s` : 'their';
+    },
     /** Sample readings say so: their days are simulated, not real dates. */
     sample(): boolean {
       return (this.history ?? []).some((day) => isSampleSource(day.source));
@@ -40,9 +46,10 @@ export default defineComponent({
     <template v-if="sample" #actions>
       <span class="badge text-bg-secondary" data-testid="fortnight-sample">Sample</span>
     </template>
-    <ActivityChart v-if="history && history.length" :days="history" :usual="usual" />
+    <ActivityChart v-if="history && history.length" :days="history" :usual="usual" :owner="owner" />
     <p v-else-if="failed" class="text-body-secondary mb-0">
-      Her recent days could not be loaded.
+      <template v-if="elder">{{ elder }}’s recent days</template
+      ><template v-else>Recent days</template> could not be loaded.
       <button type="button" class="btn btn-link p-0 align-baseline" @click="$emit('retry')">
         Try again
       </button>

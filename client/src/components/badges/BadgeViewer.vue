@@ -260,7 +260,7 @@ onBeforeUnmount(() => {
             </template>
 
             <p v-if="badge.state === 'ready' && !canClaim" class="viewer-claimed">
-              Waiting for {{ who }} to claim it on her own page.
+              Waiting for {{ who }} to claim it on their own page.
             </p>
 
             <!-- For screen readers: the heading above the medal says it for everyone else. -->

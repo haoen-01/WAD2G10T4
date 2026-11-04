@@ -332,8 +332,8 @@ onMounted(async () => {
   } catch (caught) {
     failed.value =
       caught instanceof Error && /webgl/i.test(caught.message)
-        ? 'This device or browser cannot draw the map (it needs WebGL). Her walk is still described beside it.'
-        : 'The map could not be shown. Her walk is still described beside it.';
+        ? `This device or browser cannot draw the map (it needs WebGL). ${props.seniorName}’s walk is still described beside it.`
+        : `The map could not be shown. ${props.seniorName}’s walk is still described beside it.`;
   }
 });
 

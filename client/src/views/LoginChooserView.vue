@@ -21,7 +21,7 @@ const CHOICES: { audience: ViewMode; title: string; text: string; icon: IconName
   {
     audience: 'family',
     title: 'I’m family',
-    text: 'See how she is doing, share the calendar and arrange who goes along.',
+    text: 'See how your family member is doing, share the calendar and arrange who goes along.',
     icon: 'users',
   },
   {

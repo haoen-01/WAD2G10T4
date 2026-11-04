@@ -38,17 +38,17 @@ const line = computed(() => {
   const stay = `In one place for ${formatDuration(result.forMs)}.`;
   if (result.phase === 'alert') return `${stay} The family has been told.`;
   if (result.phase === 'soon') {
-    return `${stay} ${name.value} is being asked if she is OK. The family will be told at ${clockTime(result.alertAt ?? 0)}.`;
+    return `${stay} ${name.value} is being asked if they are OK. The family will be told at ${clockTime(result.alertAt ?? 0)}.`;
   }
-  return `${stay} The family will be told at ${clockTime(result.alertAt ?? 0)} if she is still there.`;
+  return `${stay} The family will be told at ${clockTime(result.alertAt ?? 0)} if ${name.value} is still there.`;
 });
 
 const OUTCOMES: Record<AlertStatus, (alert: WalkAlert) => string> = {
   open: () => 'Waiting for someone to check in',
   checking: (alert) => `${alert.checkingBy} is checking in`,
-  ok: (alert) => `${alert.closedBy} said she is OK, ${clockTime(alert.closedAt ?? 0)}`,
-  fine: (alert) => `${alert.closedBy} marked her fine, ${clockTime(alert.closedAt ?? 0)}`,
-  moved: (alert) => `She moved on, ${clockTime(alert.closedAt ?? 0)}`,
+  ok: (alert) => `${alert.closedBy} said they are OK, ${clockTime(alert.closedAt ?? 0)}`,
+  fine: (alert) => `${alert.closedBy} marked ${name.value} fine, ${clockTime(alert.closedAt ?? 0)}`,
+  moved: (alert) => `${name.value} moved on, ${clockTime(alert.closedAt ?? 0)}`,
   stopped: () => 'Check-ins were turned off',
 };
 
@@ -78,8 +78,8 @@ async function toggleNotify() {
 
     <template v-if="!walk.settings.stillnessAlerts">
       <p class="mb-0" data-testid="checkin-off">
-        {{ name }} has not turned on check-ins. Only she can, on her own page (“Tell my family if I
-        stay in one place for a long time”).
+        {{ name }} has not turned on check-ins. Only they can, on their own page (“Tell my family if
+        I stay in one place for a long time”).
       </p>
     </template>
 
