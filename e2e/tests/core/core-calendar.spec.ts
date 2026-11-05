@@ -16,7 +16,7 @@ test('Family member takes on an appointment and it remembers', async ({ page }) 
   const panel = details(page, DOCTOR);
   await page.getByRole('button', { name: 'I’ll help' }).click();
   await expect(row(panel, 'Sarah')).toContainText('Helping');
-  await expect(panel.getByText("You're helping with this")).toBeVisible();
+  await expect(panel.getByText(/You're helping with this/)).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: DOCTOR }).click();
   await expect(row(panel, 'Sarah')).toContainText('Helping');
