@@ -5,6 +5,7 @@ import {
   homeFor,
   isLoginPath,
   isPathInView,
+  isSignedIn,
   isViewPath,
   parseViewMode,
   viewForRole,
@@ -99,5 +100,33 @@ describe('parseViewMode', () => {
     for (const raw of ['', 'Family', 'coordinator', null, undefined, 1]) {
       assert.equal(parseViewMode(raw), null, String(raw));
     }
+  });
+});
+
+describe('isSignedIn', () => {
+  const signedInOn = {
+    authEnabled: true,
+    mode: 'family' as const,
+    connectionProblem: false,
+    hasSession: true,
+    hasCurrentUser: true,
+  };
+
+  it('with sign-in on, follows the account once it is known', () => {
+    assert.equal(isSignedIn(signedInOn), true);
+    assert.equal(isSignedIn({ ...signedInOn, hasCurrentUser: false }), false);
+  });
+
+  it('while Care+ cannot be reached, a session is enough (never "Sign in" to someone signed in)', () => {
+    const unreachable = { ...signedInOn, connectionProblem: true, hasCurrentUser: false };
+    assert.equal(isSignedIn(unreachable), true);
+    assert.equal(isSignedIn({ ...unreachable, hasSession: false }), false);
+  });
+
+  it('with sign-in off, follows the demo view chosen in this browser', () => {
+    const off = { ...signedInOn, authEnabled: false, hasSession: false, hasCurrentUser: false };
+    assert.equal(isSignedIn(off), true);
+    assert.equal(isSignedIn({ ...off, mode: null }), false);
+    assert.equal(isSignedIn({ ...off, mode: 'senior', connectionProblem: true }), true);
   });
 });

@@ -5,9 +5,10 @@ import type { Router } from 'vue-router';
 
 import { createApiClient } from '@/lib/client';
 import { AUTH_ENABLED } from '@/lib/config';
-import { createKeyedOnceLoader } from '@/lib/current-user';
+import { createKeyedOnceLoader, shouldRecordCurrentUser } from '@/lib/current-user';
 import { loginPathFor } from '@/lib/route-guard';
 import { getSupabase } from '@/lib/supabase';
+import { API_TIMEOUT_MS, withTimeout } from '@/lib/timeout';
 import { isLoginPath, isViewPath } from '@/lib/view-mode';
 import { clearViewerStores } from '@/stores/reset';
 
@@ -40,8 +41,10 @@ const ready = new Promise<void>((resolve) => {
 });
 
 function readCurrentUser(accessToken: string | null): Promise<CurrentUser> {
+  // Bounded like every Axios call: a server that never answers reads as unreachable (the guard
+  // then shows the connection panel), and the loader forgets the failure so the next read retries.
   return currentUserLoader.load(accessToken ?? NO_TOKEN_KEY, () =>
-    createApiClient(async () => accessToken).me(),
+    withTimeout(createApiClient(async () => accessToken).me(), API_TIMEOUT_MS),
   );
 }
 
@@ -94,7 +97,15 @@ export async function signOut(): Promise<void> {
 export async function loadCurrentUser(accessToken?: string): Promise<CurrentUser> {
   const token = accessToken ?? (await getAccessToken());
   try {
-    return await readCurrentUser(token);
+    const user = await readCurrentUser(token);
+    // Recorded for the nav and the guard too (the session's own lookup may have failed while Care+
+    // was unreachable), but only when it is still the current session's account: a read that
+    // resolves after a sign-out or a switch of account is not recorded.
+    const sessionToken = state.session?.access_token ?? null;
+    if (shouldRecordCurrentUser({ authEnabled: AUTH_ENABLED, readToken: token, sessionToken })) {
+      state.currentUser = user;
+    }
+    return user;
   } catch (caught) {
     // The shared read carries no 401 hook, so the caller that asked gets the same session-expired
     // handling every other call through the client gets.
@@ -105,7 +116,10 @@ export async function loadCurrentUser(accessToken?: string): Promise<CurrentUser
 
 let applySequence = 0;
 
-/** Records a session and looks the account up; any failure reads as "nobody is signed in". */
+/**
+ * Records a session and looks the account up. A failed lookup records no account; the route guard
+ * reads it again and tells "signed out" (a 401) from "Care+ can't be reached" (no response, a 5xx).
+ */
 async function apply(session: Session | null): Promise<void> {
   const mine = ++applySequence;
   state.session = session;

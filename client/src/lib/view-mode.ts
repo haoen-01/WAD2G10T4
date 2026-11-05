@@ -65,3 +65,21 @@ export const GROUP_START_PATH = '/groups/start';
 export function parseViewMode(raw: unknown): ViewMode | null {
   return raw === 'family' || raw === 'senior' ? raw : null;
 }
+
+/**
+ * Whether the layout treats someone as signed in (Sign out rather than Sign in, the bell, Kaki).
+ * Sign-in off: once a demo view is chosen. Sign-in on: once the account is known, except while the
+ * connection panel shows (`connectionProblem`), when the account read itself may be what failed, so
+ * a session is enough: someone who is signed in is never offered "Sign in" because Care+ could not
+ * be reached.
+ */
+export function isSignedIn(input: {
+  authEnabled: boolean;
+  mode: ViewMode | null;
+  connectionProblem: boolean;
+  hasSession: boolean;
+  hasCurrentUser: boolean;
+}): boolean {
+  if (!input.authEnabled) return input.mode !== null;
+  return input.connectionProblem ? input.hasSession : input.hasCurrentUser;
+}

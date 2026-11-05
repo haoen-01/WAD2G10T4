@@ -37,3 +37,18 @@ export function createKeyedOnceLoader<T>(): KeyedOnceLoader<T> {
     },
   };
 }
+
+/**
+ * Whether a `GET /v1/auth/me` that just succeeded should be recorded as the signed-in account:
+ * only with sign-in on, and only when it was read with the current session's own token. A read
+ * that resolves after a sign-out (no session now) or a switch of account (another token now), or
+ * one made with a token the caller passed in for some other session, is returned to its caller but
+ * not recorded.
+ */
+export function shouldRecordCurrentUser(input: {
+  authEnabled: boolean;
+  readToken: string | null;
+  sessionToken: string | null;
+}): boolean {
+  return input.authEnabled && input.readToken !== null && input.readToken === input.sessionToken;
+}
