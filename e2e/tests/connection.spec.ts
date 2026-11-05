@@ -13,6 +13,28 @@ test.beforeEach(async ({ request }) => {
   await resetDemo(request);
 });
 
+/**
+ * Records the requests a family screen makes for its data, and whether the given screen's root ever
+ * appears in the page, from now on. Used to prove the screen hidden behind the panel never mounts.
+ */
+async function watchHiddenScreen(page: Page, selector: string) {
+  const viewReads: string[] = [];
+  page.on('request', (request) => {
+    if (/\/v1\/(people|groups)\//.test(request.url())) viewReads.push(request.url());
+  });
+  await page.evaluate((sel) => {
+    const flag = window as unknown as { __hiddenSeen: boolean };
+    flag.__hiddenSeen = false;
+    new MutationObserver(() => {
+      if (document.querySelector(sel)) flag.__hiddenSeen = true;
+    }).observe(document.body, { childList: true, subtree: true });
+  }, selector);
+  return {
+    viewReads,
+    seen: () => page.evaluate(() => (window as unknown as { __hiddenSeen: boolean }).__hiddenSeen),
+  };
+}
+
 /** Enters the demo as the family before the page loads (sign-in is off in the e2e run). */
 async function asFamily(page: Page) {
   await page.addInitScript(() => window.localStorage.setItem('careplus.demoView.v1', 'family'));
@@ -27,7 +49,11 @@ test('an unreachable /v1/me shows the connection panel, keeps the URL, and Try a
 
   const panel = page.getByTestId('connection-problem');
   await expect(panel).toBeVisible();
-  await expect(panel).toHaveAttribute('role', 'alert');
+  // One announcement path: focus moves to the heading (no nested alert live region).
+  await expect(
+    page.getByRole('region', { name: 'Can’t connect to Care+ right now' }),
+  ).toHaveAttribute('data-testid', 'connection-problem');
+  await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(
     panel.getByRole('heading', { name: 'Can’t connect to Care+ right now' }),
   ).toBeFocused();
@@ -59,6 +85,7 @@ test('a server error on /v1/me shows the panel on a deep link, not the group sta
   await page.goto('/calendar');
   await expect(page.getByTestId('connection-problem')).toBeVisible();
   await expect(page).toHaveURL('/calendar');
+  await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByTestId('connection-problem')).toContainText(
     'Care+ could not complete this request.',
   );
@@ -115,4 +142,70 @@ test('a reload that cannot reach Care+ keeps the family view and offers Sign out
   expect(overflow).toBeLessThanOrEqual(0);
   const box = await page.getByTestId('connection-retry').boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+});
+
+test('a retry that gets through but is sent elsewhere never mounts the screen behind the panel', async ({
+  page,
+}) => {
+  await asFamily(page);
+  // First unreachable; then Care+ answers, but this member is in no family group yet.
+  let reachable = false;
+  await page.route('**/v1/me', async (route) => {
+    if (!reachable) return route.abort();
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    return route.fulfill({ response, json: { ...body, groups: [] } });
+  });
+  await page.goto('/calendar');
+  const panel = page.getByTestId('connection-problem');
+  await expect(panel).toBeVisible();
+
+  const hidden = await watchHiddenScreen(page, '.calendar-page');
+  reachable = true;
+  await panel.getByRole('button', { name: 'Try again' }).click();
+  await expect(page).toHaveURL('/groups/start');
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+  expect(await hidden.seen()).toBe(false);
+  expect(hidden.viewReads).toEqual([]);
+});
+
+test('signing out from the panel never mounts the screen behind it', async ({ page }) => {
+  await asFamily(page);
+  await page.route('**/v1/me', (route) => route.abort());
+  await page.goto('/family');
+  const panel = page.getByTestId('connection-problem');
+  await expect(panel).toBeVisible();
+
+  const hidden = await watchHiddenScreen(page, '.family-page');
+  await page.getByRole('button', { name: /sign out/i }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await expect(panel).toHaveCount(0);
+  expect(await hidden.seen()).toBe(false);
+  expect(hidden.viewReads).toEqual([]);
+});
+
+test('going back from the panel to another screen never mounts the hidden one', async ({
+  page,
+}) => {
+  await asFamily(page);
+  await page.route('**/v1/me', (route) => route.abort());
+  await page.goto('/family');
+  const panel = page.getByTestId('connection-problem');
+  await expect(panel).toBeVisible();
+  // Within the app (no page load): the brand link to Home, still unreachable, so still the panel.
+  await page.locator('.brand').click();
+  await expect(page).toHaveURL('/');
+  await expect(panel).toBeVisible();
+
+  // Care+ answers again; Back goes to the Family page, and Home (hidden behind the panel at `/`)
+  // never mounts on the way.
+  const hidden = await watchHiddenScreen(page, '.home');
+  await page.unroute('**/v1/me');
+  await page.goBack();
+  await expect(page).toHaveURL('/family');
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator('.family-page')).toBeVisible();
+  expect(await hidden.seen()).toBe(false);
+  expect(hidden.viewReads.filter((url) => /\/(wearable|metrics|activity)\b/.test(url))).toEqual([]);
 });

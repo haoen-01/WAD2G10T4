@@ -25,7 +25,7 @@ import { useMe } from '@/composables/useMe';
 import { useViewMode } from '@/composables/useViewMode';
 import { useWalk } from '@/composables/useWalk';
 import { AUTH_ENABLED } from '@/lib/config';
-import { homeFor, isLoginPath, isPathInView } from '@/lib/view-mode';
+import { homeFor, isLoginPath, isPathInView, isSignedIn } from '@/lib/view-mode';
 import { clearViewerStores } from '@/stores/reset';
 
 const { loading, session, currentUser, signOut } = useAuth();
@@ -93,10 +93,15 @@ async function leaveDemo() {
 
 // While the connection panel shows, the account read itself may be what failed, so a session is
 // enough to offer Sign out (never "Sign in" to someone who is signed in).
-const signedIn = computed(() => {
-  if (!AUTH_ENABLED) return !!mode.value;
-  return problem.value ? !!session.value : !!currentUser.value;
-});
+const signedIn = computed(() =>
+  isSignedIn({
+    authEnabled: AUTH_ENABLED,
+    mode: mode.value,
+    connectionProblem: problem.value !== null,
+    hasSession: !!session.value,
+    hasCurrentUser: !!currentUser.value,
+  }),
+);
 
 // The notification bell: family view only, once this person is an active member of a group (the
 // senior never gets one). Its own chunk, loaded only when it shows, so the layout stays small.

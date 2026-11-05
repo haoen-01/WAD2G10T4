@@ -5,9 +5,10 @@ import type { Router } from 'vue-router';
 
 import { createApiClient } from '@/lib/client';
 import { AUTH_ENABLED } from '@/lib/config';
-import { createKeyedOnceLoader } from '@/lib/current-user';
+import { createKeyedOnceLoader, shouldRecordCurrentUser } from '@/lib/current-user';
 import { loginPathFor } from '@/lib/route-guard';
 import { getSupabase } from '@/lib/supabase';
+import { API_TIMEOUT_MS, withTimeout } from '@/lib/timeout';
 import { isLoginPath, isViewPath } from '@/lib/view-mode';
 import { clearViewerStores } from '@/stores/reset';
 
@@ -40,8 +41,10 @@ const ready = new Promise<void>((resolve) => {
 });
 
 function readCurrentUser(accessToken: string | null): Promise<CurrentUser> {
+  // Bounded like every Axios call: a server that never answers reads as unreachable (the guard
+  // then shows the connection panel), and the loader forgets the failure so the next read retries.
   return currentUserLoader.load(accessToken ?? NO_TOKEN_KEY, () =>
-    createApiClient(async () => accessToken).me(),
+    withTimeout(createApiClient(async () => accessToken).me(), API_TIMEOUT_MS),
   );
 }
 
@@ -98,7 +101,8 @@ export async function loadCurrentUser(accessToken?: string): Promise<CurrentUser
     // Recorded for the nav and the guard too (the session's own lookup may have failed while Care+
     // was unreachable), but only when it is still the current session's account: a read that
     // resolves after a sign-out or a switch of account is not recorded.
-    if (AUTH_ENABLED && token !== null && token === (state.session?.access_token ?? null)) {
+    const sessionToken = state.session?.access_token ?? null;
+    if (shouldRecordCurrentUser({ authEnabled: AUTH_ENABLED, readToken: token, sessionToken })) {
       state.currentUser = user;
     }
     return user;

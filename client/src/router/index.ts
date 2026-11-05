@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 
-import { clearConnectionProblem, reportConnectionProblem } from '@/composables/useConnection';
+import { reportConnectionProblem, settleConnectionProblem } from '@/composables/useConnection';
 import { activeGroups, loadMe } from '@/composables/useMe';
 import { demoViewMode, resolveAccount } from '@/composables/useViewMode';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -83,10 +83,7 @@ const router = createRouter({
  */
 router.beforeEach(async (to) => {
   // The sign-in pages, welcome and not-found need nothing from the API.
-  if (!isViewPath(to.path)) {
-    clearConnectionProblem();
-    return true;
-  }
+  if (!isViewPath(to.path)) return true;
   const { hasSession, currentUser } = await resolveAccount();
   const known = {
     authEnabled: AUTH_ENABLED,
@@ -113,10 +110,17 @@ router.beforeEach(async (to) => {
     reportConnectionProblem(decision.kind, to);
     return true;
   }
-  // Only now, once the guard has decided, does the panel give way: a retry that fails again never
-  // mounts the screen behind it, even for a moment.
-  clearConnectionProblem();
   return decision.action === 'redirect' ? decision.to : true;
+});
+
+/**
+ * The connection panel gives way only here, once a navigation the guard let through has been
+ * committed: in the same update as the new route, so the screen that was hidden behind the panel
+ * never mounts (not even on its way out), and a retry that fails again, or a cancelled navigation,
+ * keeps the panel.
+ */
+router.afterEach((to, _from, failure) => {
+  settleConnectionProblem(to, Boolean(failure));
 });
 
 export default router;

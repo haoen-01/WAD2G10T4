@@ -26,10 +26,12 @@ const message = computed(() => {
   return SERVER_MESSAGE;
 });
 
-// Focus moves to the heading when the panel appears, so a keyboard or screen-reader user starts at
-// the explanation. A retry that fails again keeps this same panel (it is not mounted again), so
-// focus stays on Try again. While trying, the button is only aria-disabled (a disabled button would
-// drop focus to the page); `retryConnection` ignores a second press.
+// One announcement path, no alert region: focus moves to the heading when the panel appears, so a
+// keyboard or screen-reader user starts at the explanation (read out with the focus), and the
+// `role="status"` line below reports a retry that failed again. That retry keeps this same panel
+// (it is not mounted again), so focus stays on Try again. While trying, the button is only
+// aria-disabled (a disabled button would drop focus to the page); `retryConnection` ignores a
+// second press.
 onMounted(async () => {
   await nextTick();
   heading.value?.focus();
@@ -40,7 +42,6 @@ onMounted(async () => {
   <section
     class="connection sl-panel"
     :class="{ 'connection--senior': senior }"
-    role="alert"
     aria-labelledby="connection-title"
     data-testid="connection-problem"
   >

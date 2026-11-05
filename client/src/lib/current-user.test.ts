@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { createKeyedOnceLoader } from './current-user';
+import { createKeyedOnceLoader, shouldRecordCurrentUser } from './current-user';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -93,5 +93,29 @@ describe('createKeyedOnceLoader', () => {
     await loader.load('token-a', read);
     loader.clear();
     assert.equal(await loader.load('token-a', read), 'read-2');
+  });
+});
+
+describe('shouldRecordCurrentUser', () => {
+  const current = { authEnabled: true, readToken: 'token-a', sessionToken: 'token-a' };
+
+  it('records a read made with the current session’s token', () => {
+    assert.equal(shouldRecordCurrentUser(current), true);
+  });
+
+  it('does not record a read that resolves after a sign-out', () => {
+    assert.equal(shouldRecordCurrentUser({ ...current, sessionToken: null }), false);
+  });
+
+  it('does not record a read for another token (a switch of account or a refresh)', () => {
+    assert.equal(shouldRecordCurrentUser({ ...current, sessionToken: 'token-b' }), false);
+  });
+
+  it('does not record a read made without a token, or with sign-in off', () => {
+    assert.equal(
+      shouldRecordCurrentUser({ authEnabled: true, readToken: null, sessionToken: null }),
+      false,
+    );
+    assert.equal(shouldRecordCurrentUser({ ...current, authEnabled: false }), false);
   });
 });
