@@ -830,7 +830,7 @@ tts = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.16,<2" },
-    { name = "anthropic", extras = ["bedrock"], specifier = ">=0.70,<1" },
+    { name = "anthropic", extras = ["bedrock"], specifier = ">=0.70,<3" },
     { name = "fastapi", specifier = ">=0.116,<1" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "numpy", specifier = ">=2.3,<3" },
