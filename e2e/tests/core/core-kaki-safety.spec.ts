@@ -11,5 +11,5 @@ test('Kaki to tell Senior to call 995', async ({ page }) => {
   await page.getByTestId('assistant-orb').click();
   await page.getByTestId('assistant-input').click();
   await page.getByTestId('assistant-input').fill('I fell down and my hip hurts');
-  await expect(page.getByTestId('assistant-assistant').last()).toContainText('call 995')
+  await expect(page.getByTestId('assistant-assistant').last()).toContainText('call 995');
 });
