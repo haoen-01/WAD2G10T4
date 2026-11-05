@@ -4,7 +4,7 @@ This module is the security boundary. Everything here is plain Python with no mo
 proposal is accepted only if it satisfies rules a reviewer can read and a test can pin. The
 planner may retry after a rejection, but it can never talk its way past one of these checks.
 
-The rules encode the product boundary in `AGENTS.md`: Care+ performs wellness outreach, so
+The rules encode the product boundary in `docs/principles.md`: Care+ performs wellness outreach, so
 senior-facing copy must never diagnose, predict disease, claim emergency capability, advise on
 medication, or apply pressure -- and it never quotes the raw metrics or scores behind the
 decision.
@@ -206,8 +206,8 @@ _PROHIBITED_PRESSURE = (
 )
 
 # Contacting a senior's family, carer or neighbour without their consent is a named product
-# boundary in `AGENTS.md`, and until this list existed nothing enforced it: "Shall I ask your
-# daughter to check on you?" and "Your carer has been informed." both passed every other rule.
+# boundary in `docs/principles.md`, and until this list existed nothing enforced it: "Shall I ask
+# your daughter to check on you?" and "Your carer has been informed." both passed every other rule.
 # Care+ offers; the senior decides who else is involved, through a consent flow, never
 # through outreach copy.
 _PROHIBITED_THIRD_PARTY = (

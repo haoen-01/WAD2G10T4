@@ -146,7 +146,9 @@ All settings are described in [`.env.example`](./.env.example). Never commit a r
 - [`docs/api.md`](./docs/api.md): the API routes
 - [`docs/testing.md`](./docs/testing.md): the test layers
 - [`docs/demo-script.md`](./docs/demo-script.md): a walkthrough of the demo
-- [`agenticlayer.md`](./agenticlayer.md): the optional AI planner and its guardrail
+- [`docs/agentic-layer.md`](./docs/agentic-layer.md): the optional AI planner and its guardrail
+- [`docs/principles.md`](./docs/principles.md): the product boundary and engineering rules
+- [`docs/glossary.md`](./docs/glossary.md): the terms used across the app and docs
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md): branches, commits and pull requests
 - [`SECURITY.md`](./SECURITY.md): security practices and reporting
 
