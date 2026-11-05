@@ -16,7 +16,7 @@ A chat helper on every screen for seniors and their families. Decisions and data
    Playwright) the key is ignored and the built-in helper answers.
 
 Each answer says where it came from in `source`: `openai`, `helper` (no key, offline, or OpenAI
-could not be reached) or `safety` (a fixed answer for an emergency or a medicine question).
+could not be reached) or `safety` (a fixed answer for an emergency, or a question about medicines or symptoms).
 
 ## How it is built
 

@@ -13,7 +13,7 @@ to use Care+.
    API with the server's `OPENAI_API_KEY` (model `OPENAI_MODEL`, default `gpt-5-mini`) over
    `httpx`, which the API already depends on, so there is no new dependency. The key never reaches
    the browser: the browser calls the API through `services/careApi.ts`, as for everything else.
-   The existing Claude setup (`LLM_*`) stays for the outreach planner; the team chose OpenAI for
+   The existing Anthropic / Bedrock setup (`LLM_*`) stays for the outreach planner; the team chose OpenAI for
    the assistant.
 2. **It may use the person's own data.** Each question is sent with a short factual summary of
    what that person can already see in Care+: the senior's name, the latest day's steps and a

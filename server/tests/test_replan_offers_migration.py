@@ -1,8 +1,8 @@
 """The replan offer store (Alembic `b6c1f4d92a37`).
 
 Replanning used to be a read view: a notice was recomputed on every read, the person's answer was
-never modelled server-side, and the plan that could no longer happen stayed on the week (audit F
-finding 8, reproduced as R7 in the personalisation-v2 review). `replan_offers`
+never modelled server-side, and the plan that could no longer happen stayed on the week.
+`replan_offers`
 is the row that makes the offer, and its answer, a fact -- and `week_plan_entries.replaced_by_plan_
 id` is the link from the plan that was dropped to the one that took its place.
 

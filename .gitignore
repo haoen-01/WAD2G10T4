@@ -2,9 +2,7 @@
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+.vscode/
 *.swp
 *.swo
 
@@ -71,8 +69,7 @@ export.xml
 export_cda.xml
 apple_health_export/
 *_health_export*.zip
-data/exports/*
-!data/exports/README.md
+data/exports/
 
 # Logs and temporary files
 *.log
@@ -85,9 +82,3 @@ temp/
 .supabase/
 infra/supabase/.temp/
 infra/supabase/.branches/
-
-# Nested git worktrees created by isolated agent sessions
-.claude/worktrees/
-
-# Claude Code per-user settings (local permissions); never committed
-**/.claude/settings.local.json

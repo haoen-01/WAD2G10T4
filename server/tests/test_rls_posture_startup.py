@@ -1,7 +1,7 @@
 """RLS posture is established by the code path that creates the tables, and reported by `/ready`.
 
-`infra/supabase/rls_posture_apply.sql` has been the one-step fix for the gap recorded three times
-in `docs/supabase.md` -- but it was a *manual* one-step fix. The lifespan runs
+`infra/supabase/rls_posture_apply.sql` has been the one-step fix for the gap described in
+`docs/supabase.md`, "Row-level security" -- but it was a *manual* one-step fix. The lifespan runs
 `alembic upgrade head` on every start, and on Supabase `ALTER DEFAULT PRIVILEGES` grants `anon`
 and `authenticated` on every new table in `public`, so the window between "Alembic created it" and
 "a human remembered to paste the script" was an open table.

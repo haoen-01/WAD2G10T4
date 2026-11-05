@@ -2,8 +2,7 @@
 
 Settled before implementation so no module invents a competing version. Each decision names what
 it replaces, whether it needs a migration (**MIG**) or a contract change (**CONTRACT**, i.e.
-`models.py` → `pnpm client:generate`), and the test that pins it. The reasoning behind the
-resolutions is in `docs/audits/personalisation-v2/review-core.md` §2.
+`models.py` → `pnpm client:generate`), and the test that pins it.
 
 ## 1. `ActivityCandidate` schema — MIG, CONTRACT
 
@@ -33,7 +32,7 @@ A programme (series) is `(provider, title)`; a session is one `activity_id`. No 
 per-session override. One resolver maps an outreach `programme:` key to its catalogue listing so
 outreach declines reach the same axes as search declines.
 
-**Amendment 2026-09-15 (D18) — one series key, and the card headlines the best-ranked session.**
+**Amendment (D18) — one series key, and the card headlines the best-ranked session.**
 `activity_search.series_key(candidate)` is the one public definition (provider and title, trimmed
 and case-folded) and `series_keys_for(candidates)` maps listings to it; dedupe, the engagement
 roll-up and the repository all read it. `RankedActivity.series_key` carries it to the client
@@ -73,13 +72,13 @@ content axis.
 contributions sum. `CURRENT_REQUEST` never enters preference utility: an axis the person
 constrained today belongs to the filter (hard) or request fit (soft).
 
-**Amendment 2026-09-15 (D17, D20).** "Within one axis" is now "within one resolution group": per
+**Amendment (D17, D20).** "Within one axis" is now "within one resolution group": per
 axis for TIMING, ENVIRONMENT, SOCIAL, DISTANCE and INTENSITY; per (axis, value) for ACTIVITY_TYPE
 and the deprecated CATEGORY. Same-value conflicts settle by tier (higher wins, lower shown via
 `contradicted_by`; equal tiers cancel). A goal-derived belief resolves under its own key
-`goal:{dimension}:{value}`, never a statement's. See ADR 0006, amendment 2026-09-15.
+`goal:{dimension}:{value}`, never a statement's. See ADR 0006, first amendment.
 
-**Amendment 2026-09-15, round 2 — distance statements with no number.** DISTANCE lines with a
+**Second-round amendment — distance statements with no number.** DISTANCE lines with a
 pivot (learned ceilings and floors) resolve per axis as above. A DISTANCE row with no pivot
 resolves in one of two groups of its own, by lean: `(DISTANCE, "unpivoted_near")` for `near`
 liked, `far` avoided and the `LESS_TRAVEL` goal; `(DISTANCE, "unpivoted_far")` for `far` liked or
@@ -144,10 +143,10 @@ the tier) and the same radius narrows the travel tolerance for that one request 
 `min(learned tolerance, asked radius)` inside `travel_utility`, which is where the gap is costed.
 It never widens a learned ceiling, and a number still filters rather than costs.
 
-**Amendment 2026-09-15, round 2 — a standing "near" is soft in the same way.** A stated or goal
+**Second-round amendment — a standing "near" is soft in the same way.** A stated or goal
 "near" with no number (see §6, round 2) is not a hard rule either: it narrows the tolerance to
 `preferences.NEARBY_RADIUS_M`, the same 1000 m radius a "near me" phrase implies (`intent.py`
-imported the constant until the search route and its parser were removed in step 7), and is costed only in `travel_utility` (basis `stated_near` when it binds).
+imported the constant until the search route and its parser were removed), and is costed only in `travel_utility` (basis `stated_near` when it binds).
 It never removes a listing and never widens a learned ceiling; a far-leaning statement ("far"
 liked, "near" avoided) changes nothing and cannot cancel a stated or goal "near".
 
@@ -163,7 +162,7 @@ DislikeScope{this_activity_type, this_format, this_venue, this_one}`; enjoyment
 `not_for_me → DislikedAspect{people, location, activity, timing, pace, environment}`. Unclarified
 means item-level only. Accessibility is never inferred from behaviour.
 
-**Amendment 2026-09-15 (D7) — what "unclarified" means for each reason.** An unclarified answer is
+**Amendment (D7) — what "unclarified" means for each reason.** An unclarified answer is
 item-level and held back from the resolved set until a second agreeing answer arrives
 (`preferences._is_held_back`; since round 2, below, a repeat answer about the same programme as
 the belief's latest origin adds nothing):
@@ -176,7 +175,7 @@ the belief's latest origin adds nothing):
   back. They write a ceiling at the listing's own distance or intensity straight away, because
   they are a statement about that number, not about the kind of thing.
 
-**Amendment 2026-09-15, round 2 — a repeat answer about the same programme adds nothing.** An
+**Second-round amendment — a repeat answer about the same programme adds nothing.** An
 unclarified `THIS_ONE` or `THIS_SLOT` answer adds evidence only when it is about a different
 programme (`activity_search.series_key`) from the programme of the belief's latest origin, whatever
 the belief's evidence count or scope. The same listing declined again on another day, a sibling
@@ -209,7 +208,7 @@ open; an axis constrained today contributes 0 preference utility. The six existi
 and `RANKING_WEIGHTS` values are kept in this pass; weights are not retuned until the re-authored
 benchmark can see dry days, soft distance and format-vs-content.
 
-**Amendment 2026-09-15 (D1, D11–D13, D15, D18) — as built.**
+**Amendment (D1, D11–D13, D15, D18) — as built.**
 
 - **Sort key**, in order: `tier` (descending), weighted `total` (descending), `matched_axes`
   (descending), `distance_m` (ascending, unknown last), `title`, `start_at` (ascending, undated
@@ -226,7 +225,7 @@ benchmark can see dry days, soft distance and format-vs-content.
   contributor is left off by design and counted, so `reasons_suppressed` always equals eligible
   minus shown — including on a card the variety check promoted.
 
-**Amendment 2026-09-15, round 2 — nothing is left off; the rest is shown on expand.** "Left off by
+**Second-round amendment — nothing is left off; the rest is shown on expand.** "Left off by
 design" above is superseded. `_compose_reasons` returns the kept lines and the rest: the card face
 shows at most three (`RankedActivity.reasons`) and every other eligible line is carried in
 `RankedActivity.more_reasons` (**CONTRACT**) and shown when the card is opened, so `reasons` and

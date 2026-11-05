@@ -1,10 +1,8 @@
 # Day timeline
 
-Frontend edits only
-
 ## What it is
 
-A new **"{Senior}'s day"** panel at the top of the family Home page. It lays out one day of the
+The **"{Senior}'s day"** panel at the top of the family Home page. It lays out one day of the
 senior's care by the hour, in three lanes:
 
 | Lane               | What sits on it                                                       |
@@ -18,8 +16,8 @@ Inspired by Life360's day view and Caring Village's shared care calendar: one gl
 
 ## How it helps the app
 
-- **One place to see the whole day.** Before, appointments, tasks and family updates were in three
-  separate panels and the calendar page. Now they line up on one time axis.
+- **One place to see the whole day.** Appointments, tasks and family updates line up on one time
+  axis.
 - **Live, not a snapshot.** A red **Now** line moves with the clock (every 30 s). The calendar is
   re-read every 30 s while the tab is visible, and again when you come back to the tab. Ticking a
   task in the Tasks panel shows on the timeline at once. A tab left open past midnight moves on to
@@ -41,25 +39,25 @@ Inspired by Life360's day view and Caring Village's shared care calendar: one gl
   reader labels, work by keyboard, and the layout fits phones (375 px) without sideways scrolling.
   Nothing here diagnoses, detects falls or contacts anyone.
 
-## Files changed
+## Files
 
-| File                                          | Change                                                                                                                                                                         |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `client/src/lib/day-timeline.ts`              | **New.** Pure rules: clock times, Singapore day/minute of a timestamp, sorting, the drawn window (7 am–10 pm, widened), "now / next / latest", day summary and past-day record |
-| `client/src/lib/day-timeline.test.ts`         | **New.** Unit tests for the above                                                                                                                                              |
-| `client/src/components/home/DayTimeline.vue`  | **New.** The panel: header and day arrows, three lanes, Now line, details card with the actions, past-day record, live sync                                                    |
-| `client/src/views/HomeView.vue`               | Shows `<DayTimeline>` under the hero                                                                                                                                           |
-| `client/src/lib/family-feed.ts`               | **Added** `withoutUndone()`: hides a "took" + "stepped back" pair from the same member, same appointment day, within 5 minutes (`UNDO_WINDOW_MS`)                              |
-| `client/src/lib/family-feed.test.ts`          | Tests for `withoutUndone()`                                                                                                                                                    |
-| `client/src/composables/useFamilyActivity.ts` | The feed's `entries` go through `withoutUndone()`, so the Family updates panel and the timeline both use it                                                                    |
-| `e2e/tests/day-timeline.spec.ts`              | **New.** Browser tests: take an appointment then "Can't go"; tick a task; an earlier day's record and the Today button                                                         |
+| File                                          | Role                                                                                                                                                                  |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `client/src/lib/day-timeline.ts`              | Pure rules: clock times, Singapore day/minute of a timestamp, sorting, the drawn window (7 am–10 pm, widened), "now / next / latest", day summary and past-day record |
+| `client/src/lib/day-timeline.test.ts`         | Unit tests for the above                                                                                                                                              |
+| `client/src/components/home/DayTimeline.vue`  | The panel: header and day arrows, three lanes, Now line, details card with the actions, past-day record, live sync                                                    |
+| `client/src/views/HomeView.vue`               | Shows `<DayTimeline>` under the hero                                                                                                                                  |
+| `client/src/lib/family-feed.ts`               | `withoutUndone()`: hides a "took" + "stepped back" pair from the same member, same appointment day, within 5 minutes (`UNDO_WINDOW_MS`)                               |
+| `client/src/lib/family-feed.test.ts`          | Tests for `withoutUndone()`                                                                                                                                           |
+| `client/src/composables/useFamilyActivity.ts` | The feed's `entries` go through `withoutUndone()`, so the Family updates panel and the timeline both use it                                                           |
+| `e2e/tests/day-timeline.spec.ts`              | Browser tests: take an appointment then "Can't go"; tick a task; an earlier day's record and the Today button                                                         |
 
-## Where the data comes from (all existing)
+## Where the data comes from
 
 - Appointments and helpers: `useFamily()` (the family calendar, saved through the API).
-  "I'll go" / "Can't go" call the existing `family.volunteer()` / `family.stepBack()`.
+  "I'll go" / "Can't go" call `family.volunteer()` / `family.stepBack()`.
 - Tasks: `useTasks()` (kept by the family group in the API; see `docs/tasks.md`).
-- Family updates: `useFamilyActivity()` (the existing activity feed, polled every 30 s).
+- Family updates: `useFamilyActivity()` (the family activity feed, polled every 30 s).
 - Clock: `useNow()`; dates in Singapore time.
 
 ## How to check it
@@ -74,11 +72,11 @@ pnpm --dir e2e exec playwright test tests/day-timeline.spec.ts
 Then on Home (signed in as family): tap the doctor's appointment, press **I'll go**, see
 **You're going / Can't go**, press **Can't go**, and see Family updates stay accurate.
 
-## Known limits / next steps
+## Known limits
 
-- Other parts of Home and the Calendar still take "today" from when the page was opened
-  (`composables/useFamily.ts`, `const today = todayIso()`), so after midnight they show the
-  previous day until a reload. The timeline itself already follows the live clock.
-- The backend still records both the "took" and "stepped back" entries; the 5-minute pairing is a
-  display rule in the frontend. A real delete would need a backend change.
+- Other parts of Home and the Calendar take "today" from when the page was opened
+  (`stores/calendar.ts`, `const today = todayIso()`), so after midnight they show the previous day
+  until a reload. The timeline itself follows the live clock.
+- The API records both the "took" and "stepped back" entries; the 5-minute pairing is a display
+  rule in the client.
 - Steps are a daily total in this app, so the timeline does not draw an hour-by-hour step line.

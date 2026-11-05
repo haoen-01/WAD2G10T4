@@ -1,10 +1,11 @@
 # 0008 — A coordinator's false-alarm judgement may move, within bounds, when a human is asked
 
-**Status:** accepted, implemented 2026-09-15 on `Jonathan-threshold` (all three stages)
-**Supersedes:** the WAYFINDER F16 constraint "overrides … must never rewrite the safety policy".
+**Status:** Accepted and implemented (all three stages). The coordinator routes this describes
+have been removed from the API; the parts `advance` still uses remain.
+**Supersedes:** the earlier design constraint (F16) "overrides … must never rewrite the safety policy".
 **Related:** [0007](0007-stated-context-explanations.md) (the window-in-simulated-days rule and "a
 decided day is never re-decided", both reused), `policy.py`, `review_threshold.py`,
-`review_threshold_replay.py`, `docs/review-threshold-spec.md`, `suggestions.md` → Suggestion 6.
+`review_threshold_replay.py`, [`docs/review-threshold-spec.md`](../review-threshold-spec.md).
 
 ## Context
 
@@ -13,8 +14,8 @@ least three low days. The baseline is already personal (median of their last 28 
 the senior can move it. The point at which a human is asked is not personal. A senior whose activity
 naturally swings keeps reaching a coordinator for nothing.
 
-Coordinators already record that they disagreed and why (`HumanAction`, `OverrideReason`, added
-2026-09-13). Nothing read those records, and F16 said nothing on the decision path ever may.
+Coordinators already record that they disagreed and why (`HumanAction`, `OverrideReason`).
+Nothing read those records, and F16 said nothing on the decision path ever may.
 
 ## Decision
 
@@ -100,7 +101,7 @@ coordinator approves like any other change. No other path proposes asking sooner
   ranker; the ranking boundary is unchanged.
 - `HumanAction`'s docstring, the `CaseReviewRow` comment and the review audit's `learning_boundary`
   text are reworded to say what now reads a review.
-- The guardrail at the top of `suggestions.md` ("Cannot bypass or negotiate past safety thresholds")
+- The outreach guardrail ("Cannot bypass or negotiate past safety thresholds")
   now reads: thresholds change only through coordinator approval within fixed bounds, never by the
   agent directly.
 - Some real declines reach a human later, by up to three days. That is the trade, accepted for a

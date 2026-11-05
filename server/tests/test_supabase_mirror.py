@@ -1,4 +1,4 @@
-"""The Supabase RLS mirror has drifted twice already (see `docs/supabase.md`, "Known drift").
+"""The Supabase RLS mirror is hand-written, so these tests keep it in step with Alembic.
 
 `infra/supabase/migrations/*.sql` is hand-applied and hand-written -- nothing runs it in CI, and
 nothing previously asserted that every table Alembic knows about actually gets `enable row level

@@ -20,8 +20,8 @@ The zero-setup local path uses SQLite and does not require Docker or the Supabas
 - `rls_posture_apply.sql` — a single idempotent script that enables row-level security, clears
   `FORCE`, revokes `anon`/`authenticated` and installs `deny_browser_access` for every table the
   ORM defines, regardless of migration history. Safe to run any number of times. This is the file
-  to run to close an RLS gap, not a hand-built concatenation of the migrations above — see
-  `docs/supabase.md`, "Known drift, 2026-09-13" for why that approach failed twice.
+  to run to close an RLS gap, not a hand-built concatenation of the migrations above, which are
+  not safe to replay over a schema Alembic already created.
 - `rls_posture_check.sql` — a read-only report of the posture the file above establishes. Run
   before and after applying it.
 
@@ -29,5 +29,4 @@ There is no `supabase_apply_all.sql` in this repository, committed or otherwise.
 reference to one elsewhere, it means either an out-of-date note (point it at `rls_posture_apply.sql`
 instead) or an uncommitted local file that was never a reviewable fix — do not run it.
 
-See `docs/supabase.md`, "Closing the RLS gap (or confirming there isn't one)" for the exact human
-procedure.
+See `docs/supabase.md`, "Row-level security", for the procedure.

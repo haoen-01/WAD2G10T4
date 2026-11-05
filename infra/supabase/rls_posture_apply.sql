@@ -17,7 +17,7 @@
 -- Why this exists alongside `infra/supabase/migrations/*.sql`: that directory mixes schema
 -- DDL with RLS posture, and mirror files written before the idempotency convention
 -- introduced at `202609120011_activity_responses.sql` are not safe to replay over a schema
--- Alembic already created (see docs/supabase.md, "Known drift" -- it has happened twice).
+-- Alembic already created.
 -- Concatenating those files into one script to close a gap on the live project inherits
 -- that same non-idempotent `create table`, and a partial-failure rollback again leaves the
 -- RLS posture at the bottom of the batch unapplied even though the table itself already

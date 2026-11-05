@@ -67,7 +67,7 @@ spun through it; with reduced motion there is no confetti, turning light or buzz
 and a still glow.
 
 Claims, first looks, remembered badges and finished walks are kept **in this browser only** (`localStorage`, key
-`careplus.badges.v1`, per senior), like Tasks: they are encouragement, not care data. Two tabs open
+`careplus.badges.v1`, per senior): they are encouragement, not care data. Two tabs open
 at once join each other's saves rather than writing over them. Another device starts with nothing
 claimed. If badges ever need to follow the senior between devices, the claims would
 move into the API (a small table and two routes, via `models.py` and `pnpm client:generate`).

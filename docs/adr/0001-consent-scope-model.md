@@ -1,9 +1,11 @@
 # 0001. The consent scope model: search is not monitoring
 
-Status: Deferred (2026-09-13). The proof of concept assumes the person has already consented to
+Status: Deferred. The proof of concept assumes the person has already consented to
 sharing their non-sensitive activity data, so consent design is parked rather than decided. The
 findings and the open questions below are kept as the starting point for when it is picked up;
-`consent_scopes.py` stays because it changes no behaviour.
+`consent_scopes.py` stays because it changes no behaviour. The coordinator routes this record cites
+(`/v1/coordinator/…`, `/v1/cases/{id}`) have been removed from the API; the parts `advance` still
+uses remain.
 
 ## Context
 
@@ -22,7 +24,7 @@ rules against the same one boolean, without ever naming that they are different 
 
 Line numbers below are cited only where a specific statement lives at a narrow, stable point
 (schema columns, a short module); everywhere else this ADR names the function, which does not
-drift the way a line number does. All were checked against this branch, not carried over from an
+drift the way a line number does. All were checked against the code, not carried over from an
 earlier draft.
 
 1. **`policy.decide`'s `consent_active` parameter** — the first rung of the deterministic ladder.
@@ -70,8 +72,7 @@ earlier draft.
      `attention_band` for anyone, including a person who has withdrawn consent** — it is
      Senior-scoped, not coordinator-scoped.
    - The one surface where `attention_band` _is_ visible to a caller other than the person
-     themselves is the demo/operator "Overview" screen (`apps/web/components/overview-view.tsx`'s
-     use of `PersonCard`, `apps/web/components/silverloop/person-card.tsx`). It only works because
+     themselves is the demo/operator "Overview" screen (since removed) and its person card. It only works because
      `AUTH_ENABLED=false` makes `require_senior` hand every caller the same synthetic senior
      identity and `_check_person_scope` skips the check entirely (its own docstring: "Nothing is
      scoped when authentication is off"). This is a sanctioned-demo artifact, not a
@@ -82,7 +83,7 @@ earlier draft.
      at all** — any `person_id` is accepted) returns `OutreachSummary` rows carrying
      `FollowUpObservation` (`models.py`), a derived step/percentage change in the days after one
      piece of outreach; `list_outreach_summaries` (`sql_repository.py`) has no consent check
-     anywhere in its body, and the Care Team UI (`apps/web/components/care-team-view.tsx`) renders
+     anywhere in its body, and the Care Team screen (since removed) rendered
      it per person via a `PersonaSwitcher` regardless of that person's consent. Separately,
      `GET /v1/coordinator/queue` and `GET /v1/cases/{id}` (`main.py`'s `coordinator_queue` and
      `get_case`) return every `ReviewCase` regardless of status via `list_cases` / `get_case`
@@ -99,8 +100,8 @@ earlier draft.
    per-person visibility should exist at all, independent of consent.
 
 5. **The ambient context fetch inside `advance`** — rain and public holiday lookups, read via
-   `ExternalContextProvider.fetch`. Runs unconditionally; `docs/WAYFINDER.md` already flags this
-   as an accepted gap under §49 ("Consent does not gate the external-context fetch... no person
+   `ExternalContextProvider.fetch`. Runs unconditionally; this is an accepted gap
+   ("Consent does not gate the external-context fetch... no person
    identifier leaves the process, so the privacy harm is nil").
 
 6. **Consent is scoped by `run_id`, not by person, and a demo reset silently re-enables it.**
@@ -129,7 +130,7 @@ already pins it), but that nothing in the codebase said _why_ these call sites d
 withdrawal does not survive a reset, so the next person to touch consent had no way to tell a
 deliberate asymmetry from a bug.
 
-Evidence run this pass (architecture-review revision, on top of `feat/wayfinder-frontier`):
+Evidence run for this revision (architecture review):
 `uv run pytest` → **925 passed, 8 skipped** (924 passed, 8 skipped before adding this revision's
 one new test); `uv run python -m silverloop.scenarios ../../scenarios` → **15/15**;
 `.../scenarios/holdout` → **5/5**; `uv run ruff check .` and `uv run ruff format --check .` →
@@ -161,7 +162,7 @@ several scattered `if not self._consent_active(...)` sites to hunt down and rein
 **D. Collapse `search` and `outreach` onto one permission (i.e. make search need consent too).**
 Rejected on product grounds, not just because it would be a behavioural change this track may not
 make: a person who wants to keep browsing programmes but stop being watched has a legitimate,
-common preference (the AAC coordinator interviews this project is grounded in surface exactly this
+common preference (user research with care coordinators surfaced exactly this
 complaint about other outreach tools), and the ladder's own framing — "should we contact this
 person?" is the wrong question when they contacted us — is correct. `docs/api.md`'s existing line,
 "Consent pauses inference... a search is still answered and a tap is still recorded," already
@@ -173,13 +174,13 @@ Adopt five named consent scopes, encoded as `ConsentScope` in
 `server/src/silverloop/consent_scopes.py`, and a pure function `scope_permitted(scope, *,
 consent_active)` that states what the one stored boolean means for each of them **today**:
 
-| Scope                   | Gated by the stored boolean?                                                                   | What it covers                                                                                                                                                                                                                        |
-| ----------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROACTIVE_OUTREACH`    | **Yes**                                                                                        | `policy.decide`'s consent gate, the context question, the baseline-confirmation question, closing/refusing coordinator review cases, withdrawing open interventions, the weekly contact cap not spending on a withdrawn offer.        |
-| `PREFERENCE_LEARNING`   | **Yes**                                                                                        | Folding a decline reason or an enjoyment report into an _inferred_ `DimensionPreference` (`_apply_activity_decline`, `_apply_activity_enjoyment`).                                                                                    |
-| `USER_INITIATED_SEARCH` | **No — always permitted**                                                                      | `search_activities`, `respond_to_activity`'s recording of the response itself, `state_preference` (explicit prefer/avoid/forget).                                                                                                     |
-| `PROACTIVE_MONITORING`  | **No — today.** Whether it _should_ be is an open question — see "Needs human decision" below. | `analyse_signal`'s baseline/signal/quality computation (an activity-pattern reading, never a health judgement) and the resulting `attention_band`.                                                                                    |
-| `EXTERNAL_CONTEXT`      | **No — always permitted**                                                                      | The rain/public-holiday fetch in `advance`. Carries no person identifier; named as a scope because a future per-category consent model should cover it (`docs/WAYFINDER.md` §49), not because withholding it protects anything today. |
+| Scope                   | Gated by the stored boolean?                                                                   | What it covers                                                                                                                                                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PROACTIVE_OUTREACH`    | **Yes**                                                                                        | `policy.decide`'s consent gate, the context question, the baseline-confirmation question, closing/refusing coordinator review cases, withdrawing open interventions, the weekly contact cap not spending on a withdrawn offer. |
+| `PREFERENCE_LEARNING`   | **Yes**                                                                                        | Folding a decline reason or an enjoyment report into an _inferred_ `DimensionPreference` (`_apply_activity_decline`, `_apply_activity_enjoyment`).                                                                             |
+| `USER_INITIATED_SEARCH` | **No — always permitted**                                                                      | `search_activities`, `respond_to_activity`'s recording of the response itself, `state_preference` (explicit prefer/avoid/forget).                                                                                              |
+| `PROACTIVE_MONITORING`  | **No — today.** Whether it _should_ be is an open question — see "Needs human decision" below. | `analyse_signal`'s baseline/signal/quality computation (an activity-pattern reading, never a health judgement) and the resulting `attention_band`.                                                                             |
+| `EXTERNAL_CONTEXT`      | **No — always permitted**                                                                      | The rain/public-holiday fetch in `advance`. Carries no person identifier; named as a scope because a future per-category consent model should cover it, not because withholding it protects anything today.                    |
 
 Default on grant (`consent_active → true`): every scope permitted; `PROACTIVE_OUTREACH` resumes
 for future decisions (it is not retroactive — nothing withdrawn is re-sent); `PREFERENCE_LEARNING`
@@ -290,7 +291,7 @@ withdrawal), both unfiltered by consent on read.
 
 **This is not only a consent question, and treating it as one first would answer the wrong
 question.** The product already has a standing, decided rule for care-team visibility, stated in
-`docs/api.md` and echoed in `docs/WAYFINDER.md`'s decision table: coordinator visibility into the
+`docs/api.md`: coordinator visibility into the
 senior's own search loop is **aggregate only** — "that a senior self-initiates and how often,
 never the content of what they asked for." `FollowUpObservation`'s per-listing step/percentage
 change is exactly the kind of per-person "content," not a count, that rule was written to keep off
@@ -382,7 +383,7 @@ rather than a behaviour to rediscover.
 
 ### C. The coordinator roster shows one attention band per named person
 
-`GET /v1/coordinator/people` (added 2026-09-13 with the case clock and override memory) lists
+`GET /v1/coordinator/people` (added with the case clock and override memory) lists
 every person for the care team with an attention band as a **word** (never a figure), consent
 standing, a tracker-not-synced count over the last seven days, an open-case flag and the last
 decision class, so that people who need nothing still appear as "No attention needed" rather

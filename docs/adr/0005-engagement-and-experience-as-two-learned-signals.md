@@ -1,6 +1,6 @@
 # ADR 0005: Engagement and experience as two learned signals
 
-Status: Accepted (2026-09-13). The weaker social tie-break (exact ties only) is accepted for
+Status: Accepted. The weaker social tie-break (exact ties only) is accepted for
 now.
 
 ## Context
@@ -197,7 +197,7 @@ a reversal.
 - `docs/architecture.md`'s "Learning boundary" section and the `learning.py` module docstring now
   describe two posteriors; both were updated in this change.
 
-## Lead review corrections (applied on this branch before merge)
+## Lead review corrections
 
 The first pass of this ADR left two consequences as "flagged, not fixed" -- deferring them turned
 out not to be acceptable, and both are now fixed by construction rather than deferred further.
@@ -288,7 +288,7 @@ test (`test_agent_planner.py::test_every_tool_is_strict_and_closed`, which check
 not description text) contain no other description of this number -- `agent/tools.py` was the
 only place it was written down for the model to read.
 
-## Amendment (2026-09-13): ENGAGEMENT is reason-keyed, and the bound enumerates it
+## Amendment: ENGAGEMENT is reason-keyed, and the bound enumerates it
 
 Accepted as an amendment rather than a new ADR: it changes nothing about the two-posterior split,
 `expected_value`'s shape, or any public surface. It changes what one ENGAGEMENT observation is

@@ -105,8 +105,8 @@ def create_app(
             # Immediately after, never before: the posture has to cover the tables the upgrade
             # just created. On Supabase those arrive already granted to `anon`/`authenticated`
             # by `ALTER DEFAULT PRIVILEGES`, so until this ran on every start the deny policy
-            # waited on someone remembering to paste a SQL file (docs/supabase.md records three
-            # occasions when nobody did). No-op off PostgreSQL; failures are reported through
+            # waited on someone remembering to paste a SQL file (docs/supabase.md, "Row-level
+            # security"). No-op off PostgreSQL; failures are reported through
             # `/ready`'s `tables_without_rls` rather than by refusing to start.
             apply_rls_posture(config.database_url)
         persistent_repository.ensure_active_run()

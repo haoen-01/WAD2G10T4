@@ -3,12 +3,17 @@
 Care+ has four agentic features. Each one runs a bounded tool loop: the model calls read-only
 tools, then submits a result, and a deterministic check approves or rejects it with reasons. A
 rejected result goes back to the model to fix. Each feature also has a fallback that works with
-no model at all. The outreach planner is described in [`agenticlayer.md`](../agenticlayer.md).
-The other three share `server/src/silverloop/agent/loop.py`.
+no model at all. The outreach planner is described in [the agentic layer](agentic-layer.md).
+The other three are read-only family agents that share `server/src/silverloop/agent/loop.py`
+([ADR 0015](adr/0015-read-only-family-agents.md)).
 
-**Status: live LLM use is on hold** pending the team's data-sharing review (issue #10). Every
-feature works today with `LLM_ENABLED=false` (the fallback), and the tests drive each agent's real
-loop, tools and check with a synthetic stand-in model. No live provider has ever been called.
+All four run on the same settings: they call a model only when `LLM_ENABLED=true` and
+`LLM_PROVIDER` names a working provider (OpenAI, Anthropic, Bedrock, or a `recorded` replay).
+`LLM_ENABLED` is `false` by default, and then every feature uses its deterministic fallback.
+
+**Status: live LLM use is on hold** until the team approves the data sharing below. Every feature
+works with `LLM_ENABLED=false`, and the tests drive each agent's real loop, tools and check with a
+synthetic stand-in model.
 
 ## The four features
 
@@ -65,30 +70,24 @@ schemas, and the tool results below. Text written by people is wrapped in
 | Read my day       | Senior's name; today's and tomorrow's appointments (title, kind, start and end times, the first names of who is going); today's reminders (title, time, done)                                                                                                                                | Appointment notes and places, task notes                                      |
 | Typed appointment | The sentence the member typed (up to 300 characters); today's date; for the one slot it checks, the titles of clashing appointments                                                                                                                                                          | Names, notes, places, any other appointment                                   |
 
-Two points for the review:
+Points for the review:
 
 - **The typed text is free text.** A member could type anything, including health details. Today
   it is sent nowhere and is never stored or logged.
 - **Data flow:** with OpenAI (`LLM_PROVIDER=openai`, the provider the team proposes), data goes to
   OpenAI's Chat Completions API at `OPENAI_BASE_URL`. With Anthropic it goes to Anthropic's API;
   with Bedrock, to the team's AWS account in the configured region.
-- **Kaki is not precedent.** ADR 0013 covers what the Kaki assistant sends to OpenAI (the question,
-  recent turns, the senior's name, recent steps, appointments). It does not cover the four agents'
-  data above, which issue #10 puts on hold until reviewed.
+- **Kaki is separate.** [ADR 0013](adr/0013-care-plus-assistant.md) covers what the Kaki
+  assistant sends to OpenAI when `OPENAI_API_KEY` is set (the question, recent turns, the senior's
+  name, recent steps, appointments). Kaki does not use `LLM_ENABLED`, and its approval does not
+  cover the four agents' data above.
 
 ## What approval is needed
 
-1. **Live LLM integration and external data sharing.** The team decides whether to approve the
-   data above going to a provider, per feature (issue #10). The decision covers which provider and
-   region, and whether the typed-appointment text is acceptable.
-2. **Contract review.** Three new routes and the `CatchUp`, `MyDay`, `AppointmentDraft` and
-   `AgentStep` models change `openapi/silverloop.json`. CLAUDE.md asks for a reviewer.
-3. **Planner guardrail change (safety policy, done, needs a reviewer).** `validate_proposal` now
-   rejects a message that copies the `<<<untrusted_text` fence or its markers (rule
-   `copied_data_marker`); before, such a message was approved. The newer checks already did.
-
-Out of scope until approved separately: "Who can go?" (cut in issue #10) and nudges or reminders
-(these depend on the unmerged step 3).
+**Live LLM integration and external data sharing.** The team decides whether to approve the data
+above going to a provider, per feature. The decision covers which provider and region, and
+whether the typed-appointment text is acceptable. Any change to what an agent sends, or to its
+check, is a contract and safety-policy change and needs a reviewer.
 
 ## Configuration once approved
 
