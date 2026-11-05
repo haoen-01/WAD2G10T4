@@ -323,6 +323,12 @@ readiness and audit counters. Its output contains backend/revision/counter metad
 connection string. Each run appends labelled synthetic evidence; do not point it at a production
 database containing real participant data.
 
+It starts the new scenario with the same settings the API uses, so with `DEMO_DATES_FOLLOW_TODAY`
+on (the default) Mdm Lim's readings end on today in Singapore and the smoke's one simulated day is
+tomorrow. Its reset also moves the shared sample programmes to the same days, as any reset does,
+so run it with the same `DEMO_DATES_FOLLOW_TODAY` value as the API. Run `pnpm demo:story`
+afterwards to put the signed-in demo back into its starting state.
+
 ## Demo logins
 
 The admin setup script creates the shared demo accounts in Supabase Auth:

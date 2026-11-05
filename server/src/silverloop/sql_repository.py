@@ -726,6 +726,23 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def _advanced_observed_at(day: date, real_now: datetime) -> datetime:
+    """When a reading `advance` writes for `day` was observed.
+
+    Midday UTC on the day (the fixture's convention, 8 pm in Singapore). For the day that is today
+    in Singapore that can still be ahead of the real clock, so it is held at `real_now` instead --
+    but never before the day's own midnight UTC, because the loop reads a decision's day back off
+    its evidence's UTC date (`_outreach_day`, the contact cap, "already decided today"). Between
+    midnight and 8 am in Singapore that floor is up to eight hours ahead of `real_now`; every other
+    hour of today, and every past day, is never later than now. A later simulated day keeps its
+    midday stamp: it is simulated, not observed.
+    """
+    noon = datetime.combine(day, time(hour=12), tzinfo=UTC)
+    if day != local_date(real_now) or real_now >= noon:
+        return noon
+    return max(real_now, datetime.combine(day, time.min, tzinfo=UTC))
+
+
 def _fixture_checksum(seed: int, scenario_version: str, metrics: list) -> str:
     raw = f"{seed}:{scenario_version}:" + "|".join(
         f"{m.day},{m.steps},{m.wear_hours}" for m in metrics
@@ -1503,7 +1520,8 @@ class SqlAlchemyRepository:
         context: ContextSignal,
         recorded_at: datetime,
     ) -> DailyMetricRow:
-        observed_at = datetime.combine(metric.day, time(hour=12), tzinfo=UTC)
+        # The decision evidence copies this row's `observed_at`, so it is held the same way.
+        observed_at = _advanced_observed_at(metric.day, _utcnow())
         return DailyMetricRow(
             metric_id=_id("metric"),
             evidence_id=_id("wearable"),

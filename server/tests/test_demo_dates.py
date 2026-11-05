@@ -12,13 +12,21 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from silverloop import seed, supabase_smoke
 from silverloop.adapters.synthetic import SyntheticFixtureAdapter
 from silverloop.config import Settings
 from silverloop.context import ContextEvidence, ExternalContext
-from silverloop.db_models import ActivityCandidateRow, DailyMetricRow, ProgrammeRow
+from silverloop.db_models import (
+    ActivityCandidateRow,
+    DailyMetricRow,
+    DecisionEvidenceRow,
+    ProgrammeRow,
+    ScenarioRunRow,
+)
 from silverloop.fixtures import (
     DEMO_ANCHOR_DAY,
     DEMO_PERSON_ID,
+    DEMO_PERSONAS,
     synthetic_activity_candidates,
     synthetic_programmes,
 )
@@ -355,3 +363,186 @@ def test_after_a_reset_on_today_the_next_simulated_day_keeps_simulated_weather(
     # Idempotent per event id, as before.
     again = repository.advance("activity_declines", "tomorrow-1").state
     assert again.current_day == state.current_day
+
+
+# ── When a reading was observed ───────────────────────────────────────────────
+
+
+def test_a_pinned_read_keeps_the_fixtures_own_stamps_whatever_the_clock() -> None:
+    """Without `end_on` nothing moves, and the real clock is never consulted: even a `now` before
+    the anchor day's midday leaves every midday-UTC stamp as it is."""
+    before_anchor_noon = datetime(2026, 8, 18, 6, 0, tzinfo=UTC)
+    pinned = SyntheticFixtureAdapter(2026).read(now=before_anchor_noon).metrics
+    assert [metric.observed_at for metric in pinned] == [
+        datetime.combine(metric.day, datetime.min.time().replace(hour=12), tzinfo=UTC)
+        for metric in pinned
+    ]
+    assert [m.observed_at for m in pinned] == [
+        m.observed_at for m in SyntheticFixtureAdapter(2026).read().metrics
+    ]
+
+
+def _latest(repository: SqlAlchemyRepository) -> tuple[DailyMetricRow, DecisionEvidenceRow]:
+    with repository.sessions() as session:
+        metric = session.scalars(
+            select(DailyMetricRow)
+            .where(DailyMetricRow.person_id == DEMO_PERSON_ID)
+            .order_by(DailyMetricRow.recorded_at.desc(), DailyMetricRow.day.desc())
+        ).first()
+        decision = session.scalars(
+            select(DecisionEvidenceRow).order_by(DecisionEvidenceRow.recorded_at.desc())
+        ).first()
+    assert metric is not None and decision is not None
+    return metric, decision
+
+
+@pytest.mark.parametrize(
+    ("moment", "expected"),
+    [
+        # 3 pm in Singapore: midday UTC (8 pm) is still to come, so the stamp is held at now.
+        (NOW, NOW),
+        # 1 am in Singapore, still the day before in UTC: held at the day's own midnight UTC, so
+        # the evidence's UTC date (which the contact cap reads) is still the day it is about.
+        (
+            datetime(2026, 11, 3, 17, 0, tzinfo=UTC),
+            datetime(2026, 11, 4, 0, 0, tzinfo=UTC),
+        ),
+        # 9 pm in Singapore: midday UTC has passed, so the fixture's own stamp stands.
+        (
+            datetime(2026, 11, 4, 13, 0, tzinfo=UTC),
+            datetime(2026, 11, 4, 12, 0, tzinfo=UTC),
+        ),
+    ],
+)
+def test_a_day_advanced_onto_today_is_never_stamped_in_its_future(
+    monkeypatch: pytest.MonkeyPatch, moment: datetime, expected: datetime
+) -> None:
+    monkeypatch.setattr("silverloop.sql_repository._utcnow", lambda: moment)
+    settings = Settings(
+        _env_file=None,
+        app_env="test",
+        database_url="sqlite+pysqlite:///:memory:",
+        silverloop_runtime_profile="offline",
+        llm_enabled=False,
+        demo_dates_follow_today=True,
+    )
+    repository = SqlAlchemyRepository("sqlite+pysqlite:///:memory:", settings=settings)
+    repository.create_schema_for_tests()
+    today = local_date(moment)
+    repository.reset(end_on=today - timedelta(days=1))
+
+    state = repository.advance("activity_declines", "onto-today").state
+
+    assert state.current_day == today
+    metric, decision = _latest(repository)
+    assert metric.day == today
+    assert metric.observed_at.replace(tzinfo=UTC) == expected
+    assert decision.observed_at.replace(tzinfo=UTC) == expected
+    assert decision.observed_at.date() == today
+
+
+def test_a_simulated_day_after_today_and_a_past_day_keep_midday_utc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    moved = _repository(monkeypatch, demo_dates_follow_today=True)
+    moved.reset()  # ends on today, so the next day is tomorrow
+    moved.advance("activity_declines", "tomorrow")
+    tomorrow = local_date(NOW) + timedelta(days=1)
+    metric, decision = _latest(moved)
+    noon = datetime(tomorrow.year, tomorrow.month, tomorrow.day, 12, tzinfo=UTC)
+    assert (metric.day, metric.observed_at.replace(tzinfo=UTC)) == (tomorrow, noon)
+    assert decision.observed_at.replace(tzinfo=UTC) == noon
+
+    pinned = _repository(monkeypatch, demo_dates_follow_today=False)
+    pinned.reset()
+    pinned.advance("activity_declines", "august")
+    metric, _ = _latest(pinned)
+    assert metric.observed_at.replace(tzinfo=UTC) == datetime(2026, 8, 19, 12, tzinfo=UTC)
+
+
+# ── The other commands that reset ─────────────────────────────────────────────
+
+
+def _command_settings(tmp_path: Path, **overrides: Any) -> Settings:
+    return Settings(
+        _env_file=None,
+        app_env="test",
+        database_url=f"sqlite+pysqlite:///{(tmp_path / 'command.db').as_posix()}",
+        silverloop_runtime_profile="offline",
+        adapter_mode="fixture",
+        llm_enabled=False,
+        **overrides,
+    )
+
+
+def _prepared(settings: Settings) -> None:
+    schema = SqlAlchemyRepository(settings.database_url)
+    schema.create_schema_for_tests()
+    schema.close()
+
+
+def test_pnpm_seed_ends_every_persona_on_today(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("silverloop.sql_repository._utcnow", lambda: NOW)
+    settings = _command_settings(tmp_path, demo_dates_follow_today=True)
+    _prepared(settings)
+    monkeypatch.setattr(seed, "get_settings", lambda: settings)
+    monkeypatch.setattr(seed, "upgrade_database", lambda _url: None)
+
+    seed.main()
+
+    check = SqlAlchemyRepository(settings.database_url)
+    with check.sessions() as session:
+        days = {
+            run.person_id: run.current_day
+            for run in session.scalars(
+                select(ScenarioRunRow).where(ScenarioRunRow.active.is_(True))
+            )
+        }
+    check.close()
+    assert set(days) == set(DEMO_PERSONAS)
+    assert set(days.values()) == {local_date(NOW)}
+
+
+@pytest.mark.parametrize("follow_today", [True, False])
+def test_the_supabase_smoke_writes_the_same_days_the_api_would(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, follow_today: bool
+) -> None:
+    """The smoke resets Mdm Lim and rewrites the shared programme rows. Built with the app's
+    settings, it writes the days the API's own reset would, so it never pulls the programmes back
+    to August under every other run (or forward, with the setting off). Postgres-only steps are
+    stood in for; the reset, advance and outcome are the real ones, on SQLite."""
+    monkeypatch.setattr("silverloop.sql_repository._utcnow", lambda: NOW)
+    settings = _command_settings(tmp_path, demo_dates_follow_today=follow_today)
+    _prepared(settings)
+    monkeypatch.setattr(supabase_smoke, "validate_runtime", lambda _settings: None)
+    monkeypatch.setattr(supabase_smoke, "upgrade_database", lambda _url: None)
+    monkeypatch.setattr(supabase_smoke, "apply_rls_posture", lambda _url: None)
+    real_readiness = SqlAlchemyRepository.readiness
+    monkeypatch.setattr(
+        SqlAlchemyRepository,
+        "readiness",
+        lambda self, profile: real_readiness(self, profile).model_copy(
+            update={"status": "ready", "tables_without_rls": []}
+        ),
+    )
+
+    assert supabase_smoke.run(settings)["status"] == "ok"
+
+    end_on = local_date(NOW) if follow_today else DEMO_ANCHOR_DAY
+    check = SqlAlchemyRepository(settings.database_url)
+    with check.sessions() as session:
+        run = session.scalars(
+            select(ScenarioRunRow).where(
+                ScenarioRunRow.active.is_(True), ScenarioRunRow.person_id == DEMO_PERSON_ID
+            )
+        ).one()
+        stored = {row.programme_id: row for row in session.scalars(select(ProgrammeRow))}
+    check.close()
+    # One smoke day after the reset.
+    assert run.current_day == end_on + timedelta(days=1)
+    for programme in synthetic_programmes(end_on - DEMO_ANCHOR_DAY):
+        assert stored[programme.programme_id].next_session.replace(tzinfo=UTC) == (
+            programme.next_session
+        )
