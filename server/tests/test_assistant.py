@@ -12,8 +12,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from silverloop.assistant import (
+    EMERGENCY_REPLIES,
     EMERGENCY_REPLY,
     INSTRUCTIONS,
+    MEDICAL_REPLIES,
     MEDICAL_REPLY,
     Appointment,
     CareFacts,
@@ -22,6 +24,7 @@ from silverloop.assistant import (
     facts_text,
     helper_reply,
     is_dosing_advice,
+    language_of,
     safety_reply,
 )
 from silverloop.config import Settings
@@ -125,6 +128,124 @@ def test_ordinary_questions_are_not_caught() -> None:
         "She stroked the cat",
     ]:
         assert safety_reply(text) is None, text
+
+
+# ── Other languages: Chinese, Malay, Tamil and Singlish ────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("text", "lang"),
+    [
+        ("我妈妈跌倒了，起不来", "zh"),
+        ("我胸口很痛", "zh"),
+        ("我不想活了", "zh"),
+        ("快叫救護車", "zh"),
+        ("Ibu saya terjatuh dan tidak boleh bangun", "ms"),
+        ("Sakit dada, susah nak bernafas", "ms"),
+        ("Nenek pengsan di dapur", "ms"),
+        ("என் அம்மா கீழே விழுந்துவிட்டார்", "ta"),
+        ("அப்பாவுக்கு நெஞ்சு வலி", "ta"),
+        ("Ah Ma fall down liao cannot stand up", "en"),
+        ("Grandpa kena fall in the toilet", "en"),
+    ],
+)
+def test_an_emergency_in_any_language_gets_the_995_answer_in_that_language(
+    text: str, lang: str
+) -> None:
+    reply = safety_reply(text)
+    assert reply is not None and reply.source == "safety"
+    assert "995" in reply.reply and EMERGENCY_REPLY in reply.reply
+    if lang != "en":
+        assert reply.reply.startswith(EMERGENCY_REPLIES[lang])
+
+
+@pytest.mark.parametrize(
+    ("text", "lang"),
+    [
+        ("我可以吃两颗止痛药吗？", "zh"),
+        ("我的血压正常吗", "zh"),
+        ("我头晕", "zh"),
+        ("Boleh saya makan dua biji ubat?", "ms"),
+        ("Saya demam", "ms"),
+        ("நான் இரண்டு மாத்திரைகள் சாப்பிடலாமா?", "ta"),
+        ("எனக்கு காய்ச்சல்", "ta"),
+    ],
+)
+def test_a_health_question_in_any_language_gets_the_ask_a_doctor_answer(
+    text: str, lang: str
+) -> None:
+    reply = safety_reply(text)
+    assert reply is not None and reply.source == "safety"
+    assert reply.reply.startswith(MEDICAL_REPLIES[lang]) and MEDICAL_REPLY in reply.reply
+
+
+def test_everyday_questions_in_other_languages_are_not_caught() -> None:
+    for text in [
+        "我今天走了多少步？",
+        "明天有什么安排？",
+        "药房在哪里？",  # where is the pharmacy
+        "Berapa langkah saya hari ini?",
+        "Temujanji saya jatuh pada hari Isnin",  # my appointment falls on Monday
+        "இன்று நான் எத்தனை அடிகள் நடந்தேன்?",
+        "அவர் வலிமையானவர்",  # she is strong (வலிமை, not வலி, pain)
+        "Can or not see my badges?",
+    ]:
+        assert safety_reply(text) is None, text
+
+
+def test_the_language_is_told_by_its_script_or_its_words() -> None:
+    assert language_of("我今天走了多少步？") == "zh"
+    assert language_of("今天走了多少步") == "zh"
+    assert language_of("இன்று எத்தனை அடிகள்?") == "ta"
+    assert language_of("Berapa langkah saya hari ini?") == "ms"
+    assert language_of("How many steps today?") == "en"
+    assert language_of("Can or not see my badges ah?") == "en"
+    assert language_of("Boleh lah") == "en"  # one Singlish word is not Malay
+
+
+def test_dosing_advice_is_caught_in_any_language() -> None:
+    assert is_dosing_advice("你可以吃两颗药。")
+    assert is_dosing_advice("Ambil dua biji ubat sekarang.")
+    assert is_dosing_advice("இரண்டு மாத்திரைகள் சாப்பிடுங்கள்.")
+    assert not is_dosing_advice("请不要自己吃药，先问医生。")
+    assert not is_dosing_advice("Jangan ambil ubat tanpa tanya doktor.")
+    assert not is_dosing_advice("மருத்துவரிடம் கேட்காமல் மாத்திரை சாப்பிட வேண்டாம்.")
+
+
+def test_an_ai_answer_in_chinese_telling_her_how_to_take_medicine_is_replaced() -> None:
+    settings = Settings(openai_api_key="sk-test", silverloop_runtime_profile="shared")
+    with httpx.Client(transport=_openai("今晚可以多吃两片药。", [])) as http:
+        reply = answer(ask("我这周怎么样？"), FACTS, settings, http)
+    assert reply.source == "safety" and MEDICAL_REPLY in reply.reply
+
+
+def test_an_emergency_in_chinese_never_reaches_the_ai() -> None:
+    def never(request: httpx.Request) -> httpx.Response:  # pragma: no cover - must not be called
+        raise AssertionError("the AI must not be asked")
+
+    settings = Settings(openai_api_key="sk-test", silverloop_runtime_profile="shared")
+    with httpx.Client(transport=httpx.MockTransport(never)) as http:
+        reply = answer(ask("我妈妈晕倒了"), FACTS, settings, http)
+    assert reply.source == "safety" and "995" in reply.reply
+
+
+def test_the_helper_answers_other_languages_and_says_it_answers_in_english() -> None:
+    steps = helper_reply("我今天走了多少步？", FACTS).reply
+    assert steps.startswith("Kaki 现在只能用英文回答") and "5,720" in steps
+    soon = helper_reply("Apa temujanji saya esok?", FACTS).reply
+    assert soon.startswith("Buat masa ini Kaki") and "Next up" in soon
+    badges = helper_reply("பதக்கங்களை எப்படி பெறுவது?", FACTS).reply
+    assert badges.startswith("இப்போது Kaki") and "Badges" in badges
+    # Not followed: says so in that language, and what to do if it is urgent.
+    unknown = helper_reply("今天天气好吗", FACTS).reply
+    assert "995" in unknown.split("\n\n")[0]
+    # English is answered as before, with nothing added.
+    assert helper_reply("How many steps today?", FACTS).reply.startswith("On the latest day")
+
+
+def test_the_ai_is_told_to_answer_in_the_language_it_was_asked_in() -> None:
+    assert "Answer in the language the person writes in" in INSTRUCTIONS
+    assert "Chinese, Malay or Tamil" in INSTRUCTIONS
 
 
 def test_safety_comes_first_even_with_the_ai_on() -> None:

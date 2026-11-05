@@ -37,6 +37,27 @@ Motion is CSS, the Web Animations API and `requestAnimationFrame` only (no `moti
 off the senior screen and `AppLayout`). The eyes move by setting `translate` on their elements each
 frame, with no re-render, and the frames stop once the eyes settle.
 
+## Other languages
+
+Care+ itself is in English, but people may ask Kaki in Chinese, Malay, Tamil or Singlish.
+
+- **Safety checks work in all four.** The emergency and medicine checks (`safety_reply`) have word
+  lists for English (with Singlish such as "fall down liao" or "kena fall"), Chinese (Simplified
+  and Traditional), Malay and Tamil (`_EMERGENCY_OTHER`, `_MEDICAL_OTHER`). Chinese and Tamil are
+  written without spaces between words for `\b` to find, so those words match anywhere in the text.
+  An emergency in any of them gets the 995 answer, and a medicine question the "ask a doctor"
+  answer, with or without the AI.
+- **The fixed answers come in the question's language**, with the English underneath
+  (`EMERGENCY_REPLIES`, `MEDICAL_REPLIES`). `language_of` tells the language by its script (Chinese,
+  Tamil) or by everyday Malay words; one Singlish word such as "boleh" does not count as Malay.
+- **The AI answers in the language it was asked in** (a rule in `INSTRUCTIONS`), keeping button
+  and tab names in English as they appear on screen. Its answer is still checked for medicine
+  dosing advice in all four languages (`is_dosing_advice`).
+- **The built-in helper** (no AI) understands the common questions in all four languages
+  (`_INTENTS_OTHER`) but answers in English, and says so first in the question's language. When it
+  does not follow a question in another language, it says so and adds "call 995 if it is urgent".
+- Voice input still listens for English (`useSpeechInput.ts`, `en-SG`).
+
 ## Changing it
 
 - **Name and wording:** `ASSISTANT_NAME` in `useAssistant.ts`; the starting questions in

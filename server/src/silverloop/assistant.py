@@ -3,7 +3,9 @@
 Three ways an answer is made, in this order:
 
 1. **Safety** (`safety_reply`): an emergency, or a question about medicines or symptoms, gets a
-   fixed answer and never goes to the AI. Care+ is not a medical or emergency service.
+   fixed answer and never goes to the AI. Care+ is not a medical or emergency service. This works
+   in English (with Singlish), Chinese, Malay and Tamil, and the fixed answer comes in the
+   language of the question with the English under it.
 2. **OpenAI** (`ask_openai`), when `OPENAI_API_KEY` is set and the runtime profile is not
    `offline`: the conversation plus a short, factual summary of what this person may already see
    in the app (their steps and upcoming appointments). The key stays on this server.
@@ -23,6 +25,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from typing import Literal
 
 import httpx
 
@@ -109,6 +112,50 @@ def facts_text(facts: CareFacts) -> str:
     return "\n".join(lines)
 
 
+# ── Languages ────────────────────────────────────────────────────────────────
+
+# Care+ is for Singapore. Besides English (and Singlish, which counts as English here), a senior
+# or their family may write in Chinese, Malay or Tamil. Chinese and Tamil are told apart by their
+# script; Malay by everyday words. The language decides which fixed answer is shown (always with
+# the English under it), never whether a question is safe: every check below runs on every
+# question, whatever its language.
+Lang = Literal["en", "zh", "ms", "ta"]
+
+_CJK = re.compile(r"[\u3400-\u9fff\uf900-\ufaff]")
+_TAMIL = re.compile(r"[\u0b80-\u0bff]")
+# Words only Malay uses: one is enough. ("tak", "nak", "boleh" are Singlish too, so they need
+# a second Malay word with them.)
+_MALAY_STRONG = re.compile(
+    r"\b(saya|berapa|bagaimana|bilakah|temujanji|temu janji|ubat|terjatuh|langkah|keluarga"
+    r"|lencana|hari ini|esok|kecemasan|pengsan|bernafas|tolonglah|sila|terima kasih|apa khabar"
+    r"|selamat (pagi|petang|malam|tengah hari))\b",
+    re.IGNORECASE,
+)
+_MALAY_WEAK = re.compile(
+    r"\b(apa|bila|boleh|tidak|tak|nak|mahu|sudah|dah|ibu|ayah|mak|emak|nenek|datuk|sakit|jatuh"
+    r"|hari|macam mana|di mana|untuk|dengan|ini|itu|ada|dia)\b",
+    re.IGNORECASE,
+)
+
+
+def language_of(text: str) -> Lang:
+    """The language a question is written in: Chinese, Tamil, Malay, or English (the default)."""
+    if _CJK.search(text):
+        return "zh"
+    if _TAMIL.search(text):
+        return "ta"
+    if _MALAY_STRONG.search(text) or len(set(_MALAY_WEAK.findall(text.lower()))) >= 2:
+        return "ms"
+    return "en"
+
+
+def in_language(lang: Lang, replies: dict[str, str]) -> str:
+    """The answer in the question's language, then the English (or just the English)."""
+    if lang == "en":
+        return replies["en"]
+    return f"{replies[lang]}\n\n{replies['en']}"
+
+
 # ── 1. Safety: answered here, never sent to the AI ───────────────────────────
 
 # Words for an emergency, or for wanting to end one's life: always the 995 answer. Wide on
@@ -121,6 +168,8 @@ _EMERGENCY = re.compile(
     r"|breathless|short(ness)? of breath|choking|choked"
     r"|fell (down|over|off)|fell and|has fallen|have fallen|had a fall|took a fall|a bad fall"
     r"|fallen (down|over)"
+    # Singlish: "Ah Ma fall down liao", "kena fall", "faint already".
+    r"|falls? down|fall liao|kena fall|faint (liao|already)|pengsan"
     r"|faint(ed|ing|s)?|passed out|blacked out|collaps\w*|unconscious|unresponsive"
     r"|won'?t wake( up)?|seizures?|stroke(?! of)|slurred speech|face (is )?drooping"
     r"|bleeding|blood everywhere|hit (my|her|his) head|head injury|broken (bone|hip|leg|arm)"
@@ -146,6 +195,54 @@ _MEDICAL = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+# The same checks in Chinese, Malay and Tamil. Chinese and Tamil have no spaces between words for
+# `\b` to find, so those match anywhere in the text. Simplified and Traditional Chinese are both
+# listed where they differ.
+_EMERGENCY_OTHER = re.compile(
+    # Chinese: help, ambulance, fell, fainted, can't breathe, chest pain, heart attack, stroke,
+    # seizure, bleeding, head injury, broken bone, choking, poisoning, overdose, suicide.
+    r"救命|急救|救护车|救護車|紧急|緊急|跌倒|摔倒|摔跤|跌伤|跌傷|跌下来|跌下來|晕倒|暈倒|昏倒"
+    r"|昏迷|不省人事|晕过去|暈過去|没有呼吸|沒有呼吸|不能呼吸|无法呼吸|無法呼吸|呼吸困难|呼吸困難"
+    r"|喘不过气|喘不過氣|胸口?.{0,3}(痛|疼|闷|悶|紧|緊)|心脏病发|心臟病發|中风|中風|抽搐|癫痫|癲癇"
+    r"|流血|出血|撞到头|撞到頭|头受伤|頭受傷|骨折|噎住|哽住|中毒|服药过量|服藥過量"
+    r"|自杀|自殺|不想活|想死|轻生|輕生|自残|自殘|伤害自己|傷害自己"
+    # Tamil: emergency, ambulance, fell, fainted, unconscious, can't breathe, chest pain, heart
+    # attack, stroke, seizure, bleeding, broken bone, suicide, want to die.
+    r"|அவசர|ஆம்புலன்ஸ்|விழுந்து|விழுந்த|மயக்க|மயங்கி|சுயநினைவு இல்லை|மூச்சு விட முடிய"
+    r"|மூச்சுத் திணற|மூச்சு திணற|நெஞ்சு வலி|நெஞ்சுவலி|மார்பு வலி|மாரடைப்பு|பக்கவாதம்|வலிப்பு"
+    r"|இரத்தப்போக்கு|ரத்தப்போக்கு|ரத்தம் கொட்டு|இரத்தம் கொட்டு|எலும்பு முறி|தற்கொலை"
+    r"|சாக வேண்டும்|சாக விரும்பு|உயிரை மாய்"
+    # Malay: emergency, ambulance, fell (not "jatuh pada hari Isnin", falls on Monday), fainted,
+    # unconscious, short of breath, chest pain, heart attack, stroke, seizure, bleeding, broken
+    # bone, choking, poisoning, overdose, suicide, want to die, hurt oneself.
+    r"|\b(kecemasan|ambulans|terjatuh|jatuh(?!\s+(pada|hari|tempo|cinta)\b)|pengsan|pitam"
+    r"|(tidak|tak) sedar(kan diri)?|sesak nafas|susah (nak |untuk )?(bernafas|nafas)"
+    r"|(tidak|tak) (boleh|dapat) bernafas|sakit dada|dada (sakit|sesak)|serangan jantung|strok"
+    r"|sawan|berdarah|pendarahan|patah (tulang|kaki|tangan|pinggul)|tercekik|keracunan"
+    r"|terlebih (dos|ubat)|bunuh diri|(nak|mahu|ingin|hendak) mati|cederakan diri)\b",
+    re.IGNORECASE,
+)
+_MEDICAL_OTHER = re.compile(
+    # Chinese: medicine (not 药房, the pharmacy), capsule, insulin, dose, side effect,
+    # prescription, symptom, fever, dizzy, headache, vomit, nausea, pain, swelling, rash, blood
+    # pressure, blood sugar, heart rate, pulse, cholesterol, blood oxygen, diagnosis, ill, cancer.
+    r"药(?!房|店|局)|藥(?!房|店|局)|胶囊|膠囊|胰岛素|胰島素|剂量|劑量|副作用|处方|處方|症状|症狀"
+    r"|发烧|發燒|发热|發熱|头晕|頭暈|头痛|頭痛|呕吐|嘔吐|恶心|噁心|疼|痛|肿|腫|皮疹|血压|血壓"
+    r"|血糖|心率|心跳|脉搏|脈搏|胆固醇|膽固醇|血氧|诊断|診斷|生病|病了|什么病|什麼病|癌"
+    # Tamil: medicine, tablet, injection, insulin, dose, side effect, symptom, fever, headache,
+    # dizziness, vomiting, nausea, pain (not வலிமை, strength), swelling, rash, blood pressure,
+    # sugar level, heart rate, pulse, cholesterol, illness.
+    r"|மருந்து|மாத்திரை|ஊசி|இன்சுலின்|டோஸ்|பக்க விளைவு|அறிகுறி|காய்ச்சல்|தலைவலி|தலைசுற்ற"
+    r"|தலை சுற்ற|வாந்தி|குமட்டல்|வலி(?!மை)|வீக்கம்|தடிப்பு|இரத்த அழுத்த|ரத்த அழுத்த"
+    r"|சர்க்கரை அளவு|சுகர்|இதயத் துடிப்பு|நாடித் துடிப்பு|கொலஸ்ட்ரால்|நோய்"
+    # Malay: medicine, pill, capsule, dose, side effect, prescription, symptom, fever, dizzy,
+    # vomit, nausea, sick or pain, swelling, rash, blood pressure, blood sugar, pulse, cholesterol.
+    r"|\b(ubat(an)?|ubat-ubatan|pil|kapsul|dos|kesan sampingan|preskripsi|gejala|simptom|demam"
+    r"|pening|muntah|loya|sakit|bengkak|ruam|tekanan darah|gula (dalam )?darah|paras gula"
+    r"|kadar (jantung|nadi)|nadi|kolesterol|oksigen darah)\b",
+    re.IGNORECASE,
+)
+
 # An answer that tells someone how to take a medicine is never shown, whoever wrote it.
 _DOSING_ADVICE = re.compile(
     r"\b(take|double|halve|increase|reduce|skip|stop taking|start taking)\b[^.!?]{0,40}"
@@ -156,6 +253,23 @@ _DOSING_ADVICE = re.compile(
 _NOT_ADVICE = re.compile(
     r"\b(don'?t|do not|never|not)\b|\b(ask|check with|talk to|speak to) (your|a|the) "
     r"(doctor|nurse|pharmacist)",
+    re.IGNORECASE,
+)
+# The same in Chinese ("take / double / stop … tablets"), Malay ("ambil / makan … ubat") and
+# Tamil ("மாத்திரை … சாப்பிடுங்கள்", tablet … take: the verb comes last).
+_DOSING_ADVICE_OTHER = re.compile(
+    r"(吃|服用|服|加倍|减半|減半|多吃|再吃|增加|减少|減少|停止服用|停药|停藥)[^。！？.!?]{0,20}"
+    r"(药|藥|片|粒|颗|顆|剂|劑|胶囊|膠囊|胰岛素|胰島素)"
+    r"|\b(ambil|makan|telan|gandakan|tambah|kurangkan|berhenti (makan|ambil)|mula (makan|ambil))"
+    r"\b[^.!?]{0,40}\b(ubat|pil|kapsul|dos|biji|tablet|insulin)\b"
+    r"|(மாத்திரை|மருந்து|இன்சுலின்|டோஸ்)[^.!?]{0,40}"
+    r"(சாப்பிடு|சாப்பிட|எடுத்துக்கொள்|எடுத்துக் கொள்|உட்கொள்|போடு)",
+    re.IGNORECASE,
+)
+_NOT_ADVICE_OTHER = re.compile(
+    r"不要|别|別|不可以|不能|切勿|请勿|請勿|医生|醫生|药剂师|藥劑師|护士|護士"
+    r"|\b(jangan|tidak|tak|bukan)\b|\b(tanya|rujuk|berjumpa|jumpa) (doktor|jururawat|ahli farmasi)"
+    r"|வேண்டாம்|கூடாது|மருத்துவர்|டாக்டர்|மருந்தாளர்",
     re.IGNORECASE,
 )
 
@@ -174,15 +288,38 @@ MEDICAL_REPLY = (
     "nurse or pharmacist. If it is urgent, call 995. I'm happy to help with steps, walks, "
     "the calendar and how to use Care+."
 )
+# The same fixed answers in Chinese, Malay and Tamil (shown above the English).
+EMERGENCY_REPLIES: dict[str, str] = {
+    "en": EMERGENCY_REPLY,
+    "zh": "如果有人可能受伤或身体不适，请立即拨打995叫救护车，或请身边的人帮忙。"
+    "Care+ 不是紧急服务，无法派人帮忙。",
+    "ms": "Jika seseorang mungkin cedera atau tidak sihat sekarang, sila hubungi 995 untuk "
+    "ambulans dengan segera, atau minta bantuan orang berdekatan. Care+ bukan perkhidmatan "
+    "kecemasan dan tidak boleh menghantar bantuan.",
+    "ta": "யாராவது காயமடைந்திருந்தாலோ உடல்நலம் சரியில்லாமல் இருந்தாலோ, உடனே 995-ஐ அழைத்து "
+    "ஆம்புலன்ஸை வரவழையுங்கள், அல்லது அருகில் உள்ளவர்களிடம் உதவி கேளுங்கள். Care+ அவசர சேவை "
+    "அல்ல, உதவியை அனுப்ப முடியாது.",
+}
+MEDICAL_REPLIES: dict[str, str] = {
+    "en": MEDICAL_REPLY,
+    "zh": "我不能就药物、症状或健康数据提供建议。请咨询医生、护士或药剂师。如情况紧急，请拨打995。",
+    "ms": "Saya tidak boleh memberi nasihat tentang ubat, gejala atau bacaan kesihatan. Sila tanya "
+    "doktor, jururawat atau ahli farmasi. Jika kecemasan, hubungi 995.",
+    "ta": "மருந்துகள், அறிகுறிகள் அல்லது உடல்நல அளவீடுகள் குறித்து என்னால் ஆலோசனை கூற முடியாது. "
+    "மருத்துவர், செவிலியர் அல்லது மருந்தாளரிடம் கேளுங்கள். அவசரம் என்றால் 995-ஐ அழைக்கவும்.",
+}
 
 
 def safety_reply(question: str) -> AssistantReply | None:
+    """The fixed answer for an emergency or a health question, in any of the four languages, or
+    None. Emergencies first: "chest pain" is an emergency before it is a symptom."""
     text = _plain(question)
-    if _EMERGENCY.search(text):
-        return AssistantReply(reply=EMERGENCY_REPLY, source="safety")
-    if _MEDICAL.search(text):
+    lang = language_of(text)
+    if _EMERGENCY.search(text) or _EMERGENCY_OTHER.search(text):
+        return AssistantReply(reply=in_language(lang, EMERGENCY_REPLIES), source="safety")
+    if _MEDICAL.search(text) or _MEDICAL_OTHER.search(text):
         return AssistantReply(
-            reply=MEDICAL_REPLY,
+            reply=in_language(lang, MEDICAL_REPLIES),
             source="safety",
             suggestions=["How many steps today?", "What's coming up?"],
         )
@@ -191,9 +328,12 @@ def safety_reply(question: str) -> AssistantReply | None:
 
 def is_dosing_advice(answer_text: str) -> bool:
     """A sentence telling someone how to take a medicine (not one telling them not to, or to ask
-    a doctor)."""
-    for sentence in re.split(r"(?<=[.!?])\s+", _plain(answer_text)):
+    a doctor), in English, Chinese, Malay or Tamil."""
+    # Chinese sentences end in 。！？ with no space after.
+    for sentence in re.split(r"(?<=[.!?])\s+|(?<=[。！？])", _plain(answer_text)):
         if _DOSING_ADVICE.search(sentence) and not _NOT_ADVICE.search(sentence):
+            return True
+        if _DOSING_ADVICE_OTHER.search(sentence) and not _NOT_ADVICE_OTHER.search(sentence):
             return True
     return False
 
@@ -260,6 +400,58 @@ _INTENTS: list[tuple[str, re.Pattern[str]]] = [
     ("help", re.compile(r"\b(help|what can you do|how do i|get started|explain)\b", re.I)),
 ]
 
+# The same questions in Chinese, Malay and Tamil, so the helper can still give the right answer
+# (in English: its answers are written in English) when the AI is not on.
+_INTENTS_OTHER: dict[str, re.Pattern[str]] = {
+    "greeting": re.compile(
+        r"^\s*(你好|您好|早上好|早安|午安|晚上好|嗨|哈喽|哈囉|வணக்கம்|ஹலோ"
+        r"|(hai|helo|selamat (pagi|tengah hari|petang|malam)|apa khabar)\b)",
+        re.I,
+    ),
+    "steps": re.compile(
+        r"步|走了多少|走路|அடிகள்|எத்தனை அடி|\b(langkah|berjalan|jalan kaki)\b", re.I
+    ),
+    "appointments": re.compile(
+        r"预约|預約|约诊|約診|明天|今天有什么|今天有什麼|日程|行程|安排|计划|計劃"
+        r"|சந்திப்பு|நாளை|அட்டவணை|\b(temujanji|temu janji|esok|jadual|rancangan)\b",
+        re.I,
+    ),
+    "badge": re.compile(
+        r"奖章|獎章|徽章|勋章|勳章|奖牌|獎牌|领取|領取|பதக்க|பேட்ஜ்|\b(lencana|pingat|tuntut)\b",
+        re.I,
+    ),
+    "walk": re.compile(
+        r"分享|位置|地图|地圖|在哪|பகிர்|இருப்பிட|வரைபட|\b(kongsi|lokasi|peta|di mana)\b", re.I
+    ),
+    "family": re.compile(r"家人|家庭|邀请|邀請|密码|密碼|குடும்ப|\b(keluarga|jemput|kod)\b", re.I),
+    "task": re.compile(r"任务|任務|待办|待辦|打勾|பணி|செய்ய வேண்டிய|\b(tugas|tugasan)\b", re.I),
+    "text": re.compile(
+        r"字太小|字体|字體|放大|缩小|縮小|看不清|எழுத்து|\b(tulisan|huruf|besarkan|kecilkan)\b",
+        re.I,
+    ),
+    "help": re.compile(
+        r"帮助|幫助|帮忙|幫忙|怎么用|怎麼用|你能做什么|你能做什麼|உதவி|எப்படி"
+        r"|\b(bantuan|bagaimana|macam mana)\b",
+        re.I,
+    ),
+}
+
+# What the helper says first when it was asked in another language: it can only answer in
+# English, and (when it did not follow the question) what to do if it is urgent.
+ENGLISH_ONLY: dict[str, str] = {
+    "zh": "Kaki 现在只能用英文回答：",
+    "ms": "Buat masa ini Kaki hanya boleh menjawab dalam bahasa Inggeris:",
+    "ta": "இப்போது Kaki ஆங்கிலத்தில் மட்டுமே பதில் அளிக்க முடியும்:",
+}
+NOT_UNDERSTOOD: dict[str, str] = {
+    "zh": "Kaki 现在只能看懂简单的英文问题，例如 “How many steps today?”。"
+    "如有紧急情况，请立即拨打995。",
+    "ms": "Buat masa ini Kaki hanya faham soalan mudah dalam bahasa Inggeris, contohnya "
+    "“How many steps today?”. Jika kecemasan, hubungi 995 segera.",
+    "ta": "இப்போது Kaki எளிய ஆங்கிலக் கேள்விகளை மட்டுமே புரிந்துகொள்ளும், உதாரணமாக "
+    "“How many steps today?”. அவசரம் என்றால் உடனே 995-ஐ அழைக்கவும்.",
+}
+
 HELP_REPLY = (
     "I can tell you about steps and walks, what's coming up on the calendar, how badges work, "
     "and where to find things in Care+. Just ask in your own words."
@@ -267,14 +459,34 @@ HELP_REPLY = (
 
 
 def helper_reply(question: str, facts: CareFacts) -> AssistantReply:
-    """Answers the common questions from the facts, with no AI and no outside call."""
+    """Answers the common questions from the facts, with no AI and no outside call. Asked in
+    Chinese, Malay or Tamil, it says first (in that language) that it answers in English."""
+    reply = _helper_answer(question, facts)
+    lang = language_of(question)
+    if lang == "en":
+        return reply
+    understood = _intent_of(question) is not None
+    note = ENGLISH_ONLY[lang] if understood else NOT_UNDERSTOOD[lang]
+    return reply.model_copy(update={"reply": f"{note}\n\n{reply.reply}"})
+
+
+def _intent_of(question: str) -> str | None:
+    """What the question is about (the first that fits, in the order of `_INTENTS`), or None."""
+    for name, pattern in _INTENTS:
+        other = _INTENTS_OTHER.get(name)
+        if pattern.search(question) or (other is not None and other.search(question)):
+            return name
+    return None
+
+
+def _helper_answer(question: str, facts: CareFacts) -> AssistantReply:
     # Care+ does not know whether a senior is a man or a woman, so a family member hears the
     # senior's name, never "her" or "his" (and "their" only when there is no name to use).
     if facts.viewer == "senior":
         whose = "your"
     else:
         whose = f"{facts.senior_name}’s" if facts.senior_name else "their"
-    intent = next((name for name, pattern in _INTENTS if pattern.search(question)), "help")
+    intent = _intent_of(question) or "help"
     if intent == "greeting":
         name = f", {facts.senior_name}" if facts.viewer == "senior" and facts.senior_name else ""
         return AssistantReply(
@@ -348,6 +560,9 @@ Rules you must keep:
   symptoms, heart rate or other health readings; suggest a doctor or pharmacist. In an
   emergency, say to call 995 now.
 - You can only explain. You cannot book, change, send or turn anything on; say where to tap.
+- Answer in the language the person writes in: English, Chinese, Malay or Tamil (Singlish is
+  English). Keep the names of buttons and tabs in English, in quotes, as they appear on screen,
+  since Care+ itself is in English.
 - Refer to the senior by the name given in the facts. Care+ does not record whether they are a
   man or a woman, so never call them "he", "she", "his" or "her"; use their name, or "they" if
   you must. When the senior is the one asking, speak to them as "you".
