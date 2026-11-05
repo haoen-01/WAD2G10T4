@@ -14,7 +14,7 @@ test('saying i cannot make it, then changing your mind', async ({ page }) => {
   await page.goto('/calendar');
   await page.getByRole('button', { name: DOCTOR }).click();
   const panel = details(page, DOCTOR);
-  
+
   await page.getByRole('button', { name: 'I can’t make it' }).click();
   await expect(row(panel, 'Sarah')).toContainText('Not available');
   await page.getByRole('button', { name: 'I’m available' }).click();
