@@ -367,6 +367,10 @@ test.describe("the senior's section bar at a large text size", () => {
 
   /** Every label's font size, after checking each is whole, inside its tab, and clear of Kaki. */
   async function checkSections(page: Page, where: string): Promise<number> {
+    // The bar re-fits on the frame after the text size changes: check it once that has drawn.
+    await page.evaluate(
+      () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+    );
     const sizes: number[] = [];
     for (const tab of await sections(page).getByRole('tab').all()) {
       const { lines, fits, size } = await tab.evaluate((el) => {
@@ -492,6 +496,34 @@ test.describe("the senior's section bar at a large text size", () => {
       }
     });
   }
+
+  test('the sign-in tab bar re-fits its rows with no ResizeObserver loop when its words change size late', async ({
+    page,
+    request,
+  }) => {
+    await resetDemo(request);
+    const errors = await resizeObserverErrors(page);
+    // A web font arriving late on a slow machine resizes only the menu's words, and the bar changes
+    // its rows, which once happened while the bar's ResizeObserver was still reporting.
+    await page.addInitScript(() => {
+      window.localStorage.setItem('careplus.zoom.v1', '150');
+      const wide = document.createElement('style');
+      wide.textContent = '.mainnav-label { letter-spacing: 4px; }';
+      document.addEventListener('DOMContentLoaded', () => {
+        document.head.append(wide);
+        window.setTimeout(() => wide.remove(), 1000);
+      });
+    });
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/login/senior');
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.style.getPropertyValue('--sl-tabbar-core')),
+      )
+      .toBe('calc(2 * 3.5rem)');
+    await page.waitForTimeout(1500);
+    expect(await errors()).toEqual([]);
+  });
 });
 
 test.describe('the calendar at a large text size', () => {
