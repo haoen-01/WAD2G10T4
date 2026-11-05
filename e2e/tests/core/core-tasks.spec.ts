@@ -5,7 +5,9 @@ test.beforeEach(async ({ request }) => {
   await resetDemo(request); // every test starts from the same demo data
 });
 
-test('Family adds a daily task for the senior; Senior ticks it off and its saved', async ({ page }) => {
+test('Family adds a daily task for the senior; Senior ticks it off and its saved', async ({
+  page,
+}) => {
   await page.goto('/login/family');
   await page.getByTestId('continue-family').click();
   const panel = page.getByTestId('task-panel');
@@ -21,6 +23,8 @@ test('Family adds a daily task for the senior; Senior ticks it off and its saved
   await page.getByTestId('choose-senior').click();
   await page.getByTestId('continue-senior').click();
   await page.getByRole('button', { name: 'Mark Water the plants done' }).click();
-  await page.goto('/senior');
-  await page.getByRole('button', { name: 'Mark Water the plants not done' }).click();
+  await page.reload();
+  await expect(
+    panel.getByRole('button', { name: 'Mark Water the plants not done' }),
+  ).toHaveAttribute('aria-pressed', 'true');
 });
