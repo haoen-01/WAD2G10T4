@@ -1010,7 +1010,7 @@ class SqlAlchemyRepository:
         self._settings = settings
         # Whether resets follow today is decided by the settings passed here, never by the
         # process defaults the property above may resolve later: a repository built without
-        # settings (the YAML scenarios, the Supabase smoke) keeps the fixture's anchor day on
+        # settings (the YAML scenarios) keeps the fixture's anchor day on
         # every reset, however many it makes.
         self._demo_dates_follow_today = settings is not None and settings.demo_dates_follow_today
         self.seed = seed
@@ -1150,7 +1150,7 @@ class SqlAlchemyRepository:
         values, in the same order, only the dates change. Without it, an app whose settings say
         `demo_dates_follow_today` ends the readings on today (Singapore); otherwise they keep the
         fixture's own anchor day, which every scenario and pinned test relies on. A repository
-        built without settings (the YAML scenarios, the Supabase smoke) always keeps the
+        built without settings (the YAML scenarios) always keeps the
         anchor day. Only the synthetic fixture is written here, so a real reading is never moved.
         """
         now = _utcnow()
