@@ -1,12 +1,16 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 
-import { useAuth } from '@/composables/useAuth';
+import {
+  beginNavigation,
+  reportConnectionProblem,
+  settleConnectionProblem,
+} from '@/composables/useConnection';
 import { activeGroups, loadMe } from '@/composables/useMe';
-import { resolveViewMode } from '@/composables/useViewMode';
+import { demoViewMode, resolveAccount } from '@/composables/useViewMode';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { AUTH_ENABLED } from '@/lib/config';
-import { loginPathFor, stringifyStrictQuery } from '@/lib/route-guard';
-import { GROUP_START_PATH, homeFor, isPathInView, isViewPath } from '@/lib/view-mode';
+import { attempt, decideAccess, needsMe, stringifyStrictQuery } from '@/lib/route-guard';
+import { GROUP_START_PATH, isViewPath } from '@/lib/view-mode';
 
 /**
  * The whole route table: one layout, and every screen a lazy `import()` so its code loads the
@@ -76,27 +80,54 @@ const router = createRouter({
  * only their own screen, and asking for the other view's screen lands on your own start page. With
  * sign-in on, every screen needs a session (the sign-in link carries `?next=` back). With sign-in
  * off and no demo view chosen, every screen stays open, as it always was. The API enforces every
- * role itself, so this is a courtesy for the screen, not the security boundary.
+ * role itself, so this is a courtesy for the screen, not the security boundary. When Care+ cannot be
+ * reached (no response or a 5xx, not a 401/403/404 answer) nobody is sent to sign in or to "join a
+ * family group": the URL stays and the layout shows the connection panel (`lib/route-guard.ts`,
+ * `decideAccess`).
  */
 router.beforeEach(async (to) => {
-  if (!isViewPath(to.path)) return true; // the sign-in pages, welcome and not-found
-  const mode = await resolveViewMode();
-  if (!mode) {
-    if (!AUTH_ENABLED) return true;
-    // Signed in but no role yet: a new account finishes signing up first.
-    if (useAuth().session.value) {
-      const me = await loadMe().catch(() => null);
-      if (me?.needs_onboarding) return { name: 'welcome' };
-    }
-    return loginPathFor(to.path);
+  // Every run counts, the sign-in pages too: a later run overtakes this one's late results.
+  const generation = beginNavigation();
+  // The sign-in pages, welcome and not-found need nothing from the API.
+  if (!isViewPath(to.path)) return true;
+  const { hasSession, currentUser } = await resolveAccount();
+  const known = {
+    authEnabled: AUTH_ENABLED,
+    hasSession,
+    path: to.path,
+    demoView: demoViewMode(),
+    currentUser,
+  };
+  // `/v1/me`: whether a new account still has to finish signing up, and whether a family member
+  // is in a family group yet.
+  const me = needsMe(known)
+    ? await attempt(async () => {
+        const value = await loadMe();
+        return {
+          needsOnboarding: Boolean(value.needs_onboarding),
+          activeGroups: activeGroups(value).length,
+        };
+      })
+    : null;
+  const decision = decideAccess({ ...known, me });
+  if (decision.action === 'unreachable') {
+    // Care+ could not be reached (no response or a 5xx), which is not the same as being signed
+    // out: keep the URL and let the layout show "Can't connect" with Try again instead of the page.
+    // Ignored (and this navigation dropped) when a newer one has started while this guard waited:
+    // a late answer never covers the newer screen or points Try again at the one left behind.
+    return reportConnectionProblem(decision.kind, to, generation);
   }
-  if (!isPathInView(mode, to.path)) return homeFor(mode);
-  // A family member who is not yet in a family group joins or creates one first.
-  if (mode === 'family' && to.path.toLowerCase() !== GROUP_START_PATH) {
-    const me = await loadMe().catch(() => null);
-    if (me && activeGroups(me).length === 0) return GROUP_START_PATH;
-  }
-  return true;
+  return decision.action === 'redirect' ? decision.to : true;
+});
+
+/**
+ * The connection panel gives way only here, once a navigation the guard let through has been
+ * committed: in the same update as the new route, so the screen that was hidden behind the panel
+ * never mounts (not even on its way out), and a retry that fails again, or a cancelled navigation,
+ * keeps the panel.
+ */
+router.afterEach((to, _from, failure) => {
+  settleConnectionProblem(to, Boolean(failure));
 });
 
 export default router;
