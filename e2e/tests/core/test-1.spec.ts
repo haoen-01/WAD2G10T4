@@ -10,7 +10,7 @@ test.beforeEach(async ({ request }) => {
   await resetDemo(request); // every test starts from the same demo data
 });
 
-test('test', async ({ page }) => {
+test('Family member takes on an appointment and it remembers', async ({ page }) => {
   await page.goto('/calendar');
   await page.getByRole('button', { name: DOCTOR }).click();
   const panel = details(page, DOCTOR);
