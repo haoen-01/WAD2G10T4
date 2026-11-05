@@ -13,6 +13,7 @@ import {
   useAssistant,
 } from '@/composables/useAssistant';
 import { useMe } from '@/composables/useMe';
+import { seniorTabBarHeight } from '@/composables/useSeniorTabBar';
 import { useViewMode } from '@/composables/useViewMode';
 import {
   bubbleLine,
@@ -83,7 +84,11 @@ function followTabBar() {
   tabBar.value = bar?.getBoundingClientRect().height ?? 0;
 }
 
-/** Room kept clear at the bottom of a phone for the tab bar (however tall it is just now). */
+/**
+ * Room kept clear at the bottom of a phone for the tab bar (however tall it is just now): the
+ * family's tab bar, or the senior's section bar (measured by `SeniorView`), which also grows with
+ * the text size and can take a second row.
+ */
 const insets = computed<Insets>(() => ({
   top: 0,
   right: 0,
@@ -91,7 +96,7 @@ const insets = computed<Insets>(() => ({
   bottom:
     viewport.value.width < 768
       ? senior.value
-        ? 108
+        ? Math.max(108, Math.ceil(seniorTabBarHeight.value) + 22)
         : Math.max(78, Math.ceil(tabBar.value) + 22)
       : 0,
 }));

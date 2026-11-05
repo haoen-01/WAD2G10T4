@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { isoDay, openSettings, resetDemo } from './support';
+import { addDemoTask, clearDemoTasks, isoDay, openSettings, resetDemo } from './support';
 
 // The shared look (feedback round 2, part A): the menu stays reachable on a phone (a bottom tab
 // bar since the redesign) and in the header on a wide screen, the senior keeps the small top bar,
@@ -333,6 +333,160 @@ test.describe('the senior', () => {
     // The brand row has scrolled out of view above the menu row.
     const brand = await page.getByRole('banner').getByRole('link', { name: /Care/ }).boundingBox();
     expect(!!brand && brand.y + brand.height <= 0).toBe(true);
+  });
+});
+
+test.describe("the senior's section bar at a large text size", () => {
+  test.use({ viewport: { width: 375, height: 700 } });
+
+  const sections = (page: Page) => page.getByRole('tablist', { name: 'My day sections' });
+
+  /** Every label's font size, after checking each is whole, inside its tab, and clear of Kaki. */
+  async function checkSections(page: Page, where: string): Promise<number> {
+    const sizes: number[] = [];
+    for (const tab of await sections(page).getByRole('tab').all()) {
+      const { lines, fits, size } = await tab.evaluate((el) => {
+        const label = el.querySelector('.senior-tab-label')!;
+        const box = label.getBoundingClientRect();
+        const own = el.getBoundingClientRect();
+        return {
+          // One box per line: a word broken across lines ("Calen/dar") gives two.
+          lines: label.getClientRects().length,
+          fits:
+            box.left >= own.left - 0.5 &&
+            box.right <= own.right + 0.5 &&
+            box.top >= own.top - 0.5 &&
+            box.bottom <= own.bottom + 0.5,
+          size: parseFloat(getComputedStyle(label).fontSize),
+        };
+      });
+      const name = `${await tab.innerText()} ${where}`;
+      expect(lines, name).toBe(1);
+      expect(fits, name).toBe(true);
+      const box = (await tab.boundingBox())!;
+      expect(box.width, name).toBeGreaterThanOrEqual(48);
+      expect(box.height, name).toBeGreaterThanOrEqual(48);
+      sizes.push(size);
+    }
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth, where).toBeLessThanOrEqual(clientWidth);
+    // The page's last line clears the bar, however many rows it has (polled: the bar is measured
+    // after the text size changes).
+    await expect
+      .poll(
+        async () => {
+          const bar = (await sections(page).boundingBox())!;
+          const padding = await page.evaluate(() =>
+            parseFloat(getComputedStyle(document.body).paddingBottom),
+          );
+          return padding >= bar.height - 1;
+        },
+        { message: `the page keeps room for the bar ${where}` },
+      )
+      .toBe(true);
+    // Kaki sits above the bar, never over a tab.
+    await expect
+      .poll(
+        async () => {
+          const bar = (await sections(page).boundingBox())!;
+          const orb = (await page.getByTestId('assistant-orb').boundingBox())!;
+          return orb.y + orb.height <= bar.y;
+        },
+        { message: `Kaki stays above the bar ${where}` },
+      )
+      .toBe(true);
+    return Math.min(...sizes);
+  }
+
+  test('labels grow with the text size, stay whole inside their tab, and Kaki stays clear', async ({
+    page,
+    request,
+  }) => {
+    await resetDemo(request);
+    await enterAs(page, 'senior');
+    await expect(sections(page).getByRole('tab')).toHaveCount(4);
+    for (const width of [375, 320]) {
+      await page.setViewportSize({ width, height: 700 });
+      await page.evaluate(() => (document.documentElement.style.fontSize = '100%'));
+      const normal = await checkSections(page, `at ${width}px, 100%`);
+      await page.evaluate(() => (document.documentElement.style.fontSize = '125%'));
+      await checkSections(page, `at ${width}px, 125%`);
+      await page.evaluate(() => (document.documentElement.style.fontSize = '150%'));
+      const large = await checkSections(page, `at ${width}px, 150%`);
+      // The zoom setting is never undone by squeezing the labels to fit.
+      expect(large, `at ${width}px`).toBeCloseTo(normal * 1.5, 0);
+    }
+    // On two rows the tabs still work as tabs: the arrow keys move along them.
+    const today = sections(page).getByRole('tab', { name: 'Today', exact: true });
+    await today.click();
+    await today.press('ArrowRight');
+    const calendar = sections(page).getByRole('tab', { name: 'Calendar', exact: true });
+    await expect(calendar).toHaveAttribute('aria-selected', 'true');
+    await expect(calendar).toBeFocused();
+    await calendar.press('ArrowLeft');
+    await expect(today).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('the saved text size is followed from the first paint', async ({ page, request }) => {
+    await resetDemo(request);
+    await page.addInitScript(() => window.localStorage.setItem('careplus.zoom.v1', '150'));
+    await page.setViewportSize({ width: 320, height: 640 });
+    await enterAs(page, 'senior');
+    await expect(sections(page).getByRole('tab')).toHaveCount(4);
+    await checkSections(page, 'at 320px, saved 150%');
+  });
+});
+
+test.describe('the calendar at a large text size', () => {
+  test('no sideways scroll on a phone, with a task and the add buttons showing', async ({
+    page,
+    request,
+  }) => {
+    await resetDemo(request);
+    const groupId = await clearDemoTasks(request);
+    await addDemoTask(request, groupId, {
+      title: 'Blood pressure tablet',
+      start_date: isoDay(0),
+      time: '08:00',
+      repeat: 'daily',
+    });
+    await enterAs(page, 'family');
+    await page.goto('/calendar');
+    const tasks = page.getByTestId('day-tasks');
+    const edit = tasks.getByRole('button', { name: 'Edit Blood pressure tablet', exact: true });
+    await expect(edit).toBeVisible();
+    await expect(page.getByLabel('Viewing as')).toBeVisible();
+    await expect(page.getByTestId('add-appointment')).toBeVisible();
+    for (const width of [375, 320]) {
+      for (const zoom of ['125%', '150%']) {
+        const where = `at ${width}px, ${zoom}`;
+        await page.setViewportSize({ width, height: 700 });
+        await page.evaluate((z) => (document.documentElement.style.fontSize = z), zoom);
+        await expect
+          .poll(
+            () =>
+              page.evaluate(
+                () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+              ),
+            { message: `no sideways scroll ${where}` },
+          )
+          .toBeLessThanOrEqual(0);
+        // "Edit" stays one whole word, inside the screen.
+        const { lines, right } = await edit.evaluate((el) => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          return {
+            lines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size,
+            right: el.getBoundingClientRect().right,
+          };
+        });
+        expect(lines, where).toBe(1);
+        expect(right, where).toBeLessThanOrEqual(width);
+      }
+    }
   });
 });
 

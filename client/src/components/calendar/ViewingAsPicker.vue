@@ -56,10 +56,14 @@ export default defineComponent({
 </template>
 
 <style scoped>
+/* On a narrow phone at a large text size the name to pick goes under "Viewing as", never off the
+   side of the page. */
 .viewer {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  max-width: 100%;
 }
 
 .viewer-label {
@@ -71,7 +75,8 @@ export default defineComponent({
 
 .viewer-select {
   width: auto;
-  min-width: 7rem;
+  min-width: min(7rem, 100%);
+  max-width: 100%;
   font-weight: 600;
 }
 </style>

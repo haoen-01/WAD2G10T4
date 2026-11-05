@@ -40,3 +40,15 @@ test('the highlight pill is centred on its tab but never leaves the bar', () => 
   // A bar narrower than the pill: from the left edge.
   assert.equal(pillLeft(0, 40, 80, 40), 0);
 });
+
+test("the senior's four section tabs: one row while they fit, else two rows of two", () => {
+  // Measured icon-and-word widths. A 375 px phone's bar is 359 px inside: four 89.75 px tabs.
+  // At 100% "Calendar" (76 px) keeps 6 px a side: one row.
+  assert.deepEqual(tabRows([51, 76, 66, 55], 359, LABEL_ROOM), { rows: 1, perRow: 4 });
+  // At 125% (95 px) it would not: two rows of two, never three and one.
+  assert.deepEqual(tabRows([64, 95, 83, 69], 359, LABEL_ROOM), { rows: 2, perRow: 2 });
+  // A wide screen at 150% (1078 px inside), "Badges" with its count the widest: one row.
+  assert.deepEqual(tabRows([154, 205, 230, 166], 1078, LABEL_ROOM), { rows: 1, perRow: 4 });
+  // A tablet at 150% (658 px inside): two rows.
+  assert.deepEqual(tabRows([142, 189, 216, 153], 658, LABEL_ROOM), { rows: 2, perRow: 2 });
+});

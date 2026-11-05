@@ -1,8 +1,8 @@
 /**
- * How many rows the phone tab bar (`components/ui/MainNav.vue`) needs so every label is shown
- * whole at the text size the person chose, and where its highlight pill sits. Labels are never
- * shrunk to fit: at a large text size on a narrow phone the bar takes a second row instead. Pure,
- * so it is tested in `tab-rows.test.ts`.
+ * How many rows the phone tab bar (`components/ui/MainNav.vue`) and the senior's section bar
+ * (`views/SeniorView.vue`) need so every label is shown whole at the text size the person chose,
+ * and where the tab bar's highlight pill sits. Labels are never shrunk to fit: at a large text size
+ * on a narrow phone the bar takes a second row instead. Pure, so it is tested in `tab-rows.test.ts`.
  */
 
 /**

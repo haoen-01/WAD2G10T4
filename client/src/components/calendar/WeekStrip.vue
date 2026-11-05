@@ -197,9 +197,14 @@ function onTouchEnd(event: TouchEvent) {
   white-space: nowrap;
 }
 
+/* The arrows and Today stay full size; on a narrow phone at a large text size they wrap rather than
+   push the page sideways. */
 .week-nav {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.35rem;
+  max-width: 100%;
 }
 
 .week-nav .btn {
