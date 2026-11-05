@@ -104,26 +104,30 @@ function onTouchEnd(event: TouchEvent) {
   <section class="sl-panel week" aria-labelledby="week-heading" data-testid="week-strip">
     <div class="week-head">
       <h2 id="week-heading" class="week-title mb-0">{{ title }}</h2>
+      <!-- Today first, then the two arrows as a pair that never splits: on a narrow phone at a large
+           text size the pair wraps under Today together. -->
       <div class="week-nav">
-        <button
-          type="button"
-          class="btn btn-outline-primary"
-          aria-label="Previous week"
-          @click="emit('shift-week', -1)"
-        >
-          <Icon name="chevron-left" />
-        </button>
         <button type="button" class="btn btn-outline-primary" @click="emit('go-today')">
           Today
         </button>
-        <button
-          type="button"
-          class="btn btn-outline-primary"
-          aria-label="Next week"
-          @click="emit('shift-week', 1)"
-        >
-          <Icon name="chevron-right" />
-        </button>
+        <span class="week-arrows">
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            aria-label="Previous week"
+            @click="emit('shift-week', -1)"
+          >
+            <Icon name="chevron-left" />
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            aria-label="Next week"
+            @click="emit('shift-week', 1)"
+          >
+            <Icon name="chevron-right" />
+          </button>
+        </span>
       </div>
     </div>
 
@@ -197,7 +201,18 @@ function onTouchEnd(event: TouchEvent) {
   white-space: nowrap;
 }
 
+/* The arrows and Today stay full size; on a narrow phone at a large text size the arrows wrap under
+   Today, together, rather than push the page sideways. Lined up on the left, clear of Kaki at the
+   right-hand edge. */
 .week-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+
+.week-arrows {
   display: flex;
   gap: 0.35rem;
 }

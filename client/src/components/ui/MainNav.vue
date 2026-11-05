@@ -44,6 +44,7 @@ const perRow = ref(props.links.length);
 /** The tab bar's one-row height, read from theme.css before this bar changes it. */
 let rowHeight = '';
 let stretchTimer = 0;
+let measureFrame = 0;
 /** Where the bubble is now, so the next move can stretch from it. */
 let shown: Span | null = null;
 
@@ -126,6 +127,19 @@ function measure() {
   if (active && !pointing.value) moveTo(active);
 }
 
+/**
+ * The ResizeObserver's callback: measures on the next frame instead. Changing the rows resizes the
+ * bar it is watching, and doing that while it reports sets off a "ResizeObserver loop" (a web font
+ * arriving late on the sign-in page widens only the labels, and the bar takes a second row).
+ */
+function measureSoon() {
+  if (measureFrame) return;
+  measureFrame = requestAnimationFrame(() => {
+    measureFrame = 0;
+    measure();
+  });
+}
+
 /** The mouse (not a finger) or keyboard focus reached a link: the bubble goes to it. */
 function onPoint(event: PointerEvent | FocusEvent) {
   if (props.variant !== 'pill') return;
@@ -163,7 +177,7 @@ onMounted(async () => {
   requestAnimationFrame(() => requestAnimationFrame(() => (ready.value = true)));
   if (typeof ResizeObserver !== 'undefined' && list.value) {
     // Zoom, rotation and web fonts loading all change where the links sit.
-    resizeObserver = new ResizeObserver(measure);
+    resizeObserver = new ResizeObserver(measureSoon);
     observeAll();
   }
   void document.fonts?.ready.then(measure);
@@ -171,6 +185,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
+  cancelAnimationFrame(measureFrame);
   if (props.variant === 'tabs') document.documentElement.style.removeProperty('--sl-tabbar-core');
   window.clearTimeout(stretchTimer);
 });

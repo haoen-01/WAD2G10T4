@@ -648,6 +648,15 @@ onBeforeUnmount(() => {
   margin-left: auto;
 }
 
+/* A phone: under the title and lined up with it on the left, so "+ Add" (when it wraps at a large
+   text size) stays clear of Kaki, who waits at the right-hand edge. */
+@media (max-width: 575.98px) {
+  .head-tools {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+}
+
 .hint {
   display: inline-block;
   margin-bottom: 0.75rem;

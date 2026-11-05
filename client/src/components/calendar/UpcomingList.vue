@@ -61,9 +61,11 @@ export default defineComponent({
 </template>
 
 <style scoped>
+/* As many cards side by side as fit; one full-width column (never wider than the page) on a narrow
+   phone at a large text size. */
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
   gap: 0.75rem;
 }
 

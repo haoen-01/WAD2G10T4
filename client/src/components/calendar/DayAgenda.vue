@@ -119,8 +119,8 @@ export default defineComponent({
             @delete="deleteTask(task.task_id)"
             @cancel="editingId = null"
           />
-          <div v-else class="d-flex gap-2 align-items-start">
-            <label class="d-flex gap-2 align-items-start flex-grow-1">
+          <div v-else class="d-flex flex-wrap gap-2 align-items-start">
+            <label class="d-flex gap-2 align-items-start flex-grow-1 day-task-label">
               <input
                 type="checkbox"
                 class="form-check-input day-task-check"
@@ -141,7 +141,7 @@ export default defineComponent({
             </label>
             <button
               type="button"
-              class="btn btn-sm btn-outline-secondary"
+              class="btn btn-sm btn-outline-secondary text-nowrap ms-auto"
               :aria-label="`Edit ${task.title}`"
               @click="editingId = task.task_id"
             >
@@ -155,11 +155,13 @@ export default defineComponent({
 </template>
 
 <style scoped>
-/* A full-width row: appointments and tasks sit side by side, as many as fit. */
+/* A full-width row: appointments and tasks sit side by side, as many as fit. A column is never
+   wider than the page, so a narrow phone at a large text size gets one full-width column instead of
+   a sideways scroll. */
 .cards,
 .task-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
   gap: 0.75rem;
 }
 
@@ -211,6 +213,13 @@ export default defineComponent({
 
 .day-task label {
   cursor: var(--sl-cur-tick);
+}
+
+/* The words take the room; "Edit" keeps its word whole beside them, or drops under them when the
+   card is too narrow for both (a small phone at a large text size). */
+.day-task-label {
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 .day-task-check {

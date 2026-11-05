@@ -56,10 +56,15 @@ export default defineComponent({
 </template>
 
 <style scoped>
+/* One line whenever it fits. Only when it does not (a narrow phone at a large text size) does the
+   name to pick go under "Viewing as", rather than off the side of the page. The select's minimum
+   is a fixed size, not a percentage, so the line's natural width counts it in full. */
 .viewer {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  max-width: 100%;
 }
 
 .viewer-label {
@@ -72,6 +77,7 @@ export default defineComponent({
 .viewer-select {
   width: auto;
   min-width: 7rem;
+  max-width: 100%;
   font-weight: 600;
 }
 </style>
