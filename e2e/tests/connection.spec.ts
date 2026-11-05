@@ -256,7 +256,9 @@ test('a Try again still waiting when someone signs out never pulls them back', a
 
   // The retry's read now comes back (and Care+ answers again): it must not reopen /family.
   me.mode = 'pass';
-  const answered = page.waitForResponse('**/v1/me');
+  const answered = page.waitForEvent('requestfinished', (request) =>
+    request.url().endsWith('/v1/me'),
+  );
   me.release?.();
   await answered;
   await settle(page);
@@ -286,4 +288,68 @@ test('a guard overtaken by a newer navigation never shows the panel over it', as
   await settle(page);
   await expect(page).toHaveURL(/\/login$/);
   await expect(panel).toHaveCount(0);
+});
+
+/**
+ * `GET /v1/me` answered in turn from a list: each request takes the next step, and a `hang` step
+ * waits for `release()` and then fails. Requests past the end of the list go through.
+ */
+async function meInTurn(page: Page, steps: ('abort' | 'hang')[]) {
+  const held: { release: (() => void) | null } = { release: null };
+  await page.route('**/v1/me', async (route) => {
+    const step = steps.shift();
+    if (!step) return route.fallback();
+    if (step === 'hang') await new Promise<void>((resolve) => (held.release = resolve));
+    return route.abort();
+  });
+  return held;
+}
+
+test('pressing the current screen cancels a waiting retry, which then never reports', async ({
+  page,
+}) => {
+  await asFamily(page);
+  // The first read fails (the panel); Try again's own read fails too; its guard's read waits.
+  const me = await meInTurn(page, ['abort', 'abort', 'hang']);
+  await page.goto('/');
+  const panel = page.getByTestId('connection-problem');
+  await expect(panel).toBeVisible();
+
+  await panel.getByRole('button', { name: 'Try again' }).click();
+  await expect.poll(() => me.release !== null).toBe(true);
+  // Home, the screen already showing: the router cancels the retry's navigation without a guard.
+  await page.locator('.brand').click();
+
+  const failed = page.waitForEvent('requestfailed', (request) => request.url().endsWith('/v1/me'));
+  me.release?.();
+  await failed;
+  await settle(page);
+  // The cancelled guard did not report: no "Still can't connect", and Try again works.
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole('status')).not.toHaveText(/Still can’t connect/);
+  await panel.getByRole('button', { name: 'Try again' }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator('.home')).toBeVisible();
+});
+
+test('pressing the current screen while Try again reads leaves the retry to finish', async ({
+  page,
+}) => {
+  await asFamily(page);
+  const state = await controlMe(page);
+  await page.goto('/');
+  const panel = page.getByTestId('connection-problem');
+  await expect(panel).toBeVisible();
+
+  // Try again's own read waits; nothing is navigating, so pressing Home cancels nothing.
+  state.mode = 'hang';
+  await panel.getByRole('button', { name: 'Try again' }).click();
+  await expect.poll(() => state.release !== null).toBe(true);
+  await page.locator('.brand').click();
+
+  // Care+ answers: the retry carries on and opens Home.
+  state.mode = 'pass';
+  state.release?.();
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator('.home')).toBeVisible();
 });

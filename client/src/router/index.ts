@@ -3,11 +3,13 @@ import {
   createWebHistory,
   isNavigationFailure,
   NavigationFailureType,
+  type RouteLocationNormalized,
   type RouteRecordRaw,
 } from 'vue-router';
 
 import {
   beginNavigation,
+  endNavigation,
   reportConnectionProblem,
   settleConnectionProblem,
 } from '@/composables/useConnection';
@@ -94,6 +96,15 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   // Every run counts, the sign-in pages too: a later run overtakes this one's late results.
   const generation = beginNavigation();
+  try {
+    return await guard(to, generation);
+  } finally {
+    // No longer waiting: a push to the current screen from now on has nothing to cancel.
+    endNavigation(generation);
+  }
+});
+
+async function guard(to: RouteLocationNormalized, generation: number) {
   // The sign-in pages, welcome and not-found need nothing from the API.
   if (!isViewPath(to.path)) return true;
   const { hasSession, currentUser } = await resolveAccount();
@@ -124,7 +135,7 @@ router.beforeEach(async (to) => {
     return reportConnectionProblem(decision.kind, to, generation);
   }
   return decision.action === 'redirect' ? decision.to : true;
-});
+}
 
 /**
  * The connection panel gives way only here, once a navigation the guard let through has been

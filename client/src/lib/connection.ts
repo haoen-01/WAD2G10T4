@@ -17,26 +17,39 @@ export interface NavigationGenerations {
   latest(): number;
   /** Whether nothing newer has started since `generation` was captured. */
   isCurrent(generation: number): boolean;
+  /** That guard run has returned (allowed, redirected, stopped or reported). */
+  finish(generation: number): void;
+  /** Whether the newest guard run is still waiting (on `/v1/me`, say). */
+  waiting(): boolean;
 }
 
 export function createNavigationGenerations(): NavigationGenerations {
   let latest = 0;
+  let finished = 0;
   return {
     begin: () => ++latest,
     latest: () => latest,
     isCurrent: (generation) => generation === latest,
+    finish: (generation) => {
+      if (generation === latest) finished = generation;
+    },
+    waiting: () => latest > finished,
   };
 }
 
 /**
- * From the router's `afterEach`: whether a finished navigation overtakes any guard still waiting
+ * From the router's `afterEach`: whether a finished navigation overtakes a guard still waiting
  * even though no guard ran for it. A push to the screen already showing (a duplicated navigation,
  * such as pressing the current screen's tab) skips `beforeEach`, yet the router still cancels the
  * navigation in progress for it; so it must start a generation too, or that cancelled guard could
- * still show the panel and point Try again at the screen the person left.
+ * still show the panel and point Try again at the screen the person left. With no guard waiting
+ * it cancels nothing, so it changes nothing: a Try again still waiting on its own reads carries on.
  */
-export function overtakesWithoutGuard(input: { duplicated: boolean }): boolean {
-  return input.duplicated;
+export function overtakesWithoutGuard(input: {
+  duplicated: boolean;
+  generations: NavigationGenerations;
+}): boolean {
+  return input.duplicated && input.generations.waiting();
 }
 
 /**

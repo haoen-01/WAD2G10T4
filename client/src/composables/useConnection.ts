@@ -43,6 +43,11 @@ export function beginNavigation(): number {
   return generations.begin();
 }
 
+/** Called when that guard run returns, whatever it decided. */
+export function endNavigation(generation: number): void {
+  generations.finish(generation);
+}
+
 export function clearConnectionProblem(): void {
   problem.value = null;
   failedRetries.value = 0;
@@ -59,8 +64,8 @@ export function settleConnectionProblem(
   failed: boolean,
   duplicated = false,
 ): void {
-  // A duplicated push ran no guard but still cancelled any guard that was waiting.
-  if (overtakesWithoutGuard({ duplicated })) generations.begin();
+  // A duplicated push ran no guard but still cancelled the guard that was waiting, if any.
+  if (overtakesWithoutGuard({ duplicated, generations })) generations.begin();
   const clear = shouldClearAfterNavigation({
     failed,
     panelShowing: problem.value !== null,

@@ -37,21 +37,47 @@ describe('mayReport', () => {
   });
 });
 
+describe('createNavigationGenerations: waiting', () => {
+  it('is waiting from a guard run starting until that run returns', () => {
+    const generations = createNavigationGenerations();
+    assert.equal(generations.waiting(), false);
+    const run = generations.begin();
+    assert.equal(generations.waiting(), true);
+    generations.finish(run);
+    assert.equal(generations.waiting(), false);
+  });
+
+  it('stays waiting while a newer run has not returned, even once an older one has', () => {
+    const generations = createNavigationGenerations();
+    const older = generations.begin();
+    generations.begin();
+    generations.finish(older);
+    assert.equal(generations.waiting(), true);
+  });
+});
+
 describe('overtakesWithoutGuard', () => {
-  it('counts a push to the screen already showing as a newer navigation', () => {
-    assert.equal(overtakesWithoutGuard({ duplicated: true }), true);
-  });
-
-  it('leaves other finished navigations to the guard, which already counted them', () => {
-    assert.equal(overtakesWithoutGuard({ duplicated: false }), false);
-  });
-
-  it('stops a guard cancelled by a duplicated push from showing the panel', () => {
+  it('counts a push to the current screen as newer while a guard is waiting', () => {
     // On /calendar: Family is pressed (its guard waits), then the Calendar tab (a duplicate).
     const generations = createNavigationGenerations();
     const toFamily = generations.begin();
-    if (overtakesWithoutGuard({ duplicated: true })) generations.begin();
+    assert.equal(overtakesWithoutGuard({ duplicated: true, generations }), true);
+    generations.begin();
     assert.equal(mayReport(toFamily, generations), false);
+  });
+
+  it('changes nothing when no guard is waiting (a Try again still on its reads carries on)', () => {
+    const generations = createNavigationGenerations();
+    generations.finish(generations.begin());
+    const startedAt = generations.latest();
+    assert.equal(overtakesWithoutGuard({ duplicated: true, generations }), false);
+    assert.equal(mayContinueRetry({ startedAt, generations, panelShowing: true }), true);
+  });
+
+  it('leaves other finished navigations to the guard, which already counted them', () => {
+    const generations = createNavigationGenerations();
+    generations.begin();
+    assert.equal(overtakesWithoutGuard({ duplicated: false, generations }), false);
   });
 });
 
