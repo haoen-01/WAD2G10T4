@@ -1,7 +1,15 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import {
+  createRouter,
+  createWebHistory,
+  isNavigationFailure,
+  NavigationFailureType,
+  type RouteLocationNormalized,
+  type RouteRecordRaw,
+} from 'vue-router';
 
 import {
   beginNavigation,
+  endNavigation,
   reportConnectionProblem,
   settleConnectionProblem,
 } from '@/composables/useConnection';
@@ -88,6 +96,15 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   // Every run counts, the sign-in pages too: a later run overtakes this one's late results.
   const generation = beginNavigation();
+  try {
+    return await guard(to, generation);
+  } finally {
+    // No longer waiting: a push to the current screen from now on has nothing to cancel.
+    endNavigation(generation);
+  }
+});
+
+async function guard(to: RouteLocationNormalized, generation: number) {
   // The sign-in pages, welcome and not-found need nothing from the API.
   if (!isViewPath(to.path)) return true;
   const { hasSession, currentUser } = await resolveAccount();
@@ -118,16 +135,18 @@ router.beforeEach(async (to) => {
     return reportConnectionProblem(decision.kind, to, generation);
   }
   return decision.action === 'redirect' ? decision.to : true;
-});
+}
 
 /**
  * The connection panel gives way only here, once a navigation the guard let through has been
  * committed: in the same update as the new route, so the screen that was hidden behind the panel
  * never mounts (not even on its way out), and a retry that fails again, or a cancelled navigation,
- * keeps the panel.
+ * keeps the panel. A push to the screen already showing runs no guard but still cancels one that is
+ * waiting, so it counts as a newer navigation here (`lib/connection.ts`, `overtakesWithoutGuard`).
  */
 router.afterEach((to, _from, failure) => {
-  settleConnectionProblem(to, Boolean(failure));
+  const duplicated = isNavigationFailure(failure, NavigationFailureType.duplicated);
+  settleConnectionProblem(to, Boolean(failure), duplicated);
 });
 
 export default router;
