@@ -364,8 +364,8 @@ The senior, coordinator and demo-operator accounts carry their role in Supabase 
 family accounts are set up as a family member who signed up would be: no role in `app_metadata`,
 and a row in `accounts` holding the role and display name. The script creates no family groups.
 
-**Passwords are shared privately in the team's group chat, never in this repository, an issue or a
-Claude session.** The script does not print them.
+**Passwords are shared privately in the team's group chat, never in this repository or an
+issue.** The script does not print them.
 
 ## Demo story
 

@@ -9,7 +9,6 @@
   },
   "scripts": {
     "setup": "bash scripts/bootstrap.sh",
-    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "dev": "node scripts/dev.mjs",
     "dev:web": "node scripts/dev.mjs web",
     "dev:api": "node scripts/dev.mjs api",

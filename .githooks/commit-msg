@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Installed by `pnpm run setup` / the root `prepare` script (core.hooksPath=.githooks).
-exec "$(git rev-parse --show-toplevel)/scripts/check-commit-attribution.sh" --message "$1"

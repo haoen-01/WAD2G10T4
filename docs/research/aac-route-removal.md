@@ -294,8 +294,8 @@ unchanged.
   (`:188`) and `agent/intent_planner.py` (`:224`); the decision trace (`:345`, simulation
   latest/history); the activity-planning subsystem (`:458-470`); the world model (`:537-550`, which
   stays as a module but loses its route); replanning (`:581-594`).
-- `CLAUDE.md`: "API surface with no screen" (`:275-283`). Rewrite it to say the routes are gone and
-  which modules stay because `advance` needs them. (Only the human edits this file.)
+- The contributor guide: "API surface with no screen". Rewrite it to say the routes are gone and
+  which modules stay because `advance` needs them.
 - `agenticlayer.md`: `:308` (`agent/intent_planner.py` row), §11 "The other two loops" (`:353-440`).
 - `docs/testing.md`: `:23-24` (coordinator metrics / priorities), `:139` (`test_outreach_content.py`),
   `:164-171` (search golden files), `:219-225` (`test_review_lessons_contract.py`,
@@ -374,7 +374,7 @@ These tables still have kept writers: `CandidatePreferenceRow` (`_suppress_after
    either direct row fixtures or repository write methods kept without routes. Which one?
 5. **`review_lessons.py`** is used only by `review_case`, `_review_lesson` and `_threshold_state`,
    all removed (`sql_repository.py:9681`, `:9864`, `:12634-12661`). It is not on the issue's
-   full-removal list, and `CLAUDE.md:277` groups it with the coordinator tools. Delete it in step 7
+   full-removal list, and the contributor guide groups it with the coordinator tools. Delete it in step 7
    (with `test_review_lessons_contract.py`), or keep it?
 6. **The `agent/` activity-ranking loop** (`plan_activity_ranking`, `ActivityPlanRun`, the activity
    tools and `validate_activity_order`) serves only search and the inspector. Deleting
@@ -385,5 +385,5 @@ These tables still have kept writers: `CandidatePreferenceRow` (`_suppress_after
    role stays in `AuthRole` and `setup_demo_accounts.py`. `test_auth_rbac.py` loses its coordinator
    rows. Is that fine, or should the role's purpose be documented?
 8. **`client/src/api-client/index.ts`** is hand-written and must be edited in the same change.
-   `CLAUDE.md` says not to hand-edit `client/src/api-client`, but that rule is about `src/generated`. Please
+   The contributor guide says not to hand-edit `client/src/api-client`, but that rule is about `src/generated`. Please
    confirm the facade can be edited.

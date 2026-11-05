@@ -82,7 +82,7 @@ Two points for the review:
    data above going to a provider, per feature (issue #10). The decision covers which provider and
    region, and whether the typed-appointment text is acceptable.
 2. **Contract review.** Three new routes and the `CatchUp`, `MyDay`, `AppointmentDraft` and
-   `AgentStep` models change `openapi/silverloop.json`. CLAUDE.md asks for a reviewer.
+   `AgentStep` models change `openapi/silverloop.json`, so they need a reviewer.
 3. **Planner guardrail change (safety policy, done, needs a reviewer).** `validate_proposal` now
    rejects a message that copies the `<<<untrusted_text` fence or its markers (rule
    `copied_data_marker`); before, such a message was approved. The newer checks already did.

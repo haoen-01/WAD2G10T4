@@ -206,7 +206,7 @@ _PROHIBITED_PRESSURE = (
 )
 
 # Contacting a senior's family, carer or neighbour without their consent is a named product
-# boundary in `CLAUDE.md`, and until this list existed nothing enforced it: "Shall I ask your
+# boundary in `AGENTS.md`, and until this list existed nothing enforced it: "Shall I ask your
 # daughter to check on you?" and "Your carer has been informed." both passed every other rule.
 # Care+ offers; the senior decides who else is involved, through a consent flow, never
 # through outreach copy.

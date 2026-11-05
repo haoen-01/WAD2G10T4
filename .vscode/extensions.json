@@ -1,9 +1,0 @@
-{
-  "recommendations": [
-    "Vue.volar",
-    "esbenp.prettier-vscode",
-    "ms-python.python",
-    "charliermarsh.ruff",
-    "redhat.vscode-yaml"
-  ]
-}

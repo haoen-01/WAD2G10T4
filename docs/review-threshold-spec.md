@@ -661,8 +661,8 @@ shadow ∈ {None, day} × delta ∈ {-35,-45,-62} × sustained 2..5 × consent �
   context answer or disputed day, neither content nor existence — because the agent's reasoning is shown
   to a coordinator. Guardrail rule 9 also rejects `told`, `explained`, `said they`, `disputed`.
 - **Docs that become false (lead, stage 3):** `docs/care-priorities.md` "Reach out today" rows and "The
-  policy ladder itself (`policy.py`) is untouched"; add a `CLAUDE.md` API-internals bullet for
-  `review_threshold.py` (stage 1).
+  policy ladder itself (`policy.py`) is untouched"; document `review_threshold.py` in
+  `docs/architecture.md` (stage 1).
 - PR #50 changed no scenario or evaluation artifact; digest and holdout stay byte-identical.
 
 ## 13. Demo Tools senior-screen preview
