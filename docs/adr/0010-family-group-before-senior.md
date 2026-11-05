@@ -20,7 +20,7 @@ nothing about the senior.
   and points the family member to that group's Join PIN, so a senior's tasks and appointments are
   never split across groups that cannot see each other.
 - A family member can belong to several family groups and switches between them.
-- With AAC coordinators removed, a `coordinator_review` decision still opens a review case that no
+- With the care coordinator screens removed, a `coordinator_review` decision still opens a review case that no
   screen shows. Telling the family group instead is the natural next step, but it shares the
   senior's activity with family and needs its own senior agreement first, so it is deferred rather
   than decided.

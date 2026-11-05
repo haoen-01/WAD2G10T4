@@ -9,13 +9,13 @@
 
 Supabase PostgreSQL is required for the standard shared-development command. Docker is optional and
 is useful only for running the PostgreSQL integration test locally. A cloud database, Healthy 365
-account and LLM key are not required for tests or the emergency offline demo.
+account and LLM key are not required for tests or the offline demo.
 
 ## First run
 
 ```bash
-git clone https://github.com/peachoolongtee/ismoggers.git
-cd ismoggers
+git clone https://github.com/haoen-01/WAD2G10T4.git
+cd WAD2G10T4
 pnpm run setup
 # Replace the placeholder DATABASE_URL in .env with the server-side Session pooler URL.
 pnpm dev
@@ -24,8 +24,9 @@ pnpm dev
 The setup script creates `.env` only when it does not already exist. The committed value is a
 credential-free Supabase placeholder: `pnpm dev` will reject it until it is replaced in the local
 file. The script also installs `client/` and `e2e/` from their frozen pnpm lockfiles, the pinned
-Chromium browser (through `e2e/`) and the frozen Python environment in `server/`, and points git at
-`.githooks/`. The root `package.json` has no dependencies; it only runs scripts. It does not download private data or configure external adapters.
+Chromium browser (through `e2e/`) and the frozen Python environment in `server/`. The root
+`package.json` has no dependencies; it only runs scripts. Setup does not download private data or
+configure external adapters.
 
 Open <http://127.0.0.1:3000> for the demo and <http://127.0.0.1:8000/docs> for API exploration.
 
@@ -67,7 +68,7 @@ pnpm dev:web
 `pnpm dev:api` performs the same Supabase-first preflight as `pnpm dev`. It rejects missing,
 placeholder and SQLite connection strings before running migrations.
 
-## Emergency offline demo
+## Offline demo
 
 ```bash
 pnpm demo:offline
@@ -97,3 +98,16 @@ pnpm verify       # full static, test, scenario and build gate
 
 If ports 3000 or 8000 are busy, stop the existing process before the presentation; changing ports
 requires updating both the API CORS origin and `VITE_API_BASE_URL`.
+
+## Deployment
+
+Care+ deploys to Vercel as two projects:
+
+- **API:** root directory `server/`. Vercel serves `app` from `server/index.py`. Set
+  `DATABASE_URL` (the Session pooler URL), `SUPABASE_URL`, `AUTH_ENABLED=true` and `CORS_ORIGINS`
+  (the client's origin) as environment variables. A deploy of `server/` alone does not include
+  `infra/`, so check `GET /ready` afterwards; see [supabase.md](supabase.md#row-level-security).
+- **Client:** root directory `client/`, built with `vite build`. `client/vercel.json` rewrites every
+  path to `index.html` so the Vue router handles deep links. Set `VITE_API_BASE_URL` to the API's
+  origin and the public `VITE_AUTH_ENABLED`, `VITE_SUPABASE_URL` and
+  `VITE_SUPABASE_PUBLISHABLE_KEY`.

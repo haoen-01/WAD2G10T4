@@ -628,9 +628,9 @@ def test_the_startup_posture_closes_the_gap_with_no_mirror_and_no_manual_script(
     Every earlier posture test here applies a file the way an operator would. This one never
     does: `upgrade_database` (what the lifespan runs on every start) followed by
     `apply_rls_posture` (what the lifespan now runs immediately afterwards), and nothing else.
-    That is the situation `docs/supabase.md` records three times -- Alembic created the tables,
-    Supabase's `ALTER DEFAULT PRIVILEGES` granted `anon`/`authenticated` on them, and the posture
-    waited on a human.
+    That is the gap `docs/supabase.md` describes under "Row-level security" -- Alembic created
+    the tables, Supabase's `ALTER DEFAULT PRIVILEGES` granted `anon`/`authenticated` on them,
+    and the posture waited on a human.
 
     `anon` and `authenticated` do not exist on a stock PostgreSQL server, so they are created
     first: without them the apply script's `revoke` aborts its own `do $$` block and the whole

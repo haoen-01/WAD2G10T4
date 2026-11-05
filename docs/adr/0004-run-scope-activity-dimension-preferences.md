@@ -1,6 +1,6 @@
 # ADR 0004: Run-scope `activity_dimension_preferences` instead of deleting it on reset
 
-Status: Accepted (2026-09-13). Losing cross-run comparison is accepted for the proof of concept;
+Status: Accepted. Losing cross-run comparison is accepted for the proof of concept;
 the append-only design remains the path if that is ever needed.
 
 ## Context
@@ -227,7 +227,7 @@ here as unnecessary complexity -- would need to be revisited.
   The anchor being fixed and behind any day reached during play is exactly what makes the
   resurrection bug reproducible on demand, not a rare timing accident.
 - `test_a_reset_does_not_resurrect_a_time_boxed_statement_that_had_already_lapsed`
-  (`apps/api/tests/test_activity_responses.py`): written and confirmed failing against the
+  (an API test since removed with its route): written and confirmed failing against the
   `run_id = null`-for-all-`senior_statement` version of this change (the statement reappeared after
   reset), then confirmed passing once time-boxed rows were run-scoped.
 - `uv run pytest` (server): 929 passed, 8 skipped (Postgres-only, no local Postgres), 0 failed,
@@ -241,14 +241,14 @@ here as unnecessary complexity -- would need to be revisited.
   `PRAGMA index_list` confirmed the FK and index land as written.
 - `server/tests/test_supabase_mirror.py` (30 tests) passes unchanged against the new mirror file,
   including the "newest mirror bumps `alembic_version` to the current head" check.
-- Architecture review of the integrated branch found that a version of this migration without a
+- Architecture review of the integrated change found that a version of this migration without a
   data step left every existing row `run_id = null`, and that a version of `_preference_inactive`
   deriving "standing" from `run_id is None` (rather than from `source`/`expires_at`) made every
   such row read as standing regardless of what it actually was -- permanent inferred beliefs and
   resurrectable time-boxed statements, for every row already in a shared database, not only new
   ones. `test_a_legacy_null_run_id_inferred_row_drops_out_after_reset` and
   `test_a_legacy_null_run_id_time_boxed_statement_drops_out_after_reset`
-  (`apps/api/tests/test_activity_responses.py`) insert such a row directly, bypassing every
+  (an API test since removed with its route) insert such a row directly, bypassing every
   repository write path, and pin that the read path alone gets it right.
   `test_dimension_preference_run_scope_migration.py` steps a real SQLite database through the
   Alembic chain to `c2f4a8d1e6b7`, inserts one row of each shape by hand, upgrades to head, and
@@ -257,12 +257,12 @@ here as unnecessary complexity -- would need to be revisited.
 - The same review found `WorldModelQuality.expired_excluded` counting `_dimension_rows`'s whole
   inactive bucket, which after this ADR includes a merely stale-run row -- a count that grows by
   one every time a reset retires a run with an inferred belief in it, shown to the senior as "N
-  expired and excluded" (`apps/web/components/silverloop/personal-world-model.tsx`), contradicting
+  expired and excluded" (on a world-model screen since removed), contradicting
   this ADR's own claim that the world model is unaffected. `test_expired_excluded_does_not_grow_across_resets`
   (`server/tests/test_world_model.py`) pins the count staying flat across three
   decline-then-reset cycles.
 
-## Amendment (2026-09-13): `week_plan_entries` is run-scoped too
+## Amendment: `week_plan_entries` is run-scoped too
 
 The Context section above listed `week_plan_entries` among the tables "read per-run through an
 existing `run_id` foreign key". That was true of exactly one reader,

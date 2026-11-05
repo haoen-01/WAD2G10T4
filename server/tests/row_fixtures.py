@@ -1,6 +1,6 @@
 """Direct row fixtures for state that no route or repository method writes any more.
 
-Step 7 (AAC route removal) took out the routes no screen used, and with them the only writers of
+Removing the API routes no screen used took out, and with them the only writers of
 several tables that `advance` still reads: week plans, goals, day disputes, context answers,
 baseline confirmations, enjoyment and follow-through reports, coordinator reviews and
 review-setting decisions. The `advance` code that reads them is unchanged, so the tests that pin

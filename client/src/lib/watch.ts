@@ -61,7 +61,7 @@ export interface WatchPoint {
   example?: boolean;
 }
 
-/** A day counts as worn when the watch was on for at least this long (see CONTEXT.md). */
+/** A day counts as worn when the watch was on for at least this long (see docs/glossary.md). */
 export const VALID_WEAR_HOURS = 8;
 
 /** Within this share of usual, a day is "about the same". */

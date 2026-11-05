@@ -13,9 +13,6 @@ Tasks are stored by the API (`silverloop.family_tasks`, tables `tasks` and `task
 when they are. A repeating task is one row; its days are worked out when read. A tick is one day
 of a task ticked done (one row per task and day); un-ticking deletes it.
 
-Tasks that earlier versions kept in the browser (`careplus.tasks.v1.*` in `localStorage`) are not
-migrated and are no longer read.
-
 Nothing in `advance`, the policy, review cases or outreach reads a task. A missed tick triggers
 nothing, and ticks are not written to the family activity feed.
 
@@ -47,7 +44,7 @@ nothing, and ticks are not written to the family activity feed.
   and its ticks. When two members edit at once, the last save wins.
 - On the Calendar, tasks show as dashed chips beside appointments and can be ticked off in the
   day list. They need nobody to go along, so they never count towards "needs a helper", and the
-  "Only ones without a helper" filter hides them.
+  **Needs helper** filter hides them.
 
 ## The demo
 

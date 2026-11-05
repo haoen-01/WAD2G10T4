@@ -7,8 +7,7 @@ Create Date: 2026-09-13
 Replanning was a read view. `notices_for` recomputed a notice on every request, the person's
 answer to it lived only in browser state, the plan that could no longer happen stayed on the week
 -- so the senior was later asked "did you get a chance to go?" about a session that had been
-cancelled under them -- and nothing anywhere recorded that an offer had been made at all (audit F
-finding 8, reproduced as R7 in docs/audits/personalisation-v2/review-eval-sec.md).
+cancelled under them -- and nothing anywhere recorded that an offer had been made at all.
 
 `replan_offers` is the row that makes the offer, and its answer, a fact: written by `advance()` in
 the same transaction as the change that invalidated the plan, resolved by the person's own

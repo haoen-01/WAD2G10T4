@@ -4,7 +4,7 @@ The deterministic policy decides whether to act and which action class is permit
 package decides, within that permission, which candidate to offer and how to word it -- and
 submits every proposal to a deterministic guardrail before it can become an intervention.
 
-See `agenticlayer.md` at the repository root for the design rationale and the evidence it emits.
+See `docs/agentic-layer.md` for the design rationale and the evidence it emits.
 """
 
 from silverloop.agent.constants import AGENT_VERSION, DEFAULT_MAX_ITERATIONS, DEFAULT_MODEL_ID

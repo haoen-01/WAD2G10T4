@@ -1,22 +1,20 @@
 # Review-threshold calibrator — implementation spec
 
-> **Step 7.** The coordinator routes in section 9 (state, replay, approve, reject, manual,
-> confirm-starting, reconfirm) and `POST /v1/cases/{id}/review`, which started a calibration, were
-> removed with the other routes no screen used (`docs/research/aac-route-removal.md`).
+> The coordinator routes in section 9 (state, replay, approve, reject, manual, confirm-starting,
+> reconfirm) and `POST /v1/cases/{id}/review`, which started a calibration, have been removed from
+> the API with the other routes no screen used.
 > `review_threshold_replay.replay_thresholds` stays in code but no route calls it. What `advance`
 > runs stays: the live setting still feeds `policy.decide`, and the daily checks, expiry, shadow
 > check and write-ups still run against any approval on record. Nothing writes an approval any
 > more, so in the running app the starting setting is always live.
 
-Status: accepted for build, 2026-09-15. Map: [Wayfinder: the review-threshold calibrator, built in three stages](https://github.com/peachoolongtee/ismoggers/issues/42).
+Status: Accepted; built in three stages, then partly removed (see the note above).
 
-Sources: `suggestions.md` → "# Suggestion 6" (the feature, its settings and its eight decisions) and
-`docs/handover-review-threshold.md` (investigation; removed 2026-10-18, in git history). This spec is the architect review of
-2026-09-15 against branch `Jonathan-threshold` (Jonathan + `origin/main`), with the lead's amendments
-marked **[lead]**. Line numbers are from that date; search by name.
+This spec is the architecture review of the review-threshold calibrator (the feature, its settings and
+its eight decisions), with the lead's amendments marked **[lead]**. Line numbers may have drifted;
+search by name.
 
-Reconciled 2026-09-15 with PR #50 (care-priority board, `main` @ 1d2b4fb), merged into the build branch
-before tracks C and D start. See "Reconciliation with care priorities (PR #50)" and §13.
+It is reconciled with the care-priority board. See "Reconciliation with care priorities" and §13.
 
 ## Objective
 
@@ -26,7 +24,7 @@ proposes, code bounds it, a coordinator decides, and the agent checks afterwards
 
 ## Scope
 
-All three stages of Suggestion 6 on the real code paths, one commit per stage on `Jonathan-threshold`:
+All three stages of the calibrator on the real code paths, one change per stage:
 
 1. **Fixed-rule calibrator** with every protection (range, floor, shadow check, expiry, immediate
    revert), storage, approval flow, review-form reasons, senior notice (plus a read-only Demo Tools
@@ -43,12 +41,12 @@ All three stages of Suggestion 6 on the real code paths, one commit per stage on
 - New scenario YAML, authored-label or holdout changes (`AUTHORED_LABEL_DIGEST` and
   `docs/evaluation/*` stay byte-identical).
 - Applying the migration to the live Supabase project (the mirror SQL is written; a human applies it).
-- A PR to `main`; a real-care-team pilot; a live recording made by an agent (the user records
+- A real-care-team pilot; a live recording made by an agent (the user records
   `live_demo.json`).
 - Showing a non-default persona on `/senior` with auth off. `/senior` stays pinned to `DEMO_PERSON_ID`;
   any persona's senior home is previewed read-only at Demo Tools `/screen-preview` (§13).
 - Changes to `triage.py` windows, ordering, watch thresholds, `CarePriorityRow` or `CareContext` (one
-  wording change excepted; see the PR #50 reconciliation).
+  wording change excepted; see the care-priority reconciliation).
 
 ## Architecture decisions
 
@@ -402,8 +400,7 @@ manual set and calibrate refuse while consent is inactive.
 
 ### 10. Care Team UI
 
-> Superseded for layout and labels by "Care Team and demo surfaces after the UX redesign (2026-09-16)"
-> below.
+> Superseded for layout and labels by "Care Team and demo surfaces after the UX redesign" below.
 
 - New section in `components/care-team-view.tsx` after the queue, before "Follow-through, person by
   person": "Review setting, person by person", with its own `PersonaSwitcher`.
@@ -434,7 +431,7 @@ manual set and calibrate refuse while consent is inactive.
   ordinary swings cross the default review threshold." Update `test_personas.py`, web `PERSONAS`, and
   `product-loop.spec.ts:421` ("1 of 6"). No scenarios ⇒ evaluation artifacts unchanged.
 - **Guided scenario** `a-false-alarm-teaches-silverloop` on `mdm-wong` (titled "A coordinator adjusts
-  future review timing" since 2026-09-16; the id is unchanged); `GuidedScenarioStep.interlude?:
+  future review timing" since the UX redesign; the id is unchanged); `GuidedScenarioStep.interlude?:
 string` rendered before a step. E1 `activity_declines`×3 → interlude (resolve on Care Team as override
   → Not a concern for this person, fixed demo note; approve a proposal if one appears) → `recovery`;
   E2 same (offline: second false alarm → fixed-rule proposal); E3 `activity_declines`×3 → `recovery`
@@ -504,8 +501,8 @@ severityPct, persistenceDays, note, shownOnDay)`; `confirmStartingThreshold(pers
 ## Comments that become false (reworded with ADR 0008)
 
 `HumanAction` docstring (`models.py` ~94), `CaseReviewRow` comment (`db_models.py` ~289–292),
-`review_case` audit `learning_boundary` (`sql_repository.py` ~7958), WAYFINDER F16 constraint
-(`docs/WAYFINDER.md` ~1199), the "safety thresholds" guardrail in `suggestions.md`. The ranking boundary
+`review_case` audit `learning_boundary` (`sql_repository.py` ~7958), the F16 design
+constraint, the "safety thresholds" outreach guardrail. The ranking boundary
 (`learning.py`) is unchanged.
 
 ## Risks
@@ -528,7 +525,7 @@ severityPct, persistenceDays, note, shownOnDay)`; `confirmStartingThreshold(pers
 
 ## Stages and acceptance criteria
 
-### Stage 1 — fixed-rule calibrator (commit `feat: fixed-rule review-threshold calibrator`)
+### Stage 1 — fixed-rule calibrator
 
 Builds: `review_threshold.py`, `review_threshold_replay.py`, policy + ladder rungs, migration + mirror,
 the **full** contract + client + facade, false-alarm and reached-too-late capture, shadow and
@@ -574,7 +571,7 @@ senior notice, persona, per-person reset, guided scenario, Care Team card and re
   pass; SQLite enforces append-only on both.
 - The offline demo runs the full fixed-rule flow.
 
-### Stage 2 — agent (commit `feat: threshold calibration agent`)
+### Stage 2 — agent
 
 - `LLM_ENABLED=true` + fake transport: one `not_a_concern` false alarm yields an agent proposal with
   `agent_run.mode == "agent"` and recorded tool calls.
@@ -587,7 +584,7 @@ not_a_concern`, including under a note injection claiming otherwise.
 - Planner and cost observability unchanged by threshold runs; audit details contain no reasoning or note text.
 - The threshold card shows the agent run (what it looked at, cause, rejections, mode, transport).
 
-### Stage 3 — checking afterwards (commit `feat: post-change checks, reversals and write-ups`)
+### Stage 3 — checking afterwards
 
 - A case opened within 14 days of a loosening at ≥60% writes `reverted/far_more_severe` automatically.
 - 14 days with no false alarms and no triggers → `check_confirmed`; with false alarms → `check_unresolved`.
@@ -598,7 +595,7 @@ not_a_concern`, including under a note injection claiming otherwise.
 - The scripted threshold recording replays through the guided sequence with `transport == "recorded"`;
   `live_demo.json`, if present, declares `synthetic: false` with the live banner.
 - ADR 0008 present; F16 entry, `HumanAction` docstring, `CaseReviewRow` comment, review audit
-  `learning_boundary` and the `suggestions.md` guardrail reworded consistently.
+  `learning_boundary` and the outreach guardrail reworded consistently.
 
 Cut order within stages: notice dismissal and history visuals, then the evaluation markdown report, then
 `record_threshold`. Stage 3 logic is never cut.
@@ -606,14 +603,13 @@ Cut order within stages: notice dismissal and history visuals, then the evaluati
 ## Validation (every stage)
 
 `pnpm format:check && pnpm client:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:scenarios`
-(e2e on `E2E_API_PORT=8100`, `E2E_WEB_PORT=3100`), plus
-`cd apps/api && uv run python -m silverloop.evaluation ../../scenarios --out ../../docs/evaluation --check`
-and `pnpm build`. Then code-reviewer, design-reviewer (user-facing), architect check and verifier; fix;
-re-verify; commit.
+(e2e on `E2E_API_PORT=8100`, `E2E_WEB_PORT=3100`), plus the scenario evaluation check and
+`pnpm build`. Then code review, design review (user-facing), an architecture check and an
+acceptance check; fix; re-check.
 
-## Reconciliation with care priorities (PR #50)
+## Reconciliation with care priorities
 
-PR #50 merged into `main` after this spec's base. It adds `triage.py` (a pure care-priority board, no
+The care-priority board landed after this spec's base. It adds `triage.py` (a pure care-priority board, no
 schema change, no LLM, no evidence or audit writes), `GET /v1/coordinator/priorities`, and a new Care
 Team layout. **Where this section conflicts with text above, this section wins.**
 
@@ -645,7 +641,7 @@ shadow ∈ {None, day} × delta ∈ {-35,-45,-62} × sustained 2..5 × consent �
   review and evaluation only — a coordinator's decision never changes how suggestions are ranked." to "A
   coordinator's decision never changes how suggestions are ranked. Choosing 'Not a concern for this
   person' can lead Care+ to propose a change to that person's review setting, which a coordinator
-  approves." In `review-card.tsx` keep PR #50's root `Card` `id="case-…"` and `scroll-mt` classes.
+  approves." In `review-card.tsx` keep the board's root `Card` `id="case-…"` and `scroll-mt` classes.
 - **Repository placement (track C):** no function is edited by both sides. New `SqlAlchemyRepository`
   and Protocol methods go **after** `review_case`; new coordinator routes after
   `/v1/cases/{case_id}/review`. `care_priorities` calls `_evaluate` per active run, so a loosened senior
@@ -656,26 +652,26 @@ shadow ∈ {None, day} × delta ∈ {-35,-45,-62} × sustained 2..5 × consent �
   `1 of 6`. **No e2e advances or resets `mdm-wong`**: e2e resets only `mdm-lim` on one SQLite database, and a
   live `mdm-wong` run breaks the seeding disclosure and the board's empty-state assertions. The guided
   sequence is pinned in pytest only. Tests reading "Your seniors" use the window labels.
-- **Stage 2 privacy (from PR #50's precedent "nothing the senior told Care+ reaches a coordinator
+- **Stage 2 privacy (from the board's precedent "nothing the senior told Care+ reaches a coordinator
   surface"):** `get_context_evidence` returns rain and holiday context only — no stated explanation,
   context answer or disputed day, neither content nor existence — because the agent's reasoning is shown
   to a coordinator. Guardrail rule 9 also rejects `told`, `explained`, `said they`, `disputed`.
-- **Docs that become false (lead, stage 3):** `docs/care-priorities.md` "Reach out today" rows and "The
-  policy ladder itself (`policy.py`) is untouched"; add a `CLAUDE.md` API-internals bullet for
-  `review_threshold.py` (stage 1).
-- PR #50 changed no scenario or evaluation artifact; digest and holdout stay byte-identical.
+- **Docs that become false (lead, stage 3):** the care-priority docs' "Reach out today" rows and "The
+  policy ladder itself (`policy.py`) is untouched"; document `review_threshold.py` in
+  `docs/architecture.md` (stage 1).
+- The board changed no scenario or evaluation artifact; digest and holdout stay byte-identical.
 
 ## 13. Demo Tools senior-screen preview
 
-Decision (user, 2026-09-15): `/senior` stays pinned to the default demo persona when auth is disabled; no
+Decision (user): `/senior` stays pinned to the default demo persona when auth is disabled; no
 query-string identity selection on the real senior route. Persona switching is an isolated, read-only
 Demo Tools surface.
 
-**Web route and nav (track D):** `apps/web/app/(platform)/screen-preview/page.tsx` (deliberately not under
+**Web route and nav (track D):** a `screen-preview` page (deliberately not under
 `/senior…`). Nav label "What a Senior Sees", eyebrow "Demo tools · Senior screen preview", one `h1` "What a
-Senior Sees". `apps/web/app/nav.tsx`: add `{ href: '/screen-preview', label: 'What a Senior Sees', icon: Eye }`
+Senior Sees". The nav: add `{ href: '/screen-preview', label: 'What a Senior Sees', icon: Eye }`
 to `DEMO_TOOLS` after `/ranker`; hide from coordinators like `/simulator` and `/ranker`; update the
-`PlatformNav` docstring. `apps/web/middleware.ts`: add `'/screen-preview'` to `PROTECTED_PREFIXES`.
+`PlatformNav` docstring. The route guard: add `'/screen-preview'` to `PROTECTED_PREFIXES`.
 
 **API (track C; model by track A):** `GET /v1/evaluator/people/{person_id}/senior-home`,
 `response_model=SeniorHomePreview`, tag `evaluator`, `current_user: DemoOperator`, responses 401/403/404/409,
@@ -696,7 +692,7 @@ class SeniorHomePreview(BaseModel):
 Facade `seniorHomePreview(personId)` in the single stage-1 generation.
 
 **Composition (track D) — no second identity path, `/senior` untouched:** new
-`apps/web/components/senior-screen-preview/senior-screen-preview-view.tsx` using
+`senior-screen-preview-view` using
 `createApiClient(getAccessToken, onUnauthorized)` like `useRankerApi`; persona only from `PersonaSwitcher`
 (`id="screen-preview-persona"`); never calls `api.me()`, `useSeniorApi` or any senior route; stale-response
 guard. Outside the frame an `Alert role="note"` "Preview, not the senior's own screen" — "Read-only. Replies
@@ -707,23 +703,23 @@ senior components but **not** the `.senior-shell` class: greeting (`greetingFor`
 `components/senior/review-threshold-notice.tsx` (also used by `senior-view.tsx`); headline/subline from a pure
 helper `components/senior/home-headline.ts` moved out of `SeniorView`; `SuggestionCard` with new optional
 `previewOnly` prop (response buttons disabled, default false); "How things look" via
-`describeRecentActivity(state)` without `DayDispute` (since 2026-09-16 that sentence is the "Your week"
+`describeRecentActivity(state)` without `DayDispute` (after the UX redesign that sentence is the "Your week"
 card, `YourWeekCard`, after Today; the preview leads with the frame and moves the not-previewed list
 into a "What this preview leaves out" disclosure). 404/409 → "{name} is not set up in this database yet."
 The preview never seeds or resets.
 
 **Tests:** pytest `test_auth_rbac.py` (demo operator 200, coordinator 403, senior 403); `test_api.py` (`state`
 equals the state route, `latest_intervention` equals `list_interventions()[0]`, unknown 404, reads write no
-events, cases or threshold rows). e2e `apps/e2e/tests/senior-screen-preview.spec.ts` on Mdm Lim only: Demo
+events, cases or threshold rows). an e2e `senior-screen-preview` spec on Mdm Lim only: Demo
 tools menu reaches the page; after one `activity_declines` advance the note is visible, greeting names Mdm
 Lim, response buttons disabled, frame text passes `SENIOR_SHELL_VOCABULARY`, no non-GET API request while on
 the page; choosing Mdm Siti shows the not-set-up state and Care Team still reads `1 of 6`. The Mdm Lim notice
 e2e also asserts the same notice text inside the preview frame. Add `'/screen-preview'` to the narrow-viewport
 route loop.
 
-## Stage 1 review amendments (2026-09-15)
+## Stage 1 review amendments
 
-From code-reviewer, architect check (PASS), design-reviewer and the web code review. **These override
+From the code review, architecture check (pass), design review and the web code review. **These override
 conflicting text above.**
 
 - **No mixed settings (re-review round 2).** A setting is on the loosening side (at least 40% and at
@@ -768,14 +764,15 @@ conflicting text above.**
   consequences; no "shadow check" or "floor" jargon in coordinator copy; guided-scenario interludes sit
   beside the Run button and need an explicit confirmation.
 
-## Care Team and demo surfaces after the UX redesign (2026-09-16)
+## Care Team and demo surfaces after the UX redesign
 
-From `docs/ux-audit-2026-09-16.md`, delivered with calibration trust (`docs/calibration-trust-spec.md`,
-ADR 0009). **These override §10, the Care Team placement bullet in the PR #50 reconciliation, and the
+From the UX audit, delivered with calibration trust
+([`docs/calibration-trust-spec.md`](calibration-trust-spec.md)). **These override §10, the Care Team
+placement bullet in the care-priority reconciliation, and the
 demo steps above where they conflict.** The behaviour, contract and guarantees are unchanged.
 
 - **Terminology.** The web UI says "review timing". API text, contract names and backend docs still say
-  "review setting" (`CONTEXT.md`).
+  "review setting" ([`docs/glossary.md`](glossary.md)).
 - **Roster.** Care Team is one roster grouped as "Needs your judgement", "Waiting for senior response",
   "Care+ is handling" and "No attention needed" (collapsed). The `FollowUpFirstCard`, its top-3/5/10
   control and the always-present "Review setting, person by person" section are gone. "When each person
@@ -817,4 +814,4 @@ demo steps above where they conflict.** The behaviour, contract and guarantees a
 
 ## Open decisions
 
-- None. Closed 2026-09-15 (user): `/senior` stays pinned; persona switching via the Demo Tools preview (§13).
+- None. Closed (user): `/senior` stays pinned; persona switching via the Demo Tools preview (§13).

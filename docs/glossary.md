@@ -1,7 +1,7 @@
 # Care+ glossary
 
-Terms used across the product, the API and the docs. Definitions only; design lives in `docs/adr/` and
-`docs/architecture.md`.
+Terms used across the product, the API and the docs. Definitions only; design lives in
+[the ADRs](adr/) and [the architecture](architecture.md).
 
 ## The daily loop
 
@@ -20,13 +20,19 @@ intrusive permitted action wins. `no_action` is a recorded result, not a skipped
 severity and persistence, then the weekly contact cap. A gate can only hold Care+ back; no learner or
 language model can open one.
 
+**Programme suggestion.** A suggestion of a nearby community programme or activity, the step above a
+gentle nudge.
+
+**Coordinator review.** The top step of the ladder: a sustained, severe drop is flagged for a person
+to review instead of messaging the senior. The review case is recorded, but no screen shows it yet.
+
 **Suggestion (intervention).** The message a senior sees on the Senior screen when the decision is a
 nudge or a programme suggestion.
 
 **Outcome.** How the senior answered a suggestion: _accepted_ ("Yes, I'd like that", not proof it
 helped), _declined_ ("Not for me"), _deferred_ ("Maybe later") or _no response_. Accepted, declined
 and no response change how permitted suggestions are ranked; deferred does not. Three declines of one
-suggestion mute it until the senior lifts the mute. A decline given as a bad day or already being
+suggestion mute it (no screen lifts a mute yet). A decline given as a bad day or already being
 active counts towards neither, unless that reason was added later to a plain decline, which still
 counts towards the mute. A mute only removes that suggestion from the options; no outcome can open a
 gate or add to what is permitted.
@@ -40,8 +46,11 @@ one, they also get 3 days of quiet.
 never mixed with live data.
 _Avoid_: demo data, fake data
 
-**Live data.** Daily steps read from a senior's own Google Health account with their agreement,
-labelled _Live_. Only steps, plus wear time where it exists, are read.
+**Live data.** Not built yet. ADR 0012 plans daily steps read from a senior's own Google Health
+account with their agreement, labelled _Live_; today every reading is synthetic.
+
+**Simulated watch.** The watch status shown on Home and the Watch page (connected, last sync,
+battery). No real device is connected.
 
 ## Family
 
@@ -92,7 +101,7 @@ optional note. Care+ sends nothing and contacts no one.
 
 **Location share.** The senior's walk as their family group sees it on a map: where they are now and
 the trail walked so far today. The senior turns it on and off themselves, and turning it off forgets
-what was shared.
+what was shared. Today it runs on a simulated walk in the browser; nothing is sent to the API.
 _Avoid_: tracking
 
 **Still for a while check-in.** A prompt to the family group when the senior, sharing their walk, has
@@ -100,6 +109,9 @@ stayed in one spot away from home longer than the family's limit. The senior is 
 OK?" first, and only the senior can allow it. It asks a person to get in touch; it is not a safety
 alert.
 _Avoid_: fall alert, emergency alert
+
+**Badge.** A small reward for walking on the senior's Badges tab and the family's Walk page,
+worked out in the browser from daily steps and shared walks. Badges never feed a decision.
 
 **Task.** A one-off, daily or weekly reminder for the senior, kept by their family group. The family
 adds and changes tasks; the senior and the family tick each day done. A medicine task is a label
@@ -117,6 +129,9 @@ voice on the Care+ server or an on-device browser voice, never an online one.
 **Appointment draft.** The appointment form filled in from a sentence a family member typed
 ("lunch with Ma tmr 12pm"). It saves nothing; the member checks it and adds it themselves.
 
+**Kaki.** The read-only assistant on every screen. It answers questions about what Care+ shows;
+emergency, medicine and symptom questions get a fixed safety reply.
+
 **Agent step.** One thing an agent did on its way to an answer: a read tool it called, or its
 submission and whether the deterministic check approved it. Shown under "How Care+ wrote this".
 
@@ -125,8 +140,9 @@ submission and whether the deterministic check approved it. Shown under "How Car
 These exist in the API and its tests but no current screen shows them.
 
 **Review setting.** How far below a senior's own baseline, and for how many low valid-wear days,
-before Care+ asks a coordinator to review. It starts at 40% for 3 days and moves only within fixed
-bounds, with a coordinator's approval. A drop of 60% or more for 3 low days (the _absolute floor_)
-always asks a human, whatever the setting.
+before Care+ asks for a review. It starts at 40% for 3 days. The code can move it within fixed bounds
+with a reviewer's approval, but no route does, so it stays at the starting setting. A drop of 60% or
+more for 3 low days (the _absolute floor_) always asks a person, whatever the setting.
 
-**Review case.** What a `coordinator_review` decision opens for a human to look at.
+**Review case.** What a `coordinator_review` decision opens for a person to look at. One open case
+per senior, refreshed while the drop persists.

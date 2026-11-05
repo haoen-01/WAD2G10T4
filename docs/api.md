@@ -12,16 +12,15 @@ the generated SDK; it contains no handwritten copies of API model types.
 ## What the web app uses
 
 The web app calls only the routes in `client/src/services/careApi.ts`, plus `/v1/auth/me` at
-sign-in: person state and metrics, interventions and their outcomes, and every route under
-[Accounts, family groups and the calendar](#accounts-family-groups-and-the-calendar). The e2e suite
-also calls `POST /v1/demo/reset` and `POST /v1/simulation/advance`.
+sign-in: person state and metrics, interventions and their outcomes, every route under
+[Accounts, family groups and the calendar](#accounts-family-groups-and-the-calendar) except
+`POST /v1/groups/{group_id}/open`, and the assistant (`POST /v1/assistant/chat`).
 
-Beyond those, the API serves `/health`, `/ready`, `POST /v1/demo/reset`, `POST
-/v1/simulation/advance` and `POST /v1/people/{person_id}/consent` (which the e2e suite calls) and
-the Care+ assistant. The 51 routes that served features with no screen -- coordinator review, the
-evaluator ranker inspector, the follow-through loop, the user-initiated activity loop and the
-review setting -- were removed in step 7; see [Removed in step 7](#removed-in-step-7). The code
-behind them that `advance` still runs stays.
+Beyond those, the API serves `/health`, `/ready`, `POST /v1/demo/reset`,
+`POST /v1/simulation/advance` and `POST /v1/people/{person_id}/consent`, which the e2e suite and
+the demo tooling call. `POST /v1/groups/{group_id}/open` records the last-opened group but has no
+caller in the web app yet. Routes for features with no screen no longer exist; see
+[Routes that no longer exist](#routes-that-no-longer-exist).
 
 ## Auth, in brief
 
@@ -30,22 +29,23 @@ Every route below runs `AUTH_ENABLED=true` behind a Supabase-issued bearer JWT
 always public. The **Auth** column names the role a route requires:
 
 - **any authenticated** -- a valid token of any role (`require_any_authenticated`).
+- **reader** -- the senior themselves, or an active member of the senior's family group
+  (`PersonReader` plus `check_reader`); anyone else gets 404.
 - **senior** -- role `senior`. `person_id` in the token payload is resolved through
   `auth_user_person_links` (`lookup_person_for_sub`), never trusted from the request. A 403 with
   "No person mapped to this senior account" means the Supabase user exists but no link row does.
-- **coordinator** / **demo_operator** -- an exact role match; anything else is 403.
+- **demo_operator** -- an exact role match; anything else is 403. The `coordinator` role still
+  exists in `AuthRole`, but no route requires it.
 - **own person only** -- for a `senior`, the `{person_id}` in the path must equal the identity's own
   linked person, or the route returns 404 (not 403) so that another person's record is
-  indistinguishable from one that does not exist. This check applies only to the `senior` role: a
-  coordinator or demo operator reading another person's data is doing their job, not crossing a
-  boundary, so it is never scoped for them.
+  indistinguishable from one that does not exist.
 
 With `AUTH_ENABLED=false` (the offline profile, most tests) every request is handed a fixed
-synthetic identity per role -- the senior identity is always pinned to `mdm-lim`
-(`DEMO_PERSON_ID`) -- and person-scoping is not enforced at all, because there is no real identity
-to protect. Do not read "own person only" below as active in that mode.
+synthetic identity -- the senior identity is always pinned to `mdm-lim` (`DEMO_PERSON_ID`) -- and
+person-scoping is not enforced at all, because there is no real identity to protect. Do not read
+"own person only" or "reader" below as active in that mode.
 
-## Demo routes
+## Person, outreach and demo routes
 
 | Method | Route                            | Auth                     | Purpose                                                 |
 | ------ | -------------------------------- | ------------------------ | ------------------------------------------------------- |
@@ -53,21 +53,28 @@ to protect. Do not read "own person only" below as active in that mode.
 | GET    | `/ready`                         | none                     | Database backend, connectivity, Alembic and RLS posture |
 | GET    | `/v1/auth/me`                    | any authenticated        | Confirm the caller's own identity and role              |
 | POST   | `/v1/demo/reset`                 | demo_operator (see note) | Restore the deterministic Mdm Lim fixture               |
-| GET    | `/v1/people/{person_id}/state`   | senior, own person only  | Personal baseline, signal, decision and reasons         |
-| GET    | `/v1/people/{person_id}/metrics` | senior, own person only  | Daily metric history, oldest to newest                  |
+| GET    | `/v1/people/{person_id}/state`   | reader                   | Personal baseline, signal, decision and reasons         |
+| GET    | `/v1/people/{person_id}/metrics` | reader                   | Daily metric history, oldest to newest                  |
 | POST   | `/v1/people/{person_id}/consent` | senior, own person only  | Append consent evidence and withdraw open actions       |
 | POST   | `/v1/simulation/advance`         | demo_operator            | Apply one allowlisted synthetic event                   |
 | GET    | `/v1/interventions`              | senior                   | Read proposed low-risk actions                          |
 | POST   | `/v1/interventions/{id}/outcome` | senior                   | Append a permitted senior outcome and preference update |
+| POST   | `/v1/assistant/chat`             | reader                   | One answer from Kaki, the read-only assistant           |
 
 `POST /v1/demo/reset` returns 403 unconditionally when `APP_ENV=production`, regardless of role.
 With `AUTH_ENABLED=true` outside production it additionally requires a `demo_operator` token
 (checked directly against the `Authorization` header, since the route needs to run before FastAPI's
 dependency-injected auth would); with `AUTH_ENABLED=false` it is open.
 
-One path parameter carries a real clamp rather than an unbounded read: `GET
-/v1/people/{person_id}/metrics?days=` is clamped to `[1, 90]` regardless of what is requested. It
-silently clamps rather than rejecting an out-of-range value with 422.
+`GET /v1/people/{person_id}/metrics?days=` (default 14) is clamped to `[1, 90]` rather than
+rejecting an out-of-range value with 422.
+
+`POST /v1/assistant/chat` takes `{messages, person_id?, page?}`. A senior always asks about
+themselves; a family member names the senior (`person_id`), checked like any reader route. The
+reply's `source` is `safety` (a fixed answer to an emergency, medicine or symptom question, which
+never reaches a model), `openai` (when `OPENAI_API_KEY` is set and the profile is not `offline`) or
+`helper` (the built-in answers). Too many questions in a short time is 429. See
+[the assistant](assistant.md).
 
 Every `/v1/people/{person_id}/...` route above returns 404 ("Person not
 found") for a `person_id` that does not exist in the database, distinct from the 409 returned when
@@ -85,15 +92,10 @@ without a contract-breaking model edit): `activity_declines`, `rain_explains_dec
 `programme_becomes_full`, `weather_turns`. An event outside that set returns 422.
 `programme_becomes_full` marks `full` the listing the person has **themselves planned** -- the
 soonest entry of the active run from the next simulated day onwards, skipping any entry they have
-already replaced -- which is a catalogue fact genuinely changing. It never picks a listing of its
-own: with nothing planned it changes no listing and says nothing. `weather_turns` changes no
-listing at all: it sets the rain context, and the person is told the forecast turned. Each
-produces a replan offer when the person actually has a plan it affects, and nothing at all when
-they do not (see `docs/architecture.md`, "Replanning"). Since step 7 no route writes a plan, so in
-the running app nobody has one and neither event produces an offer. The offer carries an alternative only when
-the plan's own day and time of day genuinely have one; "I could not find anything similar for that
-day" is a complete answer, not a failure -- an evening plan on a day whose catalogue holds no
-second evening session gets exactly that.
+already replaced. With nothing planned it changes no listing. `weather_turns` changes no listing at
+all: it sets the rain context. Each produces a replan offer only when the person has a plan it
+affects (see [architecture](architecture.md#the-activity-catalogue-and-replanning)). No route
+writes a plan, so in the running app neither event produces an offer.
 
 `public_holiday` is context only. It sets `ContextSignal.holiday = True` on the synthesised day,
 but `policy.decide` never reads `context.holiday` -- only `context.rainy` -- so a public holiday
@@ -119,12 +121,10 @@ losing request needs a status code that says "retry", not "something broke".
 [architecture.md](architecture.md#the-decision-trace) for the full stage list and where it is
 built and persisted. Outcome responses include their evidence ID and the candidate preference
 before and after the update (`preference_before`/`preference_after` on `OutcomeResponse`, and
-`candidate_preference_score` in decision evidence).
-The learner cannot modify the policy decision. Since ADR
-[0005](adr/0005-engagement-and-experience-as-two-learned-signals.md), these numbers are a product
-of two Beta posteriors (attend x enjoy-given-attend), not one: a candidate with no history reads
-0.25, not 0.5, and every other value moved on the same scale -- see the ADR before comparing a
-value recorded before that change against one recorded after it.
+`candidate_preference_score` in decision evidence). The learner cannot modify the policy decision.
+These numbers are a product of two Beta posteriors (attend x enjoy-given-attend,
+[ADR 0005](adr/0005-engagement-and-experience-as-two-learned-signals.md)), so a candidate with no
+history reads 0.25.
 
 `/health` is process liveness and takes no auth. `/ready` reports `ready` only when the database
 responds, its Alembic revision matches the repository head, and `tables_without_rls` is empty; it
@@ -220,7 +220,7 @@ A wrong PIN counts against the account: 5 wrong PINs in 15 minutes locks PIN ent
 as SHA-256 hashes. With `AUTH_ENABLED=false`, `POST /v1/demo/reset` (for Mdm Lim) puts Mdm Lim's demo
 family and schedule back to their starting state, relative to today, and API startup does the same
 when the database is SQLite. With sign-in on, `pnpm demo:story` sets up the real logins instead (see
-`docs/supabase.md`).
+[Supabase](supabase.md)).
 
 `GET /v1/people/{person_id}/wearable` is simulated (`source: synthetic`). `last_synced_at` is null
 when the readings are synthetic or the latest reading is from an earlier day (stale), so a screen
@@ -229,7 +229,7 @@ never shows an invented sync time.
 ### Agents and the read-aloud voice
 
 The catch-up, the appointment draft and "Read my day" are read-only agents (ADR 0015; data sent
-once a provider is approved: `docs/agentic-features.md`). Each response says how it was written:
+once a provider is approved: [agentic features](agentic-features.md)). Each response says how it was written:
 `mode` (`agent`, or `fallback_disabled` / `fallback_error` / `fallback_no_proposal`), `source`
 (`live` or `recorded` when `mode` is `agent`, else null) and `steps` (the agent's tool calls). With
 `LLM_ENABLED=false` (the default) the answer is assembled without a model.
@@ -300,7 +300,7 @@ group only: nothing is sent to the senior, and it is never logged, audited or gi
 ### Asks and notifications
 
 An ask is one member asking another, by name, to take one day of an appointment that needs a helper
-(`silverloop.family_asks`, issue #16). "Needs a helper" means no active member is going; a day with
+(`silverloop.family_asks`). "Needs a helper" means no active member is going; a day with
 an open ask still needs one. A group has at most one open ask per appointment day.
 
 | From | Event                                    | To          | Notified                          | Feed              |
@@ -380,7 +380,7 @@ Deleting an appointment deletes its notes. The text goes to no log, audit event 
 ### Tasks
 
 A task is a one-off, daily or weekly reminder for the senior, kept by the family group
-(`silverloop.family_tasks`; behaviour in `docs/tasks.md`). `TaskRequest` is `{title, kind:
+(`silverloop.family_tasks`; behaviour in [tasks](tasks.md)). `TaskRequest` is `{title, kind:
 task|medicine, start_date, time (HH:MM), repeat: none|daily|weekly, repeat_until?, notes?}`;
 `repeat_until` before `start_date` is 422, and a one-off task's `repeat_until` is dropped. Weekly is
 every seven days from `start_date`. The two reads return a `TaskList`: `{person_id, group_id,
@@ -395,42 +395,25 @@ the calendar: the senior reads their own, an active member the senior of their g
 no longer one of the task's days is kept but not returned. Deleting removes the task and its ticks.
 Tasks write nothing to the family activity feed, and nothing in `advance` reads them.
 
-## Removed in step 7
+## Routes that no longer exist
 
-Step 7 (issue #21; the list is `docs/research/aac-route-removal.md`) removed the 51 routes that no
-screen called, with the request and response models only they used:
-
-- **Coordinator review**: `GET /v1/coordinator/queue`, `/people`, `/priorities`, `/metrics`,
-  `/people/{id}/outreach-history`, `/people/{id}/activity-relative`, `GET /v1/cases/{id}` and
-  `POST /v1/cases/{id}/review`.
-- **The review setting**: every route under `/v1/coordinator/people/{id}/review-threshold`
-  (state, replay, approve, reject, manual, confirm-starting, reconfirm).
-- **The follow-through loop**: `/v1/interventions/{id}/detail`, `/follow-through`, `/follow-up`,
-  `/enjoyment` and `/v1/interventions/history`.
-- **The user-initiated loop**: `POST /v1/activities/search`, `/v1/activities/{id}/response`,
-  `GET /v1/activities`, `/v1/activities/{id}`, and the person routes for preferences, activity
-  preferences, goals, the week (plan, follow-through, enjoyment, replace), replan notices and
-  offers, proposed memories, the context answer, the baseline confirmation, the day dispute and
-  the world model.
-- **Evaluator and operations reads**: `/v1/evaluator/ranker/inspect`, `/presets`,
-  `/v1/evaluator/people/{id}/senior-home`, `/v1/simulation/events`, `/latest`, `/history`,
-  `/v1/metrics` and `/v1/programmes`.
-
-What `advance` reads stays: the review setting still feeds `policy.decide` and its daily checks
-still run, review cases are still opened and closed by the system, replan offers are still written
-for a plan on record, and stored goals, day disputes, context answers, baseline confirmations,
-follow-through and enjoyment reports are still read. Nothing writes those last tables any more, so
-in the running app they stay empty; no table was dropped. `repository.metrics()` stays for
-`supabase_smoke.py`, and `list_candidate_preferences` for `pnpm demo:story`.
-`ReviewCase.since_last_review` (always `null` once the case delta went) was dropped from the
-contract.
+The API has no routes for features without a screen: coordinator review (queue, cases, case
+review), the review setting, the follow-through and enjoyment reports, activity search and the
+activity catalogue, preferences, goals, week plans, replan notices and offers, proposed memories,
+context answers, baseline confirmations, day disputes, the world model, the evaluator, and the
+simulation history reads. The code `advance` still runs stays: the review setting still feeds
+`policy.decide` and its daily checks still run, review cases are still opened and closed by the
+system, replan offers are written for any plan on record, and stored goals, day disputes, context
+answers, baseline confirmations, follow-through and enjoyment reports are still read. Nothing
+writes those last tables, so in the running app they stay empty; no table was dropped.
+`repository.metrics()` stays for `supabase_smoke.py`, and `list_candidate_preferences` for
+`pnpm demo:story`.
 
 ## Fallback error handling
 
-Beyond the per-route `try`/`except` blocks documented above, `main.py` registers three
-app-level exception handlers (`register_exception_handlers`) that catch whatever a route's own
-handling did not, so a route that forgets to convert a repository error no longer surfaces as a
-bare, undocumented 500:
+Beyond the per-route `try`/`except` blocks documented above, `main.py` registers app-level
+exception handlers (`register_exception_handlers`) that catch whatever a route's own handling did
+not, so a route that forgets to convert a repository error does not surface as a bare 500:
 
 - **`KeyError` -> 404** ("Person not found"). In practice the only `KeyError` left uncaught by a
   more specific local handler is `_active_run`'s `KeyError(person_id)` for a `person_id` that does
@@ -444,6 +427,10 @@ bare, undocumented 500:
   retry. Any other `RuntimeError` is deliberately re-raised rather than mapped, and still becomes
   a plain 500 -- this handler exists to give one well-understood condition a meaningful status
   code, not to launder every internal error into "just retry".
+- **`StaleRunConflict` -> 409**: a reset or another advance changed the run between the read and
+  the run lock. Nothing was written; re-reading the person resolves it.
+- **`IntegrityError` -> 409** ("That answer was already recorded."), only for a uniqueness
+  violation (two taps racing to the same row). Any other integrity failure is a plain 500.
 - **`ValueError` -> 422**, with `str(exc)` as the detail, for any route whose own body does not
   already catch `ValueError` locally.
 
@@ -466,9 +453,8 @@ reaches the client; field paths go to the server log only.
   reset automatically; the recovery is `POST /v1/demo/reset?person_id=`, which the web offers as "Reset
   local synthetic demo". See `stored_state.py`.
 - `code: "internal_error"`: a pydantic `ValidationError` raised while the server builds or re-reads a
-  model, or a FastAPI `ResponseValidationError`. The first is a `ValueError` subclass and used to reach
-  the `ValueError -> 422` handler above, or a route's own `except ValueError`, with raw validation
-  text. Routes with a local `except ValueError` now re-raise `ValidationError` first. Request-body
+  model, or a FastAPI `ResponseValidationError`. The first is a `ValueError` subclass, so it would
+  otherwise reach the `ValueError -> 422` handler above with raw validation text. Routes with a local `except ValueError` re-raise `ValidationError` first. Request-body
   validation (`RequestValidationError`) is unchanged and still returns FastAPI's 422.
 
 A 500 that none of these handlers classifies (an unexpected exception) is still Starlette's plain
