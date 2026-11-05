@@ -293,8 +293,8 @@ def _mute_hint(repository: SqlAlchemyRepository) -> str:
         return "Nothing is muted, so running this again will decide the same thing."
     return (
         f"Mdm Lim has muted: {', '.join(muted)}. A mute is her own instruction, or follows three "
-        "of her declines, so the story does not lift it. Lift it signed in as `senior` (see "
-        "docs/supabase.md), then run this again."
+        "of her declines, so the story does not lift it. Remove the mute from the database (see "
+        'docs/supabase.md, "Demo story"), then run this again.'
     )
 
 

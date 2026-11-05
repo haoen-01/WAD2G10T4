@@ -5,11 +5,15 @@ active minutes, optional sleep hours, wear hours, source, source classification,
 confidence and evidence ID. Provider adapters normalise into that contract; they do not change the
 deterministic policy.
 
-## Supported now
+The adapters live in `server/src/silverloop/adapters/`. Only the synthetic fixture is wired into
+the running app; the CSV and Apple Health adapters are tested proofs (`server/tests/test_adapters.py`,
+`test_apple_export.py`) with no route or screen that calls them.
+
+## Available adapters
 
 ### Synthetic fixture
 
-`SyntheticFixtureAdapter` is the default and the only adapter required by the hackathon demo. It
+`SyntheticFixtureAdapter` is the default and the only adapter the demo needs. For Mdm Lim it
 produces 29 deterministic days labelled `synthetic_fixture`, includes a plain disclosure, and works
 offline. Its days end on Tue 18 Aug 2026 (`fixtures.DEMO_ANCHOR_DAY`). A demo reset with
 `DEMO_DATES_FOLLOW_TODAY=true` (the default) asks it to end on today in Singapore instead: every day

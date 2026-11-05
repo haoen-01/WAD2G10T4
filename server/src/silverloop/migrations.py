@@ -30,11 +30,11 @@ def apply_rls_posture(database_url: str) -> None:
     Alembic creates the tables; nothing in that path made them safe. On Supabase,
     `ALTER DEFAULT PRIVILEGES` grants `anon` and `authenticated` on every new table in `public`,
     so the window between "the lifespan ran `alembic upgrade head`" and "a human pasted
-    `infra/supabase/rls_posture_apply.sql`" was an open table -- a gap `docs/supabase.md` records
-    happening three times. Running the same file from the same lifespan, immediately after the
-    upgrade, closes that window for existing databases as well as new ones, touches no applied
-    migration, and derives its table list from `Base.metadata` (via the file's own array, pinned
-    to the ORM by `test_rls_posture_apply.py`) so it cannot drift.
+    `infra/supabase/rls_posture_apply.sql`" was an open table (`docs/supabase.md`, "Row-level
+    security"). Running the same file from the same lifespan, immediately after the upgrade,
+    closes that window for existing databases as well as new ones, touches no applied migration,
+    and derives its table list from `Base.metadata` (via the file's own array, pinned to the ORM
+    by `test_rls_posture_apply.py`) so it cannot drift.
 
     The file is executed byte-for-byte through the raw driver cursor, exactly as
     `test_postgres_integration._execute_plpgsql` does and for the same two reasons: SQLAlchemy's

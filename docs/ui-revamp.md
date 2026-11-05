@@ -1,8 +1,7 @@
-# The UI revamp: how each effect works
+# UI effects: how each one works
 
-Same pages, same features, same buttons in the same places. What changed is the look, applied
-evenly to every page through the shared theme and layout. Everything is HTML, CSS and plain Vue:
-no new package, no animation library in the layout, and no WebGL.
+The look is applied evenly to every page through the shared theme and layout. Everything here is
+HTML, CSS and plain Vue: no extra package, no animation library in the layout, and no WebGL.
 
 | Effect                          | Where it lives                                                          |
 | ------------------------------- | ----------------------------------------------------------------------- |
@@ -64,7 +63,7 @@ One fixed layer behind every page (`position: fixed; z-index: -1`), rendered onc
 
 ## Liquid glass menu bubble
 
-- The bubble is the existing `.mainnav-indicator`, now glass with a rainbow rim (a
+- The bubble is `.mainnav-indicator`, glass with a rainbow rim (a
   `conic-gradient` ring masked to the edge, plus a blurred copy behind it).
 - On the wide-screen pill, `@pointerenter` and `@focus` on a link call `moveTo(link, true)`. It
   reads the link's `offsetLeft` and `offsetWidth`, first stretches the bubble over both the old
@@ -91,7 +90,7 @@ One fixed layer behind every page (`position: fixed; z-index: -1`), rendered onc
 
 ## Scrolling landing page (`/login`)
 
-`LoginChooserView.vue` now shows `components/landing/LandingStory.vue` above the family / senior
+`LoginChooserView.vue` shows `components/landing/LandingStory.vue` above the family / senior
 choice. It is plain CSS and one scroll listener: no animation library (the sign-in screens may not
 use `motion-v` or `@vueuse`).
 
@@ -176,11 +175,11 @@ Below 768px wide (`matchMedia('(max-width: 767.98px)')` in `HomeView.vue`):
   the list is hidden with `v-show`.
 - **The week ahead** is replaced by a single "The week ahead" link (with the number of visits and
   an arrow) that opens the calendar.
-- Desktop and tablet are unchanged.
+- Desktop and tablet keep the usual layout.
 
-## Accessibility kept
+## Accessibility
 
-- Text sits on near-solid panels (84% opaque), so contrast is as before (WCAG AA).
+- Text sits on near-solid panels (84% opaque), so text keeps WCAG AA contrast.
 - With reduced motion turned on, nothing drifts, leans, follows, spins or stretches.
 - Keyboard focus gets the same effects as the mouse (the bubble, the button light, the fill).
 - The background is `aria-hidden`, ignores clicks (`pointer-events: none`) and is not printed.

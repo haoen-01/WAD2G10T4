@@ -103,7 +103,7 @@ Agent proposals show the fixed counting rule plus what the agent cited.
 | -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | A1 contract (first)  | backend  | `models.py`, `db_models.py`, migration, mirror SQL, `sql_repository.py` seam, `openapi/`, `client/src/api-client`                                                                                      |
 | A2 lessons + receipt | backend  | `review_lessons.py`, `sql_repository.py`, `repository.py`, `main.py`, API tests                                                                                                                        |
-| B evaluation         | backend  | `evaluation/calibration/*`, root `package.json`, `docs/evaluation/review-calibration.*`, `test_calibration_evaluation.py`                                                     |
+| B evaluation         | backend  | `evaluation/calibration/*`, root `package.json`, `docs/evaluation/review-calibration.*`, `test_calibration_evaluation.py`                                                                              |
 | C Care Team          | frontend | `view-models.ts`, `review-card.tsx`, `care-team-view.tsx`, `review-threshold-card.tsx` (mount), new `review-lesson-panel.tsx`, `review-setting-receipt.tsx`, `context-gap-tally.tsx`, e2e on `mdm-lim` |
 | D evaluator          | frontend | `lib/review-calibration*.ts`, `review-calibration-card.tsx`, `evidence/page.tsx`                                                                                                                       |
 
