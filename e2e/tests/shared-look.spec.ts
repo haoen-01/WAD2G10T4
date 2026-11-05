@@ -341,6 +341,30 @@ test.describe("the senior's section bar at a large text size", () => {
 
   const sections = (page: Page) => page.getByRole('tablist', { name: 'My day sections' });
 
+  /**
+   * Collects every error the page reports that mentions ResizeObserver (a layout that keeps
+   * re-measuring itself shows up as "ResizeObserver loop completed with undelivered
+   * notifications"), whether thrown, logged, or only sent to `window.onerror`.
+   */
+  async function resizeObserverErrors(page: Page): Promise<() => Promise<string[]>> {
+    const seen: string[] = [];
+    page.on('pageerror', (error) => seen.push(error.message));
+    page.on('console', (message) => {
+      if (message.type() === 'error') seen.push(message.text());
+    });
+    await page.addInitScript(() => {
+      const w = window as unknown as { __windowErrors: string[] };
+      w.__windowErrors = [];
+      window.addEventListener('error', (event) => w.__windowErrors.push(String(event.message)));
+    });
+    return async () => {
+      const inPage = await page.evaluate(
+        () => (window as unknown as { __windowErrors?: string[] }).__windowErrors ?? [],
+      );
+      return [...seen, ...inPage].filter((text) => /ResizeObserver/i.test(text));
+    };
+  }
+
   /** Every label's font size, after checking each is whole, inside its tab, and clear of Kaki. */
   async function checkSections(page: Page, where: string): Promise<number> {
     const sizes: number[] = [];
@@ -367,6 +391,15 @@ test.describe("the senior's section bar at a large text size", () => {
       expect(box.width, name).toBeGreaterThanOrEqual(48);
       expect(box.height, name).toBeGreaterThanOrEqual(48);
       sizes.push(size);
+    }
+    // On more than one row, with each icon beside its word or the word alone, the rows stay short:
+    // well under an icon-above-word tab, close to the 56 px minimum.
+    if (await sections(page).evaluate((bar) => !bar.classList.contains('is-stacked'))) {
+      for (const tab of await sections(page).getByRole('tab').all()) {
+        expect((await tab.boundingBox())!.height, `${await tab.innerText()} ${where}`).toBeLessThan(
+          80,
+        );
+      }
     }
     const { scrollWidth, clientWidth } = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
@@ -406,6 +439,7 @@ test.describe("the senior's section bar at a large text size", () => {
     request,
   }) => {
     await resetDemo(request);
+    const errors = await resizeObserverErrors(page);
     await enterAs(page, 'senior');
     await expect(sections(page).getByRole('tab')).toHaveCount(4);
     for (const width of [375, 320]) {
@@ -418,8 +452,13 @@ test.describe("the senior's section bar at a large text size", () => {
       const large = await checkSections(page, `at ${width}px, 150%`);
       // The zoom setting is never undone by squeezing the labels to fit.
       expect(large, `at ${width}px`).toBeCloseTo(normal * 1.5, 0);
+      // Two rows at 150%, kept short: each icon beside its word on a 375 px phone, the word alone
+      // on a 320 px one (where a word and its icon no longer fit half the bar).
+      await expect(sections(page)).toHaveClass(/is-rows/);
+      await expect(sections(page)).toHaveClass(width === 375 ? /is-beside/ : /is-words/);
     }
     // On two rows the tabs still work as tabs: the arrow keys move along them.
+    await expect(sections(page)).toHaveClass(/is-rows/);
     const today = sections(page).getByRole('tab', { name: 'Today', exact: true });
     await today.click();
     await today.press('ArrowRight');
@@ -428,16 +467,31 @@ test.describe("the senior's section bar at a large text size", () => {
     await expect(calendar).toBeFocused();
     await calendar.press('ArrowLeft');
     await expect(today).toHaveAttribute('aria-selected', 'true');
+    // Fitting the bar never sets off a ResizeObserver loop, at any of those sizes.
+    expect(await errors()).toEqual([]);
   });
 
-  test('the saved text size is followed from the first paint', async ({ page, request }) => {
-    await resetDemo(request);
-    await page.addInitScript(() => window.localStorage.setItem('careplus.zoom.v1', '150'));
-    await page.setViewportSize({ width: 320, height: 640 });
-    await enterAs(page, 'senior');
-    await expect(sections(page).getByRole('tab')).toHaveCount(4);
-    await checkSections(page, 'at 320px, saved 150%');
-  });
+  for (const zoom of ['100', '150']) {
+    test(`a saved text size of ${zoom}% applies on load, with no ResizeObserver loop`, async ({
+      page,
+      request,
+    }) => {
+      await resetDemo(request);
+      const errors = await resizeObserverErrors(page);
+      await page.addInitScript((z) => window.localStorage.setItem('careplus.zoom.v1', z), zoom);
+      // Each width loaded afresh: an old version looped at 375 px (100%) and 700 px (150%).
+      for (const width of [320, 375, 700]) {
+        await page.setViewportSize({ width, height: 640 });
+        await page.goto('/login/senior');
+        await page.getByTestId('continue-senior').click();
+        await expect(sections(page).getByRole('tab')).toHaveCount(4);
+        await checkSections(page, `at ${width}px, saved ${zoom}%`);
+        // A moment for any late layout pass to report itself.
+        await page.waitForTimeout(500);
+        expect(await errors(), `at ${width}px, saved ${zoom}%`).toEqual([]);
+      }
+    });
+  }
 });
 
 test.describe('the calendar at a large text size', () => {
@@ -485,7 +539,52 @@ test.describe('the calendar at a large text size', () => {
         });
         expect(lines, where).toBe(1);
         expect(right, where).toBeLessThanOrEqual(width);
+        // Each appointment's times keep their am/pm ("10:00 am", never "10:00 / am"), and never run
+        // into the kind's name beside them.
+        const cards = await page.locator('.appointment').evaluateAll((all) =>
+          all.map((card) => {
+            const lines = (el: Element) => {
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+            };
+            const start = card.querySelector('.appt-start')!;
+            const end = card.querySelector('.appt-end')!;
+            const time = start.getBoundingClientRect();
+            const kind = card.querySelector('.appt-kind')!.getBoundingClientRect();
+            const apart =
+              time.right <= kind.left + 0.5 ||
+              time.bottom <= kind.top + 0.5 ||
+              kind.bottom <= time.top + 0.5;
+            return { lines: lines(start) + lines(end), apart };
+          }),
+        );
+        expect(cards.length, where).toBeGreaterThan(0);
+        for (const card of cards) expect(card, where).toEqual({ lines: 2, apart: true });
+        // The week's two arrows stay together on one line, wherever Today goes.
+        const previous = (await page.getByRole('button', { name: 'Previous week' }).boundingBox())!;
+        const next = (await page.getByRole('button', { name: 'Next week' }).boundingBox())!;
+        expect(Math.abs(previous.y - next.y), where).toBeLessThan(1);
       }
+    }
+  });
+
+  test('"Viewing as" is one slim line at the normal text size, on a phone and a wide screen', async ({
+    page,
+    request,
+  }) => {
+    await resetDemo(request);
+    await enterAs(page, 'family');
+    await page.goto('/calendar');
+    const select = page.getByLabel('Viewing as');
+    await expect(select).toBeVisible();
+    for (const width of [1280, 375]) {
+      await page.setViewportSize({ width, height: 800 });
+      const label = (await page.locator('.viewer-label').boundingBox())!;
+      const box = (await select.boundingBox())!;
+      // Side by side: the select starts after the words, on the same line.
+      expect(box.x, `at ${width}px`).toBeGreaterThan(label.x + label.width - 1);
+      expect(box.y, `at ${width}px`).toBeLessThan(label.y + label.height);
     }
   });
 });

@@ -26,7 +26,7 @@ import { AUTH_ENABLED } from '@/lib/config';
 import { formatIsoDay } from '@/lib/format-date';
 import { DEMO_PERSON_ID } from '@/lib/labels';
 import { adjacentTab, readTab, saveTab } from '@/lib/senior-view';
-import { LABEL_ROOM, tabRows } from '@/lib/tab-rows';
+import { sectionTabLayout, type SectionTabLook } from '@/lib/tab-rows';
 import type { SeniorTab } from '@/lib/senior-view';
 import { greetingFor } from '@/lib/today';
 import {
@@ -118,41 +118,66 @@ async function navigateTabs(event: KeyboardEvent) {
   await nextTick();
   document.getElementById(`senior-tab-${next}`)?.focus();
 }
-// ---- The section bar: whole words at the chosen text size, a second row when they do not fit ----
+// ---- The section bar: whole words at the chosen text size, more rows when they do not fit ----
 // On a phone the bar is fixed to the bottom of the screen. Its labels grow with the text size and
-// are never shrunk or broken mid-word: when the four tabs no longer fit side by side, it takes a
-// second row (`tabRows`). Its real height goes to `--sl-senior-tabbar-height` on <html>, so the
-// page and toasts stay clear of it, and to Kaki (`seniorTabBarHeight`), who sits above it.
+// are never shrunk or broken mid-word: when the four tabs no longer fit side by side (icon above
+// word), it takes a second row, with each icon beside its word where that fits so the rows stay
+// short (`sectionTabLayout`). Its real height goes to `--sl-senior-tabbar-height` on <html>, so
+// the page and toasts stay clear of it, and to Kaki (`seniorTabBarHeight`), who sits above it.
+const PHONE = '(max-width: 767.98px)';
 const tabBar = ref<HTMLElement | null>(null);
-const tabFit = ref({ rows: 1, perRow: tabs.length });
+const tabFit = ref<{ rows: number; perRow: number; look: SectionTabLook }>({
+  rows: 1,
+  perRow: tabs.length,
+  look: 'stacked',
+});
 let tabBarObserver: ResizeObserver | null = null;
+let fitFrame = 0;
 function px(value: string) {
   return parseFloat(value) || 0;
 }
+function widthOf(el: Element | null) {
+  return el ? el.getBoundingClientRect().width : 0;
+}
 function reportTabBar() {
   const bar = tabBar.value;
+  const height =
+    bar && getComputedStyle(bar).position === 'fixed'
+      ? Math.ceil(bar.getBoundingClientRect().height)
+      : 0;
+  if (height === seniorTabBarHeight.value) return;
+  seniorTabBarHeight.value = height;
   const root = document.documentElement.style;
-  if (bar && getComputedStyle(bar).position === 'fixed') {
-    const height = Math.ceil(bar.getBoundingClientRect().height);
-    seniorTabBarHeight.value = height;
-    root.setProperty('--sl-senior-tabbar-height', `${height}px`);
-  } else {
-    seniorTabBarHeight.value = 0;
-    root.removeProperty('--sl-senior-tabbar-height');
-  }
+  if (height) root.setProperty('--sl-senior-tabbar-height', `${height}px`);
+  else root.removeProperty('--sl-senior-tabbar-height');
 }
 function fitTabs() {
   const bar = tabBar.value;
   if (!bar) return;
   const barStyle = getComputedStyle(bar);
   const inside = bar.clientWidth - px(barStyle.paddingLeft) - px(barStyle.paddingRight);
-  // Each tab's icon and words at their real size (the inner box never shrinks to its tab).
-  const widths = [...bar.querySelectorAll<HTMLElement>('.senior-tab-inner')].map(
-    (inner) => inner.getBoundingClientRect().width,
-  );
-  const fit = tabRows(widths, inside, LABEL_ROOM);
-  if (fit.rows !== tabFit.value.rows || fit.perRow !== tabFit.value.perRow) tabFit.value = fit;
+  // Each tab's icon, word and count at their real size, whichever way they are laid out now.
+  const measured = [...bar.querySelectorAll<HTMLElement>('.senior-tab-inner')].map((inner) => ({
+    icon: widthOf(inner.querySelector('.sl-icon')),
+    label: widthOf(inner.querySelector('.senior-tab-label')),
+    extra: widthOf(inner.querySelector('.tab-count')),
+  }));
+  // The gap between icon, word and count is 0.5rem (see `.senior-tab-inner`).
+  const gap = px(getComputedStyle(document.documentElement).fontSize) / 2;
+  const fit = sectionTabLayout(measured, inside, gap, window.matchMedia?.(PHONE).matches ?? true);
+  const now = tabFit.value;
+  if (fit.rows !== now.rows || fit.perRow !== now.perRow || fit.look !== now.look) {
+    tabFit.value = fit;
+  }
   reportTabBar();
+}
+/** Measures in the next frame, never while the observer is delivering, so it cannot loop. */
+function fitSoon() {
+  if (fitFrame) return;
+  fitFrame = requestAnimationFrame(() => {
+    fitFrame = 0;
+    fitTabs();
+  });
 }
 // The bar appears once the day has loaded. Watch it, and its words: a new text size changes their
 // width even when the bar's own width stays the same.
@@ -166,15 +191,16 @@ watch(
     }
     fitTabs();
     if (typeof ResizeObserver === 'undefined') return;
-    tabBarObserver ??= new ResizeObserver(fitTabs);
+    tabBarObserver ??= new ResizeObserver(fitSoon);
     tabBarObserver.observe(bar);
     for (const inner of bar.querySelectorAll('.senior-tab-inner')) tabBarObserver.observe(inner);
   },
   { flush: 'post' },
 );
-onMounted(() => void document.fonts?.ready.then(fitTabs));
+onMounted(() => void document.fonts?.ready.then(fitSoon));
 onBeforeUnmount(() => {
   tabBarObserver?.disconnect();
+  cancelAnimationFrame(fitFrame);
   seniorTabBarHeight.value = 0;
   document.documentElement.style.removeProperty('--sl-senior-tabbar-height');
 });
@@ -204,7 +230,7 @@ async function seeCalendar() {
       <nav
         ref="tabBar"
         class="senior-tabs nav nav-pills nav-fill rounded-4 p-2 mb-4 shadow-sm"
-        :class="{ 'is-rows': tabFit.rows > 1 }"
+        :class="[`is-${tabFit.look}`, { 'is-rows': tabFit.rows > 1 }]"
         :style="{ '--tab-per-row': tabFit.perRow }"
         role="tablist"
         aria-label="My day sections"
@@ -339,7 +365,7 @@ async function seeCalendar() {
   color: var(--sl-ink);
   flex: 1 1 0;
 }
-/* Two rows (see `fitTabs`): tabs of one size, a row's worth each. */
+/* More than one row (see `fitTabs`): tabs of one size, a row's worth each. */
 .senior-tabs.is-rows .nav-link {
   flex: 0 0 calc(100% / var(--tab-per-row));
 }
@@ -401,10 +427,10 @@ async function seeCalendar() {
   font-size: 1rem;
 }
 @media (max-width: 767.98px) {
-  /* Reserve space after the global footer as well as inside this page. */
+  /* The count floats on the icon's top-right corner, so it never widens its tab. */
   .tab-count {
     position: absolute;
-    top: 0.3rem;
+    top: -0.2rem;
     left: calc(50% + 0.55rem);
     min-width: 1.35rem;
     height: 1.35rem;
@@ -420,9 +446,6 @@ async function seeCalendar() {
   :global(:root:has(.senior-tabs) .sl-toasts) {
     bottom: calc(var(--sl-senior-tabbar-height, 6rem) + 1rem);
   }
-  .senior {
-    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
-  }
   .senior-tabs {
     position: fixed;
     bottom: 0;
@@ -437,10 +460,46 @@ async function seeCalendar() {
     position: relative;
     padding: 0.5rem 0.25rem;
     font-size: 1.1rem !important;
+    line-height: 1.2;
   }
   .senior-tab-inner {
+    position: relative;
     flex-direction: column;
     gap: 0.15rem;
+  }
+  /* More than one row: the icon beside the word (or the word alone) where that fits, so each row
+     is about the 56 px minimum rather than an icon and a word tall. */
+  .senior-tabs.is-beside .senior-tab-inner,
+  .senior-tabs.is-words .senior-tab-inner {
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+  /* Beside the word, the count is a smaller badge on the icon's top-right corner. Its right edge
+     stops before the word (the icon is 1.25em of 1.1rem = 1.375rem wide, then a 0.5rem gap), and
+     a longer count grows leftwards over the icon, never over the word. */
+  .senior-tabs.is-beside .tab-count {
+    top: -0.55rem;
+    right: calc(100% - 1.85rem);
+    left: auto;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.3rem;
+    font-size: 0.7rem;
+  }
+  /* The word alone (a narrow phone at the largest text): no icon, and the count raised just after
+     the word, like a superscript (the bar leaves room for it; see `sectionTabLayout`). The icon is
+     hidden but keeps its size, so `fitTabs` still measures it. */
+  .senior-tabs.is-words .senior-tab-inner {
+    gap: 0;
+  }
+  .senior-tabs.is-words .senior-tab-inner > .sl-icon {
+    position: absolute;
+    visibility: hidden;
+  }
+  .senior-tabs.is-words .tab-count {
+    position: static;
+    align-self: flex-start;
+    transform: translateY(-40%);
   }
 }
 </style>

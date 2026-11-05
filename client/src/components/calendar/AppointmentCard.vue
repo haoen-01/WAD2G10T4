@@ -122,6 +122,12 @@ function when(iso: string): string {
   font-weight: 800;
 }
 
+/* A time and its am/pm stay together ("10:00 am", never "10:00 / am"); the end time wraps whole. */
+.appt-start,
+.appt-end {
+  white-space: nowrap;
+}
+
 .appt-end {
   color: var(--sl-ink-soft);
   font-size: 0.85rem;
@@ -170,13 +176,17 @@ function when(iso: string): string {
 }
 
 @media (max-width: 575.98px) {
+  /* Time on the left, kind on the right, sharing the row: at a large text size each gives way to
+     the other (the kind's name wraps) rather than running into it. */
   .appointment {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto auto;
+    justify-content: space-between;
   }
 
   .appt-time {
     flex-direction: row;
-    gap: 0.35rem;
+    flex-wrap: wrap;
+    gap: 0 0.35rem;
     grid-row: 1;
     grid-column: 1;
   }
@@ -184,6 +194,9 @@ function when(iso: string): string {
   .appt-kind {
     grid-row: 1;
     grid-column: 2;
+    justify-self: end;
+    white-space: normal;
+    text-align: end;
   }
 
   .appt-body {
