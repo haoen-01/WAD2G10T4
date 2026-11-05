@@ -11,6 +11,7 @@ import {
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 
 import AssistantDock from '@/components/assistant/AssistantDock.vue';
+import ConnectionProblem from '@/components/layout/ConnectionProblem.vue';
 import LivingBackground from '@/components/layout/LivingBackground.vue';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
@@ -19,6 +20,7 @@ import MainNav from '@/components/ui/MainNav.vue';
 import SettingsMenu from '@/components/ui/SettingsMenu.vue';
 import CheckInBanner from '@/components/walk/CheckInBanner.vue';
 import { useAuth } from '@/composables/useAuth';
+import { useConnection } from '@/composables/useConnection';
 import { useMe } from '@/composables/useMe';
 import { useViewMode } from '@/composables/useViewMode';
 import { useWalk } from '@/composables/useWalk';
@@ -26,7 +28,10 @@ import { AUTH_ENABLED } from '@/lib/config';
 import { homeFor, isLoginPath, isPathInView } from '@/lib/view-mode';
 import { clearViewerStores } from '@/stores/reset';
 
-const { loading, currentUser, signOut } = useAuth();
+const { loading, session, currentUser, signOut } = useAuth();
+// Set by the router guard when it could not reach Care+: the connection panel shows instead of the
+// page (and the menu, the bell and Kaki step aside) until a retry gets through.
+const { problem } = useConnection();
 const { mode, leaveDemoView } = useViewMode();
 // A family member caring for more than one senior picks whose care the screens show.
 const { activeGroups, currentGroup, selectGroup, loadMe } = useMe();
@@ -61,6 +66,8 @@ const ALL_LINKS: { to: string; label: string; exact: boolean; icon: IconName }[]
 // listed. Hiding a link is only for tidiness: the API checks each person's role and group on every
 // call behind these screens (the calendar and family data included).
 const links = computed(() => {
+  // No menu over the connection panel: none of those screens can load until Care+ is reached.
+  if (problem.value) return [];
   const current = mode.value;
   if (current) return ALL_LINKS.filter((link) => isPathInView(current, link.to));
   return AUTH_ENABLED ? [] : ALL_LINKS;
@@ -84,7 +91,12 @@ async function leaveDemo() {
   await router.replace({ name: 'login' });
 }
 
-const signedIn = computed(() => (AUTH_ENABLED ? !!currentUser.value : !!mode.value));
+// While the connection panel shows, the account read itself may be what failed, so a session is
+// enough to offer Sign out (never "Sign in" to someone who is signed in).
+const signedIn = computed(() => {
+  if (!AUTH_ENABLED) return !!mode.value;
+  return problem.value ? !!session.value : !!currentUser.value;
+});
 
 // The notification bell: family view only, once this person is an active member of a group (the
 // senior never gets one). Its own chunk, loaded only when it shows, so the layout stays small.
@@ -96,7 +108,8 @@ const showBell = computed(
     mode.value === 'family' &&
     signedIn.value &&
     activeGroups.value.length > 0 &&
-    !isLoginPath(route.path),
+    !isLoginPath(route.path) &&
+    !problem.value,
 );
 // Every family screen reads `/v1/me` anyway; this only makes sure the bell knows on any page.
 watch(
@@ -108,7 +121,9 @@ watch(
 );
 // Kaki, the Care+ assistant: on every screen once someone is in (senior or family), never on the
 // sign-in screens.
-const showAssistant = computed(() => signedIn.value && !!mode.value && !isLoginPath(route.path));
+const showAssistant = computed(
+  () => signedIn.value && !!mode.value && !isLoginPath(route.path) && !problem.value,
+);
 const ready = computed(() => !AUTH_ENABLED || !loading.value);
 
 /*
@@ -144,6 +159,16 @@ function measure() {
   bar.style.setProperty('--sl-tuck', `${tuck}px`);
   root.style.setProperty('--sl-pinned-height', `${bar.offsetHeight - tuck}px`);
 }
+
+// Once a retry gets through, the panel (and the Try again button that had focus) goes away; focus
+// moves to the page rather than being left on nothing.
+watch(problem, async (now, before) => {
+  if (!before || now) return;
+  await nextTick();
+  if (document.activeElement === document.body || document.activeElement === null) {
+    document.getElementById('main')?.focus({ preventScroll: true });
+  }
+});
 
 watch([showTabs, wide], async () => {
   await nextTick();
@@ -193,7 +218,13 @@ onBeforeUnmount(() => {
         </RouterLink>
 
         <!-- The senior's one link stays in the top bar; the family's pill is in the same row. -->
-        <MainNav v-if="mode === 'senior'" ref="nav" variant="bar" :links="links" :dots="navDots" />
+        <MainNav
+          v-if="mode === 'senior' && links.length > 0"
+          ref="nav"
+          variant="bar"
+          :links="links"
+          :dots="navDots"
+        />
         <MainNav v-else-if="showTabs && wide" variant="pill" :links="links" :dots="navDots" />
 
         <div class="topbar-tools">
@@ -258,12 +289,19 @@ onBeforeUnmount(() => {
     <MainNav v-if="showTabs && !wide" variant="tabs" :links="links" :dots="navDots" />
 
     <main id="main" tabindex="-1" class="container flex-grow-1">
-      <CheckInBanner v-if="showCheckIn" />
-      <RouterView v-slot="{ Component, route: shown }">
-        <Transition name="page">
-          <component :is="Component" :key="shown.path" />
-        </Transition>
-      </RouterView>
+      <!-- The senior's size on their own screen, even when the account read is what failed. -->
+      <ConnectionProblem
+        v-if="problem"
+        :senior="mode === 'senior' || isPathInView('senior', route.path)"
+      />
+      <template v-else>
+        <CheckInBanner v-if="showCheckIn" />
+        <RouterView v-slot="{ Component, route: shown }">
+          <Transition name="page">
+            <component :is="Component" :key="shown.path" />
+          </Transition>
+        </RouterView>
+      </template>
     </main>
 
     <AssistantDock v-if="showAssistant" />
