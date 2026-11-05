@@ -6,10 +6,10 @@ test.beforeEach(async ({ request }) => {
 });
 
 test('Kaki to tell Senior to call 995', async ({ page }) => {
-  await page.goto('http://localhost:3000/login/senior');
+  await page.goto('/login/senior');
   await page.getByTestId('continue-senior').click();
   await page.getByTestId('assistant-orb').click();
-  await page.getByTestId('assistant-input').click();
   await page.getByTestId('assistant-input').fill('I fell down and my hip hurts');
+  await page.getByTestId('assistant-input').press('Enter');
   await expect(page.getByTestId('assistant-assistant').last()).toContainText('call 995');
 });
