@@ -390,7 +390,9 @@ What it does, in order:
 1. Starts a new run for Mdm Lim and plays two `activity_declines` days through the real `advance`,
    with the LLM off whatever the environment says. Day 1's nudge is answered "Maybe later"; day 2's
    programme suggestion stays waiting. The real ranking picks both, and the command prints their
-   titles. A new run has active consent.
+   titles. A new run has active consent. With `DEMO_DATES_FOLLOW_TODAY=true` (the default) the run
+   starts two days before today in Singapore, so her second day, the one Home shows, is today;
+   with it false the run keeps the fixture's own days in August 2026.
 2. Puts Mdm Lim's family group back to its seeded schedule and feed, with Sarah (owner), John and
    Emily, and creates the unlinked group for the made-up Mr Tan with Sarah (owner), Wei Ming and
    Aisha. Sarah lands on Mdm Lim's group.

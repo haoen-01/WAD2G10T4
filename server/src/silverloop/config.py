@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     )
     demo_seed: int = 2026
     demo_scenario_version: str = "v1"
+    # The demo's synthetic readings end on today (Singapore) when a demo person is reset, instead
+    # of on the fixture's own anchor day (Tue, 18 Aug 2026): the same values, every day moved by
+    # one offset. Only synthetic fixtures move; a real reading is never touched. Off in the test
+    # suite and Playwright, whose assertions are pinned to the anchor day, and in any repository
+    # built without settings (the YAML scenarios, `pnpm demo:supabase-smoke`).
+    demo_dates_follow_today: bool = True
     adapter_mode: Literal["fixture", "authorised"] = "fixture"
 
     # Outreach planner (silverloop.agent). Default off: the complete demo, every test and the

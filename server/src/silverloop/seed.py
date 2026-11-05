@@ -19,6 +19,8 @@ def main() -> None:
         settings.database_url,
         seed=settings.demo_seed,
         scenario_version=settings.demo_scenario_version,
+        # So `demo_dates_follow_today` applies here as it does to the API's own resets.
+        settings=settings,
     )
     for person_id in DEMO_PERSONAS:
         result = repository.reset(person_id=person_id)

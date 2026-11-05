@@ -11,7 +11,10 @@ deterministic policy.
 
 `SyntheticFixtureAdapter` is the default and the only adapter required by the hackathon demo. It
 produces 29 deterministic days labelled `synthetic_fixture`, includes a plain disclosure, and works
-offline.
+offline. Its days end on Tue 18 Aug 2026 (`fixtures.DEMO_ANCHOR_DAY`). A demo reset with
+`DEMO_DATES_FOLLOW_TODAY=true` (the default) asks it to end on today in Singapore instead: every day
+moves by the same number of days, the values and their order do not change, and no reading is
+stamped later than the moment it was written. Only synthetic fixture readings are ever moved.
 
 ### Consented sample CSV
 
