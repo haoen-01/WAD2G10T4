@@ -55,9 +55,10 @@ export function createNavigationGenerations(): NavigationGenerations {
  * From the router's `afterEach`: whether a finished navigation overtakes a guard still waiting
  * even though no guard ran for it. A push to the screen already showing (a duplicated navigation,
  * such as pressing the current screen's tab) skips `beforeEach`, yet the router still cancels the
- * navigation in progress for it; so it must overtake it (`NavigationGenerations.overtake`), or that cancelled guard could
- * still show the panel and point Try again at the screen the person left. With no guard waiting
- * it cancels nothing, so it changes nothing: a Try again still waiting on its own reads carries on.
+ * navigation in progress for it; so it must overtake it (`NavigationGenerations.overtake`), or
+ * that cancelled guard could still show the panel and point Try again at the screen the person
+ * left. With no guard waiting it cancels nothing, so it changes nothing: a Try again still waiting
+ * on its own reads carries on.
  */
 export function overtakesWithoutGuard(input: {
   duplicated: boolean;
