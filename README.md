@@ -172,6 +172,12 @@ All settings are described in [`.env.example`](./.env.example). Never commit a r
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md): branches, commits and pull requests
 - [`SECURITY.md`](./SECURITY.md): security practices and reporting
 
+## AI declaration
+
+AI/LLM tools were used to assist with project ideation, brainstorming, UI/UX design inspiration,
+and providing coding guidance, including explanations of technical concepts and debugging
+suggestions.
+
 ## Licence
 
 Copyright remains with the project team. No open-source licence has been chosen.
