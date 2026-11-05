@@ -417,6 +417,36 @@ def test_the_senior_sees_the_suggestion_waiting_and_the_nudge_answered(
     assert [row.actor for row in answered] == [admin.sub("senior")]
 
 
+def test_with_demo_dates_following_today_the_story_ends_on_today(
+    admin: FakeSupabaseAdmin,
+    repo: SqlAlchemyRepository,
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    database_url: str,
+) -> None:
+    """The story starts as many days before today as it plays, so Mdm Lim's last day is today in
+    Singapore, and her appointments (already relative to today) sit around that same day."""
+    monkeypatch.setattr(
+        demo_story, "Settings", lambda: _settings(database_url, demo_dates_follow_today=True)
+    )
+    demo_story.main()
+
+    today = local_date(datetime.now(UTC))
+    state = repo.person_state(person_id=DEMO_PERSON_ID)
+    assert state.current_day == today
+    assert _waiting(client, admin) == ["Chair Mobility & Balance"]
+    with repo.sessions() as session:
+        group_id = session.scalar(
+            select(CareGroupRow.group_id).where(CareGroupRow.person_id == DEMO_PERSON_ID)
+        )
+        starts = list(
+            session.scalars(
+                select(AppointmentRow.start_date).where(AppointmentRow.group_id == group_id)
+            )
+        )
+    assert starts and all(abs((start - today).days) <= 14 for start in starts)
+
+
 def test_the_llm_stays_off_even_when_the_environment_turns_it_on(
     admin: FakeSupabaseAdmin,
     repo: SqlAlchemyRepository,

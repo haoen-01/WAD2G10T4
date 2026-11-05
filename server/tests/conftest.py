@@ -44,6 +44,9 @@ _NEUTRAL_LLM_ENV = {
 }
 os.environ.update(_NEUTRAL_LLM_ENV)
 os.environ["EXTERNAL_CONTEXT_ENABLED"] = "false"
+# The demo's readings keep the fixture's anchor day (Tue, 18 Aug 2026), which the suite asserts
+# against, instead of moving to end on the day it runs. Tests of the move pass it explicitly.
+os.environ["DEMO_DATES_FOLLOW_TODAY"] = "false"
 # The assistant's OpenAI key: never a developer's real one in the suite.
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"

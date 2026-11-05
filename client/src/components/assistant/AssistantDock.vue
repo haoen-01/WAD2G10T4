@@ -13,6 +13,7 @@ import {
   useAssistant,
 } from '@/composables/useAssistant';
 import { useMe } from '@/composables/useMe';
+import { seniorTabBarHeight } from '@/composables/useSeniorTabBar';
 import { useViewMode } from '@/composables/useViewMode';
 import {
   bubbleLine,
@@ -65,12 +66,39 @@ const MARGIN = 12;
 
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
-/** Room kept clear at the bottom of a phone for the tab bar. */
+/** The family's phone tab bar's height: it grows with the text size, and to two rows when large. */
+const tabBar = ref(0);
+let tabBarEl: Element | null = null;
+const tabBarObserver =
+  typeof ResizeObserver === 'undefined'
+    ? null
+    : new ResizeObserver(([entry]) => (tabBar.value = entry.target.getBoundingClientRect().height));
+/** Finds the tab bar (it comes and goes with the screen width and the view) and follows its size. */
+function followTabBar() {
+  const bar = document.querySelector('.mainnav--tabs');
+  if (bar !== tabBarEl) {
+    if (tabBarEl) tabBarObserver?.unobserve(tabBarEl);
+    if (bar) tabBarObserver?.observe(bar);
+    tabBarEl = bar;
+  }
+  tabBar.value = bar?.getBoundingClientRect().height ?? 0;
+}
+
+/**
+ * Room kept clear at the bottom of a phone for the tab bar (however tall it is just now): the
+ * family's tab bar, or the senior's section bar (measured by `SeniorView`), which also grows with
+ * the text size and can take a second row.
+ */
 const insets = computed<Insets>(() => ({
   top: 0,
   right: 0,
   left: 0,
-  bottom: viewport.value.width < 768 ? (senior.value ? 108 : 78) : 0,
+  bottom:
+    viewport.value.width < 768
+      ? senior.value
+        ? Math.max(108, Math.ceil(seniorTabBarHeight.value) + 22)
+        : Math.max(78, Math.ceil(tabBar.value) + 22)
+      : 0,
 }));
 
 function defaultPlace(): Point {
@@ -296,6 +324,7 @@ function measure() {
     width: window.innerWidth,
     height: Math.round(visible?.height ?? window.innerHeight),
   };
+  followTabBar();
 }
 
 function clearChat() {
@@ -336,6 +365,8 @@ watch(
   () => {
     pageSince = Date.now();
     bubble.value = null;
+    // The view may have changed with the page (the tab bar shown or gone).
+    void nextTick(followTabBar);
   },
 );
 function maybeBubble() {
@@ -361,6 +392,8 @@ function maybeBubble() {
 
 onMounted(() => {
   measure();
+  // The tab bar may be drawn just after this.
+  requestAnimationFrame(followTabBar);
   recall();
   window.addEventListener('resize', measure);
   window.visualViewport?.addEventListener('resize', measure);
@@ -372,6 +405,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', measure);
   window.visualViewport?.removeEventListener('resize', measure);
+  tabBarObserver?.disconnect();
   // Signed out, or left the demo: nothing of this conversation stays for the next person.
   assistant.reset();
   window.removeEventListener('pointermove', pointerMoved);

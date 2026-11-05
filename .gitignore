@@ -48,6 +48,8 @@ venv/
 .coverage
 htmlcov/
 *.egg-info/
+# Kokoro text-to-speech model files (downloaded by `python -m silverloop.tts download`)
+server/models/
 
 # Databases and local demo state
 *.db

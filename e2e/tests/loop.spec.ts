@@ -14,10 +14,15 @@ test('Home shows whether the senior’s watch is connected, and its battery', as
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1, name: 'Care+' })).toBeVisible();
   const watch = page.getByTestId('watch-status');
-  await expect(watch).toContainText(/Watch connected · synced/);
+  // The demo's latest reading is an older, simulated day, so no sync time is claimed: the line names
+  // that day instead of "synced just now".
+  await expect(watch).toContainText('Watch connected · latest reading Tue, 18 Aug');
+  await expect(watch).not.toContainText('synced');
   // The level depends on the time of day (it is simulated), so only its shape is checked here.
   await expect(page.getByTestId('watch-battery')).toContainText(/\d+%/);
   await expect(watch).toContainText('Simulated watch');
+  // No way in from this line: the Watch page is in the menu and behind the watch in the hero.
+  await expect(watch.getByRole('link')).toHaveCount(0);
 });
 
 test('a low watch battery is red and asks the family to remind her to charge it', async ({
@@ -104,4 +109,16 @@ test('consent withdrawn through the API still shows on the home overview', async
 test('an unknown address says so and offers a way home', async ({ page }) => {
   await page.goto('/nope');
   await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+});
+
+test('a simulated rainy day says its rain is simulated, not live weather', async ({
+  page,
+  request,
+}) => {
+  // The e2e run never fetches live weather (offline profile), so this rain is the simulation's.
+  await advance(request, 'rain_explains_decline');
+  await page.goto('/');
+  const why = page.locator('.why-line');
+  await expect(why).toContainText('rainy day (simulated)');
+  await expect(why).not.toContainText('live weather');
 });

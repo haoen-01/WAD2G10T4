@@ -13,7 +13,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "node scripts/typecheck.mjs && tsc --noEmit -p tsconfig.api-client.json",
-    "test": "node --import ./scripts/resolve-ts.mjs --test src/lib/*.test.ts"
+    "test": "node --import ./scripts/resolve-ts.mjs --test src/lib/*.test.ts && vitest run",
+    "test:stores": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
@@ -22,6 +23,7 @@
     "bootstrap": "5.3.8",
     "maplibre-gl": "6.13.0",
     "motion-v": "2.6.0",
+    "pinia": "3.0.4",
     "vue": "3.5.43",
     "vue-router": "4.6.4"
   },
@@ -32,6 +34,7 @@
     "prettier": "3.9.6",
     "typescript": "5.9.3",
     "vite": "8.3.0",
+    "vitest": "5.0.4",
     "vue-tsc": "3.3.11"
   }
 }

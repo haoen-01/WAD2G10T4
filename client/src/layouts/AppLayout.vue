@@ -24,6 +24,7 @@ import { useViewMode } from '@/composables/useViewMode';
 import { useWalk } from '@/composables/useWalk';
 import { AUTH_ENABLED } from '@/lib/config';
 import { homeFor, isLoginPath, isPathInView } from '@/lib/view-mode';
+import { clearViewerStores } from '@/stores/reset';
 
 const { loading, currentUser, signOut } = useAuth();
 const { mode, leaveDemoView } = useViewMode();
@@ -49,15 +50,16 @@ const navDots = computed((): Record<string, string> =>
 const ALL_LINKS: { to: string; label: string; exact: boolean; icon: IconName }[] = [
   { to: '/', label: 'Home', exact: true, icon: 'home' },
   { to: '/senior', label: 'My day', exact: false, icon: 'person' },
+  { to: '/watch', label: 'Watch', exact: false, icon: 'watch' },
   { to: '/walk', label: 'Walk', exact: false, icon: 'walk' },
   { to: '/calendar', label: 'Calendar', exact: false, icon: 'calendar' },
   { to: '/family', label: 'Family', exact: false, icon: 'users' },
 ];
 
-// The family sees Home, Walk, Calendar and Family; the senior sees only their own screen. Nobody signed
-// in sees none, except with sign-in off and no demo view chosen, when every screen is listed. The API enforces each role too, except for
-// the calendar and family screens, which hold sample data in the browser and have no API behind
-// them.
+// The family sees Home, Watch, Walk, Calendar and Family; the senior sees only their own screen.
+// Nobody signed in sees none, except with sign-in off and no demo view chosen, when every screen is
+// listed. Hiding a link is only for tidiness: the API checks each person's role and group on every
+// call behind these screens (the calendar and family data included).
 const links = computed(() => {
   const current = mode.value;
   if (current) return ALL_LINKS.filter((link) => isPathInView(current, link.to));
@@ -66,6 +68,15 @@ const links = computed(() => {
 
 const brandTo = computed(() => (mode.value ? homeFor(mode.value) : '/'));
 const VIEW_NAMES = { family: 'Family', senior: 'Senior' } as const;
+
+/**
+ * Signing out (or leaving the demo view): the shared stores forget this person first, so nothing of
+ * theirs (who they are, the senior's readings, the family calendar) is shown to whoever comes next.
+ */
+function leave() {
+  clearViewerStores();
+  void (AUTH_ENABLED ? signOut() : leaveDemo());
+}
 
 /** Sign-in off: leave the demo view and go back to choosing one. */
 async function leaveDemo() {
@@ -213,7 +224,7 @@ onBeforeUnmount(() => {
                   class="btn btn-outline-secondary menu-signout"
                   @click="
                     close();
-                    AUTH_ENABLED ? signOut() : leaveDemo();
+                    leave();
                   "
                 >
                   <Icon name="sign-out" />Sign out
@@ -233,7 +244,7 @@ onBeforeUnmount(() => {
                   type="button"
                   class="btn btn-outline-secondary signout"
                   title="Sign out"
-                  @click="AUTH_ENABLED ? signOut() : leaveDemo()"
+                  @click="leave()"
                 >
                   <Icon name="sign-out" /><span class="signout-label">Sign out</span>
                 </button>

@@ -24,6 +24,10 @@ def run(settings: Settings) -> dict[str, object]:
         settings.database_url,
         seed=settings.demo_seed,
         scenario_version=settings.demo_scenario_version,
+        # The app's settings, so its reset writes the same days the API's would: with
+        # `demo_dates_follow_today` on, Mdm Lim's readings and the shared programme rows follow
+        # today rather than being pulled back to August under every other run.
+        settings=settings,
     )
     try:
         repository.reset()

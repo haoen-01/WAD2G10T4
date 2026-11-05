@@ -580,6 +580,14 @@ def validate_proposal(
     if _contains_emoji(message):
         violations.append("The message contains an emoji. Senior-facing copy is plain text only.")
 
+    # Tool results fence text people wrote as `<<<untrusted_text ... >>>`. A message that copies
+    # the fence (or its markers) shows the senior raw data, and may carry injected text with it.
+    if "<<<" in message or ">>>" in message or "untrusted_text" in message.lower():
+        violations.append(
+            "The message copies a data marker (<<< >>> or untrusted_text). Write the words, "
+            "never the fence around tool data."
+        )
+
     claimed = _claims_prior_experience(forms)
     if claimed and not _accepted_before(history, proposal.candidate_key):
         violations.append(

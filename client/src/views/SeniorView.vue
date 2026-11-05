@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DailyMetric, Intervention, OutcomeKind, PersonState } from '@silverloop/api-client';
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ErrorAlert from '@/components/ErrorAlert.vue';
 import BadgeShelf from '@/components/badges/BadgeShelf.vue';
 import SeniorCalendar from '@/components/calendar/SeniorCalendar.vue';
@@ -9,6 +9,7 @@ import LinkFamily from '@/components/senior/LinkFamily.vue';
 import MyFamily from '@/components/senior/MyFamily.vue';
 import UpcomingEvents from '@/components/senior/UpcomingEvents.vue';
 import StepsHero from '@/components/senior/StepsHero.vue';
+import ReadMyDay from '@/components/senior/ReadMyDay.vue';
 import SuggestionCard from '@/components/senior/SuggestionCard.vue';
 import Icon from '@/components/ui/Icon.vue';
 import type { IconName } from '@/components/ui/Icon.vue';
@@ -20,10 +21,12 @@ import { useBadges } from '@/composables/useBadges';
 import { useFamily } from '@/composables/useFamily';
 import { loadMe } from '@/composables/useMe';
 import { useNow } from '@/composables/useNow';
+import { seniorTabBarHeight } from '@/composables/useSeniorTabBar';
 import { AUTH_ENABLED } from '@/lib/config';
 import { formatIsoDay } from '@/lib/format-date';
 import { DEMO_PERSON_ID } from '@/lib/labels';
 import { adjacentTab, readTab, saveTab } from '@/lib/senior-view';
+import { sectionTabLayout, type SectionTabLook } from '@/lib/tab-rows';
 import type { SeniorTab } from '@/lib/senior-view';
 import { greetingFor } from '@/lib/today';
 import {
@@ -115,6 +118,92 @@ async function navigateTabs(event: KeyboardEvent) {
   await nextTick();
   document.getElementById(`senior-tab-${next}`)?.focus();
 }
+// ---- The section bar: whole words at the chosen text size, more rows when they do not fit ----
+// On a phone the bar is fixed to the bottom of the screen. Its labels grow with the text size and
+// are never shrunk or broken mid-word: when the four tabs no longer fit side by side (icon above
+// word), it takes a second row, with each icon beside its word where that fits so the rows stay
+// short (`sectionTabLayout`). Its real height goes to `--sl-senior-tabbar-height` on <html>, so
+// the page and toasts stay clear of it, and to Kaki (`seniorTabBarHeight`), who sits above it.
+const PHONE = '(max-width: 767.98px)';
+const tabBar = ref<HTMLElement | null>(null);
+const tabFit = ref<{ rows: number; perRow: number; look: SectionTabLook }>({
+  rows: 1,
+  perRow: tabs.length,
+  look: 'stacked',
+});
+let tabBarObserver: ResizeObserver | null = null;
+let fitFrame = 0;
+function px(value: string) {
+  return parseFloat(value) || 0;
+}
+function widthOf(el: Element | null) {
+  return el ? el.getBoundingClientRect().width : 0;
+}
+function reportTabBar() {
+  const bar = tabBar.value;
+  const height =
+    bar && getComputedStyle(bar).position === 'fixed'
+      ? Math.ceil(bar.getBoundingClientRect().height)
+      : 0;
+  if (height === seniorTabBarHeight.value) return;
+  seniorTabBarHeight.value = height;
+  const root = document.documentElement.style;
+  if (height) root.setProperty('--sl-senior-tabbar-height', `${height}px`);
+  else root.removeProperty('--sl-senior-tabbar-height');
+}
+function fitTabs() {
+  const bar = tabBar.value;
+  if (!bar) return;
+  const barStyle = getComputedStyle(bar);
+  const inside = bar.clientWidth - px(barStyle.paddingLeft) - px(barStyle.paddingRight);
+  // Each tab's icon, word and count at their real size, whichever way they are laid out now.
+  const measured = [...bar.querySelectorAll<HTMLElement>('.senior-tab-inner')].map((inner) => ({
+    icon: widthOf(inner.querySelector('.sl-icon')),
+    label: widthOf(inner.querySelector('.senior-tab-label')),
+    extra: widthOf(inner.querySelector('.tab-count')),
+  }));
+  // The gap between icon, word and count is 0.5rem (see `.senior-tab-inner`).
+  const gap = px(getComputedStyle(document.documentElement).fontSize) / 2;
+  const fit = sectionTabLayout(measured, inside, gap, window.matchMedia?.(PHONE).matches ?? true);
+  const now = tabFit.value;
+  if (fit.rows !== now.rows || fit.perRow !== now.perRow || fit.look !== now.look) {
+    tabFit.value = fit;
+  }
+  reportTabBar();
+}
+/** Measures in the next frame, never while the observer is delivering, so it cannot loop. */
+function fitSoon() {
+  if (fitFrame) return;
+  fitFrame = requestAnimationFrame(() => {
+    fitFrame = 0;
+    fitTabs();
+  });
+}
+// The bar appears once the day has loaded. Watch it, and its words: a new text size changes their
+// width even when the bar's own width stays the same.
+watch(
+  tabBar,
+  (bar) => {
+    tabBarObserver?.disconnect();
+    if (!bar) {
+      reportTabBar();
+      return;
+    }
+    fitTabs();
+    if (typeof ResizeObserver === 'undefined') return;
+    tabBarObserver ??= new ResizeObserver(fitSoon);
+    tabBarObserver.observe(bar);
+    for (const inner of bar.querySelectorAll('.senior-tab-inner')) tabBarObserver.observe(inner);
+  },
+  { flush: 'post' },
+);
+onMounted(() => void document.fonts?.ready.then(fitSoon));
+onBeforeUnmount(() => {
+  tabBarObserver?.disconnect();
+  cancelAnimationFrame(fitFrame);
+  seniorTabBarHeight.value = 0;
+  document.documentElement.style.removeProperty('--sl-senior-tabbar-height');
+});
 async function seeCalendar() {
   selectTab('calendar');
   await nextTick();
@@ -139,7 +228,10 @@ async function seeCalendar() {
       <StillnessPrompt class="mb-4" />
 
       <nav
+        ref="tabBar"
         class="senior-tabs nav nav-pills nav-fill rounded-4 p-2 mb-4 shadow-sm"
+        :class="[`is-${tabFit.look}`, { 'is-rows': tabFit.rows > 1 }]"
+        :style="{ '--tab-per-row': tabFit.perRow }"
         role="tablist"
         aria-label="My day sections"
         @keydown="navigateTabs"
@@ -150,20 +242,22 @@ async function seeCalendar() {
           :key="tab.id"
           type="button"
           role="tab"
-          class="nav-link fs-4 fw-semibold d-flex align-items-center justify-content-center gap-2"
+          class="nav-link fs-4 fw-semibold d-flex align-items-center justify-content-center"
           :class="{ active: activeTab === tab.id }"
           :aria-selected="activeTab === tab.id"
           :aria-controls="`senior-panel-${tab.id}`"
           :tabindex="activeTab === tab.id ? 0 : -1"
           @click="selectTab(tab.id)"
         >
-          <Icon :name="tab.icon" />{{ tab.label }}
-          <span
-            v-if="tab.id === 'badges' && readyBadges > 0"
-            class="tab-count"
-            data-testid="badges-ready-count"
-          >
-            {{ readyBadges }}<span class="visually-hidden"> ready to claim</span>
+          <span class="senior-tab-inner">
+            <Icon :name="tab.icon" /><span class="senior-tab-label">{{ tab.label }}</span>
+            <span
+              v-if="tab.id === 'badges' && readyBadges > 0"
+              class="tab-count"
+              data-testid="badges-ready-count"
+            >
+              {{ readyBadges }}<span class="visually-hidden"> ready to claim</span>
+            </span>
           </span>
         </button>
       </nav>
@@ -175,6 +269,7 @@ async function seeCalendar() {
         tabindex="0"
       >
         <StepsHero :person="person" :week="week" />
+        <ReadMyDay :person-id="personId" class="mt-4" />
         <div class="row g-4 mt-1">
           <div class="col-lg-5">
             <UpcomingEvents
@@ -265,9 +360,27 @@ async function seeCalendar() {
   border: 1px solid var(--sl-line);
 }
 .senior-tabs .nav-link {
+  min-width: 0;
   min-height: 56px;
   color: var(--sl-ink);
   flex: 1 1 0;
+}
+/* More than one row (see `fitTabs`): tabs of one size, a row's worth each. */
+.senior-tabs.is-rows .nav-link {
+  flex: 0 0 calc(100% / var(--tab-per-row));
+}
+/* The icon and the words keep their natural size: never shrunk into the tab, so `fitTabs` measures
+   what they really need. */
+.senior-tab-inner {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* A label is one whole word at the chosen size, never broken across lines. */
+.senior-tab-label {
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 .tab-count {
   display: inline-grid;
@@ -314,20 +427,24 @@ async function seeCalendar() {
   font-size: 1rem;
 }
 @media (max-width: 767.98px) {
-  /* Reserve space after the global footer as well as inside this page. */
+  /* The count floats on the icon's top-right corner, so it never widens its tab. */
   .tab-count {
     position: absolute;
-    top: 0.3rem;
+    top: -0.2rem;
     left: calc(50% + 0.55rem);
     min-width: 1.35rem;
     height: 1.35rem;
     font-size: 0.8rem;
   }
+  /* The bar's measured height (it grows with the text size and can take two rows) and a little
+     room, or the one-row height until it has been measured. */
   :global(body:has(.senior-tabs)) {
-    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(
+      var(--sl-senior-tabbar-height, calc(5rem + env(safe-area-inset-bottom))) + 1rem
+    );
   }
-  .senior {
-    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+  :global(:root:has(.senior-tabs) .sl-toasts) {
+    bottom: calc(var(--sl-senior-tabbar-height, 6rem) + 1rem);
   }
   .senior-tabs {
     position: fixed;
@@ -341,10 +458,50 @@ async function seeCalendar() {
   }
   .senior-tabs .nav-link {
     position: relative;
-    flex-direction: column;
-    gap: 0.15rem !important;
     padding: 0.5rem 0.25rem;
     font-size: 1.1rem !important;
+    line-height: 1.2;
+  }
+  .senior-tab-inner {
+    position: relative;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  /* More than one row: the icon beside the word (or the word alone) where that fits, so each row
+     is about the 56 px minimum rather than an icon and a word tall. */
+  .senior-tabs.is-beside .senior-tab-inner,
+  .senior-tabs.is-words .senior-tab-inner {
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+  /* Beside the word, the count is a slightly smaller badge (its figure still 0.85rem) on the icon's
+     top-right corner. Its right edge stops before the word (the icon is 1.25em of 1.1rem =
+     1.375rem wide, then a 0.5rem gap), and a longer count grows leftwards over the icon, never over
+     the word. */
+  .senior-tabs.is-beside .tab-count {
+    top: -0.55rem;
+    right: calc(100% - 1.85rem);
+    left: auto;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.3rem;
+    font-size: 0.85rem;
+  }
+  /* The word alone (a narrow phone at the largest text): no icon, and the count raised just after
+     the word, a quarter rem away, like a superscript (the bar leaves room for it; see
+     `sectionTabLayout`). The icon is hidden but keeps its size, so `fitTabs` still measures it. */
+  .senior-tabs.is-words .senior-tab-inner {
+    gap: 0;
+  }
+  .senior-tabs.is-words .senior-tab-inner > .sl-icon {
+    position: absolute;
+    visibility: hidden;
+  }
+  .senior-tabs.is-words .tab-count {
+    position: static;
+    margin-left: 0.25rem;
+    align-self: flex-start;
+    transform: translateY(-40%);
   }
 }
 </style>

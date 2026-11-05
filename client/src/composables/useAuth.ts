@@ -9,6 +9,7 @@ import { createKeyedOnceLoader } from '@/lib/current-user';
 import { loginPathFor } from '@/lib/route-guard';
 import { getSupabase } from '@/lib/supabase';
 import { isLoginPath, isViewPath } from '@/lib/view-mode';
+import { clearViewerStores } from '@/stores/reset';
 
 /**
  * Who is signed in. A module singleton rather than provide/inject, so the router guard, the API
@@ -54,8 +55,9 @@ export async function getAccessToken(): Promise<string | null> {
 /**
  * A session can expire while someone sits on a normal-looking page: views fetch on mount and have
  * no way to notice on their own. The shared API client (`composables/useApi.ts`) calls this on any
- * 401, which clears local auth state and sends the person back to sign in. Its identity is stable:
- * it reads the current route when it is called.
+ * 401, which clears local auth state and the shared stores (who they are, the senior's activity,
+ * the calendar) and sends the person back to sign in. Its identity is stable: it reads the current
+ * route when it is called.
  */
 export function onUnauthorized(): void {
   const supabase = getSupabase();
@@ -63,6 +65,7 @@ export function onUnauthorized(): void {
   currentUserLoader.clear();
   state.session = null;
   state.currentUser = null;
+  clearViewerStores();
   const here = router?.currentRoute.value.path ?? '/';
   if (isLoginPath(here)) return;
   void supabase.auth.signOut();
@@ -74,6 +77,7 @@ export async function signOut(): Promise<void> {
   await getSupabase()?.auth.signOut();
   state.session = null;
   state.currentUser = null;
+  clearViewerStores();
   // Never leave the previous person's screen up on a shared device.
   if (router && isViewPath(router.currentRoute.value.path)) {
     await router.replace({ name: 'login' });

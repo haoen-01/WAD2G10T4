@@ -37,6 +37,7 @@ _RULE_MARKERS: Final[tuple[tuple[str, str], ...]] = (
     ("gives no visible way to decline", "no_visible_opt_out"),
     ("asks the person to reply, text, call, email or message", "channel_instruction"),
     ("contains an emoji", "emoji"),
+    ("copies a data marker", "copied_data_marker"),
     ("claims the person has tried this before", "unsupported_prior_experience"),
     ("implies company, a group, or joining other people", "implied_company"),
     ("carry accessibility meaning", "dropped_accessibility_term"),

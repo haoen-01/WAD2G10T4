@@ -128,6 +128,29 @@ def test_rain_against_an_outdoor_plan_today_produces_a_notice() -> None:
     assert "forecast" in notices[0].reason
 
 
+def test_live_rain_only_replans_an_outdoor_session_the_forecast_covers() -> None:
+    # The session starts at 09:00 UTC (5 pm in Singapore).
+    outdoor = _candidate(indoor_outdoor=IndoorOutdoor.OUTDOOR)
+    ends_before = datetime(2026, 9, 6, 8, 0, tzinfo=UTC)
+    ends_after = datetime(2026, 9, 6, 10, 0, tzinfo=UTC)
+
+    def notices(rain_until: datetime | None) -> int:
+        return len(
+            notices_for(
+                [_plan(outdoor)],
+                [outdoor],
+                NO_PREFERENCES,
+                today=TODAY,
+                rainy=True,
+                rain_until=rain_until,
+            )
+        )
+
+    assert notices(ends_before) == 0  # the rain the forecast speaks of is over by then
+    assert notices(ends_after) == 1
+    assert notices(None) == 1  # simulated rain covers the whole day
+
+
 def test_rain_never_flags_an_indoor_plan() -> None:
     indoor = _candidate(indoor_outdoor=IndoorOutdoor.INDOOR)
     notices = notices_for([_plan(indoor)], [indoor], NO_PREFERENCES, today=TODAY, rainy=True)

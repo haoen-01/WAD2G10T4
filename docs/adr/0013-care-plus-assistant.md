@@ -57,3 +57,4 @@ no speech recognition, the microphone is not shown.
   of the phone tab bars by default, and the chat opens inward from the edge it is near.
 - A new route and contract types (`AssistantChatRequest`, `AssistantReply`): the contract was
   regenerated (`pnpm client:generate`) and both artifacts belong in the same commit.
+- The provider and data for the family-facing agents are decided in ADR 0015.

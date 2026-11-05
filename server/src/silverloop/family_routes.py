@@ -4,21 +4,31 @@ tasks. The rules live in `silverloop.family_groups`, `silverloop.family_calendar
 
 from __future__ import annotations
 
+import logging
+import threading
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 
+from silverloop.assistant import RateLimiter
 from silverloop.auth import Family, PersonReader, Senior, SignedIn
 from silverloop.config import Settings
 from silverloop.family_calendar import FamilyCalendarStore
+from silverloop.family_catchup import build_context as build_catch_up_context
+from silverloop.family_catchup import catch_up
+from silverloop.family_drafts import build_context as build_draft_context
+from silverloop.family_drafts import draft as draft_appointment
 from silverloop.family_groups import DEMO_FAMILY, FamilyGroupError, FamilyGroups
 from silverloop.family_tasks import FamilyTaskStore
 from silverloop.fixtures import DEMO_PERSON_ID
 from silverloop.local_time import local_date
 from silverloop.models import (
     Appointment,
+    AppointmentDraft,
+    AppointmentDraftRequest,
     AppointmentNote,
     AppointmentNoteRequest,
     AppointmentRequest,
@@ -26,6 +36,7 @@ from silverloop.models import (
     AvailabilityEntryOut,
     AvailabilityRequest,
     CareGroup,
+    CatchUp,
     CheckInRequest,
     CreateGroupRequest,
     CurrentUser,
@@ -38,6 +49,7 @@ from silverloop.models import (
     JoinGroupRequest,
     LinkSeniorRequest,
     MeResponse,
+    MyDay,
     MyGroup,
     NotificationPage,
     NotificationReadRequest,
@@ -46,11 +58,25 @@ from silverloop.models import (
     OnboardRequest,
     PinResponse,
     SeniorNameRequest,
+    SpeechRequest,
+    SpeechVoice,
+    SpeechVoiceOption,
     Task,
     TaskDayRequest,
     TaskList,
     TaskRequest,
     WearableStatus,
+)
+from silverloop.senior_day import build_context as build_my_day_context
+from silverloop.senior_day import my_day
+from silverloop.tts import (
+    SPEECH_BUSY_CODE,
+    VOICES,
+    SpeechBusy,
+    SpeechUnavailable,
+    speak,
+    unavailable_reason,
+    voice_label,
 )
 from silverloop.wearable_status import simulated_wearable
 
@@ -85,6 +111,36 @@ def _call[T](action: Callable[[], T]) -> T:
 
 def _today() -> date:
     return local_date(datetime.now(UTC))
+
+
+logger = logging.getLogger("silverloop.family")
+
+_limiters_lock = threading.Lock()
+
+
+def _limiter(request: Request, name: str, limit: int) -> RateLimiter:
+    """One fair-use limiter per app and purpose, made once even when the first requests race."""
+    with _limiters_lock:
+        limiters: dict[str, RateLimiter] | None = getattr(request.app.state, "route_limiters", None)
+        if limiters is None:
+            limiters = {}
+            request.app.state.route_limiters = limiters
+        if name not in limiters:
+            limiters[name] = RateLimiter(limit)
+        return limiters[name]
+
+
+def _agent_settings(request: Request, who: str) -> Settings:
+    """The settings an agent route runs with. Over the per-person limit (`agent_rate_per_10_min`)
+    the model is not called and the answer is assembled without one, exactly as with the agent
+    off (`fallback_disabled`): there is always an answer, and a loop cannot run up a bill."""
+    settings: Settings = request.app.state.settings
+    if not settings.llm_enabled:
+        return settings
+    if _limiter(request, "agent", settings.agent_rate_per_10_min).allow(who):
+        return settings
+    logger.info("agent_rate_limited")
+    return settings.model_copy(update={"llm_enabled": False})
 
 
 def check_reader(request: Request, person_id: str, current_user: CurrentUser) -> None:
@@ -329,6 +385,26 @@ def register_family_routes(application: FastAPI) -> None:
         return _call(lambda: store.group_calendar(current_user.sub, group_id, lo, hi))
 
     @application.post(
+        "/v1/groups/{group_id}/appointments/draft",
+        response_model=AppointmentDraft,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def draft_group_appointment(
+        request: Request, group_id: str, body: AppointmentDraftRequest, current_user: Family
+    ) -> AppointmentDraft:
+        """Fill in the appointment form from what the member typed. Saves nothing: the member
+        checks the form and adds it with `POST /appointments`. Written by the typed-appointment
+        agent when it is on and approved by a deterministic check, else by a plain parser. Active
+        members only."""
+        context = _call(
+            lambda: build_draft_context(
+                _calendar(request), current_user.sub, group_id, body.text, _today()
+            )
+        )
+        return draft_appointment(context, _agent_settings(request, current_user.sub))
+
+    @application.post(
         "/v1/groups/{group_id}/appointments",
         response_model=Appointment,
         status_code=status.HTTP_201_CREATED,
@@ -464,6 +540,29 @@ def register_family_routes(application: FastAPI) -> None:
         the previous page. Active members only; the senior never reads it."""
         store = _calendar(request)
         return _call(lambda: store.activity(current_user.sub, group_id, limit, before))
+
+    @application.get(
+        "/v1/groups/{group_id}/catch-up",
+        response_model=CatchUp,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}, 422: {}},
+    )
+    def group_catch_up(
+        request: Request,
+        group_id: str,
+        current_user: Family,
+        since: Annotated[datetime | None, Query()] = None,
+    ) -> CatchUp:
+        """ "Since you last visited": what changed in the group after `since`, what still needs
+        someone, and today's tasks, written by the catch-up agent when it is on and approved by a
+        deterministic check, else assembled without a model. Reads only what the feed, calendar
+        and task list already show this member. Active members only; the senior never reads it."""
+        context = _call(
+            lambda: build_catch_up_context(
+                _calendar(request), _tasks(request), current_user.sub, group_id, since, _today()
+            )
+        )
+        return catch_up(context, _agent_settings(request, current_user.sub))
 
     @application.post(
         "/v1/groups/{group_id}/check-ins",
@@ -682,6 +781,96 @@ def register_family_routes(application: FastAPI) -> None:
         store = _tasks(request)
         return _call(lambda: store.person_tasks(person_id, lo, hi))
 
+    @application.get(
+        "/v1/people/{person_id}/my-day",
+        response_model=MyDay,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}},
+    )
+    def person_my_day(request: Request, person_id: str, current_user: PersonReader) -> MyDay:
+        """ "Read my day": a short script of today's appointments and reminders and tomorrow's
+        first appointment, for the browser to read aloud. Written by the "Read my day" agent when
+        it is on and approved by a deterministic check, else assembled without a model. Reads only
+        what the senior's calendar and task list already show; the same readers as those."""
+        check_reader(request, person_id, current_user)
+        now = datetime.now(UTC)
+        context = _call(
+            lambda: build_my_day_context(
+                _calendar(request), _tasks(request), person_id, current_user.sub, _today(), now
+            )
+        )
+        return my_day(context, _agent_settings(request, current_user.sub))
+
+    @application.get(
+        "/v1/people/{person_id}/my-day/voice",
+        response_model=SpeechVoice,
+        tags=["family"],
+        responses={401: {}, 403: {}, 404: {}},
+    )
+    def person_my_day_voice(
+        request: Request, person_id: str, current_user: PersonReader
+    ) -> SpeechVoice:
+        """Whether "Read my day" can speak with the Kokoro voice here (it loads the model the first
+        time, so the first reading does not wait). The same readers as `my-day`."""
+        check_reader(request, person_id, current_user)
+        settings = request.app.state.settings
+        if unavailable_reason(settings) is not None:
+            return SpeechVoice(available=False, voice=None, label=None)
+        return SpeechVoice(
+            available=True,
+            voice=settings.tts_voice,
+            label=voice_label(settings.tts_voice),
+            voices=[SpeechVoiceOption(voice=voice, label=voice_label(voice)) for voice in VOICES],
+        )
+
+    @application.post(
+        "/v1/people/{person_id}/my-day/speech",
+        response_class=Response,
+        tags=["family"],
+        responses={
+            200: {"content": {"audio/wav": {}}, "description": "The sentence, spoken (WAV)."},
+            401: {},
+            403: {},
+            404: {},
+            422: {},
+            429: {"description": "Too many sentences from this person in 10 minutes."},
+            503: {"description": "The Kokoro voice is not installed, busy, or could not speak."},
+        },
+    )
+    def person_my_day_speech(
+        request: Request, person_id: str, body: SpeechRequest, current_user: PersonReader
+    ) -> Response:
+        """One sentence of "Read my day", spoken by the Kokoro voice on this server's CPU (no
+        cloud service). The same readers as `my-day`. 429 past `tts_rate_per_10_min` sentences
+        a person in 10 minutes. 503 when Kokoro or its model files are not installed or it
+        failed: the browser then reads with an on-device voice. A 503 with `code: speech_busy`
+        (and `Retry-After`) means it was busy with another sentence for longer than
+        `tts_busy_wait_seconds`: the browser asks for that sentence again before giving up."""
+        check_reader(request, person_id, current_user)
+        settings = request.app.state.settings
+        if body.voice is not None and body.voice not in VOICES and body.voice != settings.tts_voice:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown voice.")
+        if not _limiter(request, "tts", settings.tts_rate_per_10_min).allow(current_user.sub):
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS, "Too many sentences. Try again later."
+            )
+        try:
+            audio = speak(body.text, settings, body.voice)
+        except SpeechBusy as error:
+            # Busy is a moment's wait, not "cannot speak": `code` (and `Retry-After`) let the
+            # browser ask for this sentence again instead of dropping the Kokoro voice.
+            return JSONResponse(
+                {"code": SPEECH_BUSY_CODE, "message": str(error), "detail": str(error)},
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                headers={"Retry-After": "1"},
+            )
+        except SpeechUnavailable as error:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
+        # Private: the audio is one person's day. The browser may keep it for this session.
+        return Response(
+            audio, media_type="audio/wav", headers={"Cache-Control": "private, max-age=3600"}
+        )
+
     @application.post(
         "/v1/groups/{group_id}/tasks",
         response_model=Task,
@@ -788,4 +977,11 @@ def register_family_routes(application: FastAPI) -> None:
             readings = request.app.state.repository.daily_metrics(person_id=person_id, days=1)
         except KeyError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Person not found") from exc
-        return simulated_wearable(person_id, bool(readings), datetime.now(UTC))
+        latest = readings[-1] if readings else None
+        return simulated_wearable(
+            person_id,
+            bool(readings),
+            datetime.now(UTC),
+            latest.day if latest else None,
+            readings_synthetic=latest is not None and latest.source == "synthetic",
+        )

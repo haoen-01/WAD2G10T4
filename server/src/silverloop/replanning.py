@@ -33,7 +33,7 @@ It never swaps, books or removes anything, and it has no import from `policy.py`
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date
+from datetime import date, datetime
 
 from silverloop.activity_search import ActivityEngagement, filter_candidates, rank_candidates
 from silverloop.local_time import local_hour
@@ -206,9 +206,14 @@ def notices_for(
     *,
     today: date,
     rainy: bool = False,
+    rain_until: datetime | None = None,
     engagement: Mapping[str, ActivityEngagement] | None = None,
 ) -> list[ReplanNotice]:
     """A notice for every planned activity that can no longer happen as planned.
+
+    `rain_until` is when live rain stops speaking (a reading, or the 2-hour forecast's end): an
+    outdoor session that starts after it is not one the forecast covers, so it is left alone.
+    None for simulated weather, which covers the whole day.
 
     `planned` is not required to have been pre-filtered: a plan whose listing is still available
     and not full, on a dry day or already indoors, produces no notice at all -- an unremarkable
@@ -221,8 +226,12 @@ def notices_for(
             continue
 
         fresh = _find(catalogue, entry.activity.activity_id)
+        starts = entry.activity.start_at
         weather_turned = (
-            rainy and entry.day == today and entry.activity.indoor_outdoor == IndoorOutdoor.OUTDOOR
+            rainy
+            and entry.day == today
+            and entry.activity.indoor_outdoor == IndoorOutdoor.OUTDOOR
+            and (rain_until is None or starts is None or starts <= rain_until)
         )
         reason = _reason(fresh=fresh, weather_turned=weather_turned)
         if reason is None:

@@ -17,6 +17,8 @@ import pytest
 from silverloop.context import ExternalContextProvider
 
 AS_OF = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
+# The real clock while the fixtures below are current: noon in Singapore, as they were issued.
+LIVE_NOW = datetime(2026, 8, 20, 4, 0, tzinfo=UTC)
 
 
 def _response(url: str, payload: object, *, status_code: int = 200) -> httpx.Response:
@@ -86,7 +88,7 @@ def _mock_get(rainfall=None, forecast=None, holidays=None, raise_for=frozenset()
 
 
 def test_clear_weather_and_no_holiday_produces_two_present_evidence_items() -> None:
-    provider = ExternalContextProvider()
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
     with patch.object(httpx.Client, "get", _mock_get(CLEAR_RAINFALL, CLEAR_FORECAST, NO_HOLIDAYS)):
         result = provider.fetch(AS_OF)
 
@@ -103,7 +105,7 @@ def test_clear_weather_and_no_holiday_produces_two_present_evidence_items() -> N
 
 
 def test_live_rain_and_holiday_are_detected() -> None:
-    provider = ExternalContextProvider()
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
     with patch.object(httpx.Client, "get", _mock_get(RAINY_RAINFALL, RAINY_FORECAST, IS_HOLIDAY)):
         result = provider.fetch(AS_OF)
 
@@ -123,7 +125,7 @@ def test_weather_lookup_total_failure_still_produces_degraded_evidence_not_silen
     """Both the rainfall gauge and the forecast lookup fail -- this must not be
     indistinguishable from "we checked and it was not raining".
     """
-    provider = ExternalContextProvider()
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
     with patch.object(
         httpx.Client,
         "get",
@@ -142,7 +144,7 @@ def test_weather_lookup_total_failure_still_produces_degraded_evidence_not_silen
 
 
 def test_holiday_lookup_failure_still_produces_degraded_evidence_not_silence() -> None:
-    provider = ExternalContextProvider()
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
     with patch.object(
         httpx.Client,
         "get",
@@ -162,7 +164,7 @@ def test_partial_weather_failure_keeps_positive_confidence_and_notes_the_gap() -
     """Rainfall gauge succeeds, forecast fails: still a real (if partial) reading, not a total
     failure -- confidence reflects the reduced coverage but the source stays "available".
     """
-    provider = ExternalContextProvider()
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
     with patch.object(
         httpx.Client,
         "get",
@@ -185,7 +187,7 @@ def test_unexpected_schema_is_treated_as_a_failure_not_an_unhandled_exception() 
     def get(self: httpx.Client, url: str, *args, **kwargs) -> httpx.Response:
         return _response(url, {"unexpected": "shape"})
 
-    provider = ExternalContextProvider()
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
     with patch.object(httpx.Client, "get", get):
         result = provider.fetch(AS_OF)  # must not raise
 
@@ -213,7 +215,7 @@ def test_a_null_valued_key_degrades_like_any_other_malformed_body(body: dict) ->
     def get(self: httpx.Client, url: str, *args, **kwargs) -> httpx.Response:
         return _response(url, body)
 
-    provider = ExternalContextProvider()
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
     with patch.object(httpx.Client, "get", get):
         result = provider.fetch(AS_OF)  # must not raise
 
@@ -233,7 +235,7 @@ def test_a_null_payload_is_audited_as_a_provider_failure_by_class() -> None:
     def get(self: httpx.Client, url: str, *args, **kwargs) -> httpx.Response:
         return _response(url, {"data": None})
 
-    provider = ExternalContextProvider()
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
     with patch.object(httpx.Client, "get", get):
         result = provider.fetch(AS_OF)
 
@@ -250,7 +252,7 @@ def test_provider_uses_configured_timeout(timeout_seconds: float) -> None:
         captured["timeout"] = kwargs.get("timeout")
         return original_init(self, *args, **kwargs)
 
-    provider = ExternalContextProvider(timeout_seconds=timeout_seconds)
+    provider = ExternalContextProvider(timeout_seconds=timeout_seconds, clock=lambda: LIVE_NOW)
     with (
         patch.object(httpx.Client, "__init__", capturing_init),
         patch.object(httpx.Client, "get", _mock_get(CLEAR_RAINFALL, CLEAR_FORECAST, NO_HOLIDAYS)),
@@ -258,3 +260,371 @@ def test_provider_uses_configured_timeout(timeout_seconds: float) -> None:
         provider.fetch(AS_OF)
 
     assert captured["timeout"] == timeout_seconds
+
+
+# ── Freshness: only what is current now counts ───────────────────────────────
+
+
+def test_a_reading_and_forecast_from_hours_ago_are_stale_not_current() -> None:
+    later = datetime(2026, 8, 20, 9, 0, tzinfo=UTC)  # 5 pm in Singapore, hours after both
+    provider = ExternalContextProvider(clock=lambda: later)
+    with patch.object(httpx.Client, "get", _mock_get(RAINY_RAINFALL, RAINY_FORECAST, NO_HOLIDAYS)):
+        result = provider.fetch(later)
+
+    # Old rain is never used as rain now, and it is not "checked and clear" either.
+    assert result.signal.rainy is False
+    assert result.signal.weather_source == "unavailable"
+    assert result.signal.weather_valid_until is None
+    weather = result.evidence[0]
+    assert weather.payload["available"] is False
+    assert weather.confidence == 0.0
+    assert len(weather.payload["stale"]) == 2
+
+
+def test_gauge_rain_speaks_for_half_an_hour_and_the_forecast_for_its_own_period() -> None:
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(httpx.Client, "get", _mock_get(RAINY_RAINFALL, CLEAR_FORECAST, NO_HOLIDAYS)):
+        gauge_only = provider.fetch(AS_OF)
+    assert gauge_only.signal.rainy is True
+    assert gauge_only.signal.weather_source == "live"
+    # The 11:55 SGT reading, plus 30 minutes.
+    assert gauge_only.signal.weather_valid_until == datetime(2026, 8, 20, 4, 25, tzinfo=UTC)
+
+    forecast = _forecast_payload(
+        [
+            {
+                "timestamp": "2026-08-20T12:00:00+08:00",
+                "valid_period": {
+                    "start": "2026-08-20T12:00:00+08:00",
+                    "end": "2026-08-20T14:00:00+08:00",
+                },
+                "forecasts": [{"area": "Bedok", "forecast": "Showers"}],
+            }
+        ]
+    )
+    with patch.object(httpx.Client, "get", _mock_get(CLEAR_RAINFALL, forecast, NO_HOLIDAYS)):
+        forecast_rain = provider.fetch(AS_OF)
+    assert forecast_rain.signal.rainy is True
+    assert forecast_rain.signal.weather_valid_until == datetime(2026, 8, 20, 6, 0, tzinfo=UTC)
+    assert forecast_rain.evidence[0].expires_at == datetime(2026, 8, 20, 6, 0, tzinfo=UTC)
+
+
+def test_a_stale_gauge_reading_is_ignored_while_a_current_forecast_still_counts() -> None:
+    # 12:40 SGT: the 11:55 reading went stale at 12:25; the 12:00 forecast speaks until 14:00.
+    now = datetime(2026, 8, 20, 4, 40, tzinfo=UTC)
+    provider = ExternalContextProvider(clock=lambda: now)
+    with patch.object(httpx.Client, "get", _mock_get(RAINY_RAINFALL, CLEAR_FORECAST, NO_HOLIDAYS)):
+        dry = provider.fetch(now)
+
+    # The old gauge rain is not rain now, but the forecast is a current, dry reading.
+    assert dry.signal.rainy is False
+    assert dry.signal.weather_source == "live"
+    weather = dry.evidence[0]
+    assert weather.payload["available"] is True
+    assert weather.payload["max_rainfall_reading_mm"] == 0.0
+    assert weather.payload["rainfall_reading_unavailable"] == "stale"
+    assert weather.payload["stale"] == ["rainfall reading from 2026-08-20T11:55:00+08:00"]
+    assert weather.confidence == 0.75
+
+    with patch.object(httpx.Client, "get", _mock_get(CLEAR_RAINFALL, RAINY_FORECAST, NO_HOLIDAYS)):
+        forecast_rain = provider.fetch(now)
+    assert forecast_rain.signal.rainy is True
+    assert forecast_rain.signal.weather_source == "live"
+
+
+def test_a_stale_forecast_is_ignored_while_a_current_gauge_reading_still_counts() -> None:
+    forecast = _forecast_payload(
+        [
+            {
+                "timestamp": "2026-08-20T09:00:00+08:00",
+                "valid_period": {
+                    "start": "2026-08-20T09:00:00+08:00",
+                    "end": "2026-08-20T11:00:00+08:00",
+                },
+                "forecasts": [{"area": "Bedok", "forecast": "Thundery Showers"}],
+            }
+        ]
+    )
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(httpx.Client, "get", _mock_get(CLEAR_RAINFALL, forecast, NO_HOLIDAYS)):
+        result = provider.fetch(AS_OF)
+
+    # The morning forecast's showers are over: recorded as stale, never used as rain now.
+    assert result.signal.rainy is False
+    weather = result.evidence[0]
+    assert weather.payload["forecast_rain_areas"] == []
+    assert weather.payload["forecast_unavailable"] == "stale"
+    assert weather.payload["stale"] == ["forecast issued 2026-08-20T09:00:00+08:00"]
+
+    with patch.object(httpx.Client, "get", _mock_get(RAINY_RAINFALL, forecast, NO_HOLIDAYS)):
+        gauge_rain = provider.fetch(AS_OF)
+    assert gauge_rain.signal.rainy is True
+    assert gauge_rain.signal.weather_valid_until == datetime(2026, 8, 20, 4, 25, tzinfo=UTC)
+
+
+def test_a_forecast_without_a_valid_period_speaks_for_two_hours_after_it_was_issued() -> None:
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(httpx.Client, "get", _mock_get(CLEAR_RAINFALL, RAINY_FORECAST, NO_HOLIDAYS)):
+        result = provider.fetch(AS_OF)
+    # Issued 12:00 SGT with no `valid_period`: current until 14:00 SGT.
+    assert result.signal.rainy is True
+    assert result.signal.weather_valid_until == datetime(2026, 8, 20, 6, 0, tzinfo=UTC)
+
+    # Just past those two hours (and the gauge reading long stale), nothing current remains.
+    later = datetime(2026, 8, 20, 6, 1, tzinfo=UTC)
+    stale_provider = ExternalContextProvider(clock=lambda: later)
+    with patch.object(httpx.Client, "get", _mock_get(CLEAR_RAINFALL, RAINY_FORECAST, NO_HOLIDAYS)):
+        stale = stale_provider.fetch(later)
+    assert (stale.signal.rainy, stale.signal.weather_source) == (False, "unavailable")
+
+
+def test_a_dry_reading_expires_when_its_first_current_part_stops_speaking() -> None:
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(httpx.Client, "get", _mock_get(CLEAR_RAINFALL, CLEAR_FORECAST, NO_HOLIDAYS)):
+        result = provider.fetch(AS_OF)
+    # Dry until the 11:55 gauge reading goes stale at 12:25 SGT, the earlier of the two.
+    assert result.signal.rainy is False
+    assert result.evidence[0].expires_at == datetime(2026, 8, 20, 4, 25, tzinfo=UTC)
+    assert result.signal.weather_valid_until == datetime(2026, 8, 20, 4, 25, tzinfo=UTC)
+
+
+def test_stale_weather_evidence_still_carries_source_timestamp_confidence_and_id() -> None:
+    later = datetime(2026, 8, 20, 9, 0, tzinfo=UTC)
+    provider = ExternalContextProvider(clock=lambda: later)
+    with patch.object(httpx.Client, "get", _mock_get(RAINY_RAINFALL, RAINY_FORECAST, NO_HOLIDAYS)):
+        weather = provider.fetch(later).evidence[0]
+    assert weather.source == "nea_weather_live"
+    assert weather.observed_at == later
+    assert weather.expires_at > weather.observed_at
+    assert weather.confidence == 0.0
+    assert weather.evidence_id.startswith("E-WEATHER")
+
+
+# ── Malformed forecast periods and offset-less timestamps degrade, never raise ──
+
+
+def _forecast_with_period(period: object, *, timestamp: str = "2026-08-20T12:00:00+08:00") -> dict:
+    item: dict = {
+        "timestamp": timestamp,
+        "forecasts": [{"area": "Bedok", "forecast": "Showers"}],
+    }
+    if period is not _NO_PERIOD:
+        item["valid_period"] = period
+    return _forecast_payload([item])
+
+
+_NO_PERIOD = object()
+_BAD_PERIODS = [
+    pytest.param({"start": "2026-08-20T12:00:00+08:00", "end": "garbage"}, id="bad-end-string"),
+    pytest.param({"end": 1400}, id="non-string-end"),
+    pytest.param("x", id="non-dict-period"),
+    pytest.param(["2026-08-20T14:00:00+08:00"], id="list-period"),
+]
+
+
+@pytest.mark.parametrize("period", _BAD_PERIODS)
+def test_an_unreadable_forecast_period_with_the_gauge_down_is_unavailable(period: object) -> None:
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(
+        httpx.Client,
+        "get",
+        _mock_get(
+            forecast=_forecast_with_period(period), holidays=NO_HOLIDAYS, raise_for={"rainfall"}
+        ),
+    ):
+        result = provider.fetch(AS_OF)  # must not raise
+
+    assert result.signal.rainy is False
+    assert result.signal.weather_source == "unavailable"
+    assert result.signal.weather_valid_until is None
+    weather = result.evidence[0]
+    assert weather.payload["available"] is False
+    assert weather.confidence == 0.0
+    assert "forecast:" in weather.payload["reason"]
+
+
+@pytest.mark.parametrize("period", _BAD_PERIODS)
+def test_an_unreadable_forecast_period_with_a_current_gauge_uses_the_gauge_alone(
+    period: object,
+) -> None:
+    # A forecast from June: had its timestamp been kept despite the unreadable end, it would have
+    # been taken as current. It is unavailable instead, and only the gauge speaks.
+    forecast = _forecast_with_period(period, timestamp="2026-06-01T12:00:00+08:00")
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(httpx.Client, "get", _mock_get(CLEAR_RAINFALL, forecast, NO_HOLIDAYS)):
+        result = provider.fetch(AS_OF)
+
+    assert result.signal.rainy is False  # the forecast's showers are not read
+    assert result.signal.weather_source == "live"
+    weather = result.evidence[0]
+    assert weather.confidence == 0.75  # gauge only
+    assert weather.observed_at == datetime(2026, 8, 20, 3, 55, tzinfo=UTC)
+    assert weather.payload["forecast_rain_areas"] == []
+    assert "forecast_unavailable" in weather.payload
+    assert "stale" not in weather.payload
+
+
+def test_a_missing_forecast_period_with_the_gauge_down_still_speaks_for_two_hours() -> None:
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(
+        httpx.Client,
+        "get",
+        _mock_get(
+            forecast=_forecast_with_period(_NO_PERIOD),
+            holidays=NO_HOLIDAYS,
+            raise_for={"rainfall"},
+        ),
+    ):
+        result = provider.fetch(AS_OF)
+
+    assert (result.signal.rainy, result.signal.weather_source) == (True, "live")
+    assert result.signal.weather_valid_until == datetime(2026, 8, 20, 6, 0, tzinfo=UTC)
+    assert result.evidence[0].confidence == 0.75
+
+
+def test_a_null_forecast_period_is_read_as_no_period() -> None:
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(
+        httpx.Client,
+        "get",
+        _mock_get(CLEAR_RAINFALL, _forecast_with_period(None), NO_HOLIDAYS),
+    ):
+        result = provider.fetch(AS_OF)
+    assert result.signal.rainy is True
+    assert result.evidence[0].expires_at == datetime(2026, 8, 20, 6, 0, tzinfo=UTC)
+
+
+def test_offset_less_nea_timestamps_are_read_as_singapore_time() -> None:
+    rainfall = _rainfall_payload(
+        [{"timestamp": "2026-08-20T11:55:00", "data": [{"station_id": "S1", "value": 4.2}]}]
+    )
+    forecast = _forecast_with_period(
+        {"start": "2026-08-20T12:00:00", "end": "2026-08-20T14:00:00"},
+        timestamp="2026-08-20T12:00:00",
+    )
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(httpx.Client, "get", _mock_get(rainfall, forecast, NO_HOLIDAYS)):
+        result = provider.fetch(AS_OF)  # must not raise comparing naive and aware times
+
+    assert (result.signal.rainy, result.signal.weather_source) == (True, "live")
+    weather = result.evidence[0]
+    assert weather.confidence == 0.95
+    assert weather.observed_at == datetime(2026, 8, 20, 4, 0, tzinfo=UTC)
+    assert weather.expires_at == datetime(2026, 8, 20, 6, 0, tzinfo=UTC)
+
+    # The same offset-less reading, judged at 5 pm Singapore time, is stale rather than current.
+    later = datetime(2026, 8, 20, 9, 0, tzinfo=UTC)
+    with patch.object(httpx.Client, "get", _mock_get(rainfall, forecast, NO_HOLIDAYS)):
+        stale = ExternalContextProvider(clock=lambda: later).fetch(later)
+    assert (stale.signal.rainy, stale.signal.weather_source) == (False, "unavailable")
+
+
+def test_a_half_readable_gauge_reading_is_no_reading() -> None:
+    rainfall = _rainfall_payload(
+        [{"timestamp": "2026-08-20T11:55:00+08:00", "data": [{"station_id": "S1", "value": "x"}]}]
+    )
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(httpx.Client, "get", _mock_get(rainfall, CLEAR_FORECAST, NO_HOLIDAYS)):
+        result = provider.fetch(AS_OF)
+    weather = result.evidence[0]
+    assert "rainfall_reading_unavailable" in weather.payload
+    assert weather.confidence == 0.75  # the forecast alone
+    assert weather.observed_at == datetime(2026, 8, 20, 4, 0, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("now", "current"),
+    [
+        (datetime(2026, 8, 20, 4, 25, tzinfo=UTC), True),  # the exact moment it stops speaking
+        (datetime(2026, 8, 20, 4, 25, 1, tzinfo=UTC), False),  # one second later
+    ],
+)
+def test_a_gauge_reading_is_still_current_at_the_moment_it_expires(
+    now: datetime, current: bool
+) -> None:
+    provider = ExternalContextProvider(clock=lambda: now)
+    with patch.object(
+        httpx.Client, "get", _mock_get(RAINY_RAINFALL, raise_for={"two-hr-forecast"})
+    ):
+        result = provider.fetch(now)
+    assert result.signal.rainy is current
+    assert result.signal.weather_source == ("live" if current else "unavailable")
+
+
+@pytest.mark.parametrize(
+    ("now", "current"),
+    [
+        (datetime(2026, 8, 20, 6, 0, tzinfo=UTC), True),
+        (datetime(2026, 8, 20, 6, 0, 1, tzinfo=UTC), False),
+    ],
+)
+def test_a_forecast_is_still_current_at_the_end_of_its_period(now: datetime, current: bool) -> None:
+    forecast = _forecast_with_period(
+        {"start": "2026-08-20T12:00:00+08:00", "end": "2026-08-20T14:00:00+08:00"}
+    )
+    provider = ExternalContextProvider(clock=lambda: now)
+    with patch.object(httpx.Client, "get", _mock_get(forecast=forecast, raise_for={"rainfall"})):
+        result = provider.fetch(now)
+    assert result.signal.rainy is current
+
+
+@pytest.mark.parametrize(
+    ("rainfall", "forecast"),
+    [
+        # A gauge reading stamped in 2099, raining hard.
+        (
+            _rainfall_payload(
+                [
+                    {
+                        "timestamp": "2099-01-01T12:00:00+08:00",
+                        "data": [{"station_id": "S1", "value": 5}],
+                    }
+                ]
+            ),
+            "clear",
+        ),
+        # A rainy forecast issued long ago whose valid period claims to run until 2099.
+        (
+            None,
+            {"start": "2026-06-01T12:00:00+08:00", "end": "2099-01-01T00:00:00+08:00"},
+        ),
+        # A rainy forecast issued in the future.
+        (
+            None,
+            {"start": "2099-01-01T12:00:00+08:00", "end": "2099-01-01T14:00:00+08:00"},
+        ),
+        # A valid period that ends before it was issued.
+        (
+            None,
+            {"start": "2026-08-20T12:00:00+08:00", "end": "2026-08-20T11:00:00+08:00"},
+        ),
+    ],
+)
+def test_weather_from_the_future_or_with_a_nonsense_period_is_never_rain_now(
+    rainfall: dict | None, forecast: dict | str
+) -> None:
+    gauge_down = _rainfall_payload([])
+    if forecast == "clear":
+        forecast_body = CLEAR_FORECAST
+    else:
+        forecast_body = _forecast_with_period(forecast, timestamp=forecast["start"])
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(
+        httpx.Client, "get", _mock_get(rainfall or gauge_down, forecast_body, NO_HOLIDAYS)
+    ):
+        result = provider.fetch(AS_OF)
+    assert result.signal.rainy is False
+    weather = result.evidence[0]
+    assert weather.expires_at is None or weather.expires_at.year < 2099
+
+
+@pytest.mark.parametrize("value", ["inf", "nan", "-inf"])
+def test_a_rainfall_value_that_is_not_a_finite_number_is_no_reading(value: str) -> None:
+    rainfall = _rainfall_payload(
+        [{"timestamp": "2026-08-20T11:55:00+08:00", "data": [{"station_id": "S1", "value": value}]}]
+    )
+    provider = ExternalContextProvider(clock=lambda: LIVE_NOW)
+    with patch.object(httpx.Client, "get", _mock_get(rainfall, CLEAR_FORECAST, NO_HOLIDAYS)):
+        result = provider.fetch(AS_OF)
+    assert result.signal.rainy is False
+    assert "rainfall_reading_unavailable" in result.evidence[0].payload

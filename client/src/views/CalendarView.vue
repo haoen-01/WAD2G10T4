@@ -562,6 +562,7 @@ onBeforeUnmount(() => {
           :appointment="formFor === 'new' ? null : formFor"
           :free="freeForDraft"
           :family-size="state.members.length"
+          :group-id="groupId"
           @save="saveForm"
           @cancel="formFor = null"
         />
@@ -645,6 +646,15 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 0.5rem 1rem;
   margin-left: auto;
+}
+
+/* A phone: under the title and lined up with it on the left, so "+ Add" (when it wraps at a large
+   text size) stays clear of Kaki, who waits at the right-hand edge. */
+@media (max-width: 575.98px) {
+  .head-tools {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
 }
 
 .hint {
