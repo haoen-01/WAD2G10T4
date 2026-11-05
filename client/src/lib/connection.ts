@@ -11,7 +11,7 @@
  * overtaken by a newer navigation.
  */
 export interface NavigationGenerations {
-  /** A guard run starts: its generation. */
+  /** A guard run starts: its generation. It is the one waiting until it returns or is overtaken. */
   begin(): number;
   /** The newest generation started so far (0 before any). */
   latest(): number;
@@ -19,21 +19,35 @@ export interface NavigationGenerations {
   isCurrent(generation: number): boolean;
   /** That guard run has returned (allowed, redirected, stopped or reported). */
   finish(generation: number): void;
-  /** Whether the newest guard run is still waiting (on `/v1/me`, say). */
+  /**
+   * A navigation that ran no guard cancelled the one waiting: a new generation that belongs to no
+   * guard run, so after it nothing is waiting.
+   */
+  overtake(): void;
+  /** Whether a guard run is waiting (on `/v1/me`, say) that a navigation would still cancel. */
   waiting(): boolean;
 }
 
 export function createNavigationGenerations(): NavigationGenerations {
   let latest = 0;
-  let finished = 0;
+  /** The guard run that is waiting, or null: none, it returned, or it was cancelled. */
+  let waitingRun: number | null = null;
   return {
-    begin: () => ++latest,
+    begin: () => {
+      latest += 1;
+      waitingRun = latest;
+      return latest;
+    },
     latest: () => latest,
     isCurrent: (generation) => generation === latest,
     finish: (generation) => {
-      if (generation === latest) finished = generation;
+      if (generation === waitingRun) waitingRun = null;
     },
-    waiting: () => latest > finished,
+    overtake: () => {
+      latest += 1;
+      waitingRun = null;
+    },
+    waiting: () => waitingRun !== null,
   };
 }
 
@@ -41,7 +55,7 @@ export function createNavigationGenerations(): NavigationGenerations {
  * From the router's `afterEach`: whether a finished navigation overtakes a guard still waiting
  * even though no guard ran for it. A push to the screen already showing (a duplicated navigation,
  * such as pressing the current screen's tab) skips `beforeEach`, yet the router still cancels the
- * navigation in progress for it; so it must start a generation too, or that cancelled guard could
+ * navigation in progress for it; so it must overtake it (`NavigationGenerations.overtake`), or that cancelled guard could
  * still show the panel and point Try again at the screen the person left. With no guard waiting
  * it cancels nothing, so it changes nothing: a Try again still waiting on its own reads carries on.
  */

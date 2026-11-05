@@ -292,28 +292,33 @@ test('a guard overtaken by a newer navigation never shows the panel over it', as
 
 /**
  * `GET /v1/me` that fails until `next` is given steps; then each request takes the next step (a
- * `hang` step waits for `release()`, then fails) and, once they run out, `rest` decides.
+ * `hang` step waits for `release()`, then fails; `hold` waits, then goes through) and, once they
+ * run out, `rest` decides.
  */
 async function meInTurn(page: Page) {
   const state: {
-    next: ('abort' | 'hang')[];
+    next: ('abort' | 'hang' | 'hold')[];
     rest: 'abort' | 'pass';
     release: (() => void) | null;
   } = { next: [], rest: 'abort', release: null };
   await page.route('**/v1/me', async (route) => {
     const step = state.next.shift();
-    if (step === 'hang') await new Promise<void>((resolve) => (state.release = resolve));
+    if (step === 'hang' || step === 'hold') {
+      await new Promise<void>((resolve) => (state.release = resolve));
+    }
+    if (step === 'hold') return route.fallback();
     if (step) return route.abort();
     return state.rest === 'pass' ? route.fallback() : route.abort();
   });
   return state;
 }
 
-test('pressing the current screen cancels a waiting retry, which then never reports', async ({
+test('pressing the current screen cancels a waiting retry, which never reports nor sticks', async ({
   page,
 }) => {
   await asFamily(page);
   const me = await meInTurn(page);
+  const release = () => me.release?.();
   await page.goto('/');
   const panel = page.getByTestId('connection-problem');
   await expect(panel).toBeVisible();
@@ -326,14 +331,22 @@ test('pressing the current screen cancels a waiting retry, which then never repo
   await page.locator('.brand').click();
 
   const failed = page.waitForEvent('requestfailed', (request) => request.url().endsWith('/v1/me'));
-  me.release?.();
+  release();
   await failed;
   await settle(page);
-  // The cancelled guard did not report: no "Still can't connect", and Try again still works.
+  // The cancelled guard did not report: no "Still can't connect".
   await expect(panel).toBeVisible();
   await expect(panel.getByRole('status')).not.toHaveText(/Still can’t connect/);
+
+  // Nothing is waiting any more: pressing Home again while the next Try again reads must not drop
+  // that retry. Its read goes through, and so does everything after.
+  me.release = null;
+  me.next = ['hold'];
   me.rest = 'pass';
   await panel.getByRole('button', { name: 'Try again' }).click();
+  await expect.poll(() => me.release !== null).toBe(true);
+  await page.locator('.brand').click();
+  release();
   await expect(panel).toHaveCount(0);
   await expect(page.locator('.home')).toBeVisible();
 });

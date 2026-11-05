@@ -47,6 +47,18 @@ describe('createNavigationGenerations: waiting', () => {
     assert.equal(generations.waiting(), false);
   });
 
+  it('stops waiting once a push that ran no guard has cancelled the run', () => {
+    const generations = createNavigationGenerations();
+    const run = generations.begin();
+    generations.overtake();
+    assert.equal(generations.waiting(), false);
+    assert.equal(generations.isCurrent(run), false);
+    // The cancelled run returns later: still nothing waiting, and a later press bumps nothing.
+    generations.finish(run);
+    assert.equal(generations.waiting(), false);
+    assert.equal(overtakesWithoutGuard({ duplicated: true, generations }), false);
+  });
+
   it('stays waiting while a newer run has not returned, even once an older one has', () => {
     const generations = createNavigationGenerations();
     const older = generations.begin();
@@ -62,7 +74,7 @@ describe('overtakesWithoutGuard', () => {
     const generations = createNavigationGenerations();
     const toFamily = generations.begin();
     assert.equal(overtakesWithoutGuard({ duplicated: true, generations }), true);
-    generations.begin();
+    generations.overtake();
     assert.equal(mayReport(toFamily, generations), false);
   });
 

@@ -65,7 +65,7 @@ export function settleConnectionProblem(
   duplicated = false,
 ): void {
   // A duplicated push ran no guard but still cancelled the guard that was waiting, if any.
-  if (overtakesWithoutGuard({ duplicated, generations })) generations.begin();
+  if (overtakesWithoutGuard({ duplicated, generations })) generations.overtake();
   const clear = shouldClearAfterNavigation({
     failed,
     panelShowing: problem.value !== null,
