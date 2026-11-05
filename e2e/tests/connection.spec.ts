@@ -209,3 +209,66 @@ test('going back from the panel to another screen never mounts the hidden one', 
   expect(await hidden.seen()).toBe(false);
   expect(hidden.viewReads.filter((url) => /\/(wearable|metrics|activity)\b/.test(url))).toEqual([]);
 });
+
+/**
+ * `GET /v1/me` that fails (`abort`), waits until released (`hang`, then fails), or goes through
+ * (`pass`). Returns the switch and a way to release the request being held.
+ */
+async function controlMe(page: Page) {
+  const state: { mode: 'abort' | 'hang' | 'pass'; release: (() => void) | null } = {
+    mode: 'abort',
+    release: null,
+  };
+  await page.route('**/v1/me', async (route) => {
+    if (state.mode === 'pass') return route.fallback();
+    if (state.mode === 'hang') {
+      await new Promise<void>((resolve) => (state.release = resolve));
+    }
+    return route.abort();
+  });
+  return state;
+}
+
+test('a Try again still waiting when someone signs out never pulls them back', async ({ page }) => {
+  await asFamily(page);
+  const me = await controlMe(page);
+  await page.goto('/family');
+  const panel = page.getByTestId('connection-problem');
+  await expect(panel).toBeVisible();
+
+  me.mode = 'hang';
+  await panel.getByRole('button', { name: 'Try again' }).click();
+  await expect.poll(() => me.release !== null).toBe(true);
+  await page.getByRole('button', { name: /sign out/i }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(panel).toHaveCount(0);
+
+  // The retry's read now comes back (and Care+ answers again): it must not reopen /family.
+  me.mode = 'pass';
+  me.release?.();
+  await page.waitForTimeout(1000);
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(panel).toHaveCount(0);
+});
+
+test('a guard overtaken by a newer navigation never shows the panel over it', async ({ page }) => {
+  await asFamily(page);
+  const me = await controlMe(page);
+  await page.goto('/family');
+  const panel = page.getByTestId('connection-problem');
+  await expect(panel).toBeVisible();
+
+  // Home is asked for, but its guard waits on /v1/me; meanwhile the person signs out.
+  me.mode = 'hang';
+  await page.locator('.brand').click();
+  await expect.poll(() => me.release !== null).toBe(true);
+  await page.getByRole('button', { name: /sign out/i }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(panel).toHaveCount(0);
+
+  // The abandoned guard's read now fails: it must not cover the sign-in page with the panel.
+  me.release?.();
+  await page.waitForTimeout(1000);
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(panel).toHaveCount(0);
+});

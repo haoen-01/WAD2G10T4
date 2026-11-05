@@ -1,6 +1,10 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 
-import { reportConnectionProblem, settleConnectionProblem } from '@/composables/useConnection';
+import {
+  beginNavigation,
+  reportConnectionProblem,
+  settleConnectionProblem,
+} from '@/composables/useConnection';
 import { activeGroups, loadMe } from '@/composables/useMe';
 import { demoViewMode, resolveAccount } from '@/composables/useViewMode';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -82,6 +86,8 @@ const router = createRouter({
  * `decideAccess`).
  */
 router.beforeEach(async (to) => {
+  // Every run counts, the sign-in pages too: a later run overtakes this one's late results.
+  const generation = beginNavigation();
   // The sign-in pages, welcome and not-found need nothing from the API.
   if (!isViewPath(to.path)) return true;
   const { hasSession, currentUser } = await resolveAccount();
@@ -107,8 +113,9 @@ router.beforeEach(async (to) => {
   if (decision.action === 'unreachable') {
     // Care+ could not be reached (no response or a 5xx), which is not the same as being signed
     // out: keep the URL and let the layout show "Can't connect" with Try again instead of the page.
-    reportConnectionProblem(decision.kind, to);
-    return true;
+    // Ignored (and this navigation dropped) when a newer one has started while this guard waited:
+    // a late answer never covers the newer screen or points Try again at the one left behind.
+    return reportConnectionProblem(decision.kind, to, generation);
   }
   return decision.action === 'redirect' ? decision.to : true;
 });
