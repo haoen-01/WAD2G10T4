@@ -1,13 +1,10 @@
 # ADR 0006 — Preference resolution, ordinal axes, and `forget` as a retraction
 
-Status: **Accepted** (2026-09-15, lead decision: built on
-`feat/personalisation-ranking-worldmodel-v2` and `feat/activity-ranker-inspector`, and amended
-twice after the Activity Ranker Inspector made its consequences visible — see the two amendments at
-the end. Proposed 2026-09-13.)
-Date: 2026-09-13
+Status: **Accepted**, and amended twice after the Activity Ranker Inspector made its consequences
+visible — see the two amendments at the end.
 Supersedes nothing. Amends ADR 0004 (run scoping) in one place: `forget`.
-Related: `docs/personalisation-v2-decisions.md` §5–§7, §10–§12;
-`docs/audits/personalisation-v2/review-core.md` §2.1, §2.2, §2.6–§2.10, §6 N3–N7.
+Related: [`docs/personalisation-v2-decisions.md`](../personalisation-v2-decisions.md) §5–§7,
+§10–§12.
 
 ## Context
 
@@ -164,15 +161,15 @@ frequency rather than a kind, and the second names a direction with no number in
 is ordinal now, so mapping it would mean inventing a pivot nobody said, which is the fabrication
 this whole change exists to remove.
 
-> **Superseded 2026-09-15 (second-round amendment) for `LESS_TRAVEL`.** It now maps to DISTANCE
+> **Superseded by the second-round amendment for `LESS_TRAVEL`.** It now maps to DISTANCE
 > `near` with no pivot, and a stated "near" narrows travel tolerance to a named radius
 > (`preferences.NEARBY_RADIUS_M`) without inventing a pivot — see "DISTANCE statements with no
 > number" below. `GET_OUT_MORE` is still not folded in.
 
-## Amendment — 2026-09-15: resolution groups, tier versus credit, goal resolver keys
+## Amendment: resolution groups, tier versus credit, goal resolver keys
 
 Recorded after the Activity Ranker Inspector made three consequences of this ADR visible
-(`docs/ranker-inspector-spec.md` D13, D17, D20). Additive: the decisions above stand except where
+(ranker inspector decisions D13, D17, D20). Additive: the decisions above stand except where
 this section narrows them.
 
 ### §2 narrowed — a tier wins a _resolution group_, not always a whole axis
@@ -238,10 +235,9 @@ the resolver's own `tier == winning_tier`, so a surface never ranks fact kinds i
 `neither_applies` covers an axis-resolved dimension where a higher-tier belief on a different value
 makes both contradicting beliefs unused.
 
-## Amendment — 2026-09-15 (second round): programmes, distance, reasons on expand, wording
+## Second amendment: programmes, distance, reasons on expand, wording
 
-Recorded when the items the first amendment left open were closed (`docs/WAYFINDER.md`,
-"Remaining-item fixes — delivered 2026-09-15 (round 2)"). Additive: the decisions and the first
+Recorded when the items the first amendment left open were closed. Additive: the decisions and the first
 amendment stand except where this section narrows them. No schema change.
 
 ### A repeat answer about the same programme is not a second answer
@@ -348,7 +344,7 @@ the factor's line is in `more_reasons`; the classifier and the inverse check rea
 `reasons_shown` and `more_reasons`; `TraceVarietySwap.more_reasons_after` replaces
 `reasons_dropped`; and `reasons_before_composition` is the scoring-time list before composition and
 before any variety rebuild. This supersedes "left off by design" (decisions §12 amendment;
-`docs/ranker-inspector-spec.md` D12).
+ranker inspector decision D12).
 
 ### A stated belief is worded as stated
 

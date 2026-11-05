@@ -1,11 +1,10 @@
 # Calibration trust — implementation spec
 
-Status: accepted 2026-09-16. Map: [Wayfinder: calibration trust — what coordinator feedback teaches](https://github.com/peachoolongtee/ismoggers/issues/61).
-Decisions: [Decide what calibration trust delivers and in what order](https://github.com/peachoolongtee/ismoggers/issues/54).
+Status: Accepted; partly removed (see below).
 Builds on ADR 0008 and `docs/review-threshold-spec.md`; none of their guarantees change.
 
-> **Step 7.** Sections A and B were removed with the routes no screen used
-> (`docs/research/aac-route-removal.md`): `review_lessons.py`, the `lesson` on a review response,
+> Sections A and B have been removed from the API with the routes no screen used:
+> `review_lessons.py`, the `lesson` on a review response,
 > the review-setting receipt and context-gap tally, and `POST /v1/cases/{id}/review` itself. The
 > `context_gap_category` column stays on `case_reviews` (no table or column was dropped). The
 > evaluation seam (D, `authored_metric`) stays.
@@ -100,13 +99,13 @@ Agent proposals show the fixed counting rule plus what the agent cited.
 
 ## Build tracks and file ownership
 
-| Track                | Owner             | Files                                                                                                                                                                                                  |
-| -------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A1 contract (first)  | implementer       | `models.py`, `db_models.py`, migration, mirror SQL, `sql_repository.py` seam, `openapi/`, `client/src/api-client`                                                                                      |
-| A2 lessons + receipt | implementer       | `review_lessons.py`, `sql_repository.py`, `repository.py`, `main.py`, API tests                                                                                                                        |
-| B evaluation         | implementer       | `evaluation/calibration/*`, `apps/api/project.json`, root `package.json`, `docs/evaluation/review-calibration.*`, `test_calibration_evaluation.py`                                                     |
-| C Care Team          | frontend-engineer | `view-models.ts`, `review-card.tsx`, `care-team-view.tsx`, `review-threshold-card.tsx` (mount), new `review-lesson-panel.tsx`, `review-setting-receipt.tsx`, `context-gap-tally.tsx`, e2e on `mdm-lim` |
-| D evaluator          | frontend-engineer | `lib/review-calibration*.ts`, `review-calibration-card.tsx`, `evidence/page.tsx`                                                                                                                       |
+| Track                | Area     | Files                                                                                                                                                                                                  |
+| -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A1 contract (first)  | backend  | `models.py`, `db_models.py`, migration, mirror SQL, `sql_repository.py` seam, `openapi/`, `client/src/api-client`                                                                                      |
+| A2 lessons + receipt | backend  | `review_lessons.py`, `sql_repository.py`, `repository.py`, `main.py`, API tests                                                                                                                        |
+| B evaluation         | backend  | `evaluation/calibration/*`, root `package.json`, `docs/evaluation/review-calibration.*`, `test_calibration_evaluation.py`                                                     |
+| C Care Team          | frontend | `view-models.ts`, `review-card.tsx`, `care-team-view.tsx`, `review-threshold-card.tsx` (mount), new `review-lesson-panel.tsx`, `review-setting-receipt.tsx`, `context-gap-tally.tsx`, e2e on `mdm-lim` |
+| D evaluator          | frontend | `lib/review-calibration*.ts`, `review-calibration-card.tsx`, `evidence/page.tsx`                                                                                                                       |
 
 ## Risks to guard
 
@@ -146,12 +145,11 @@ Agent proposals show the fixed counting rule plus what the agent cited.
 
 `pnpm format:check`, `client:check`, `lint`, `typecheck`, API pytest, web unit tests, e2e on 3100/8100,
 `evaluate:check`, `test:scenarios`, `build`; PostgreSQL-gated suites against a local test cluster.
-Reviews: code-reviewer, design-reviewer (Care Team, `/evidence`), architect check, verifier.
+Reviews: code review, design review (Care Team, `/evidence`), architecture check, acceptance check.
 
-## As built (2026-09-16)
+## As built
 
-Delivered on `feat/calibration-trust` together with the UX redesign (`docs/ux-audit-2026-09-16.md`);
-the hard-to-reverse choices are recorded in ADR 0009. Deviations from the text above:
+Delivered together with the UX redesign. Deviations from the text above:
 
 - **Precedence.** `classify_review` checks `reviewer == "system"` first, before `reached_too_late`, so a
   malformed system row can never read as a coordinator judgement.
@@ -173,4 +171,4 @@ the hard-to-reverse choices are recorded in ADR 0009. Deviations from the text a
 - **Weekly cap headroom.** At most 4 proposals in any run (agent arm, dismissive, `slow_slide`) against a
   cap of 5; zero cap skips is asserted, but the margin is one proposal.
 - **Not yet done.** The Supabase mirror `202609160020_review_context_gap.sql` is not applied; the live
-  threshold-agent recording is still open (#48).
+  threshold-agent recording is still open.

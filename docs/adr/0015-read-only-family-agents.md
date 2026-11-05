@@ -3,7 +3,7 @@
 Status: Proposed (2026-11-04).
 
 Care+ has three agents that families and seniors see directly, besides the outreach planner
-(`agenticlayer.md`): the **catch-up** on family Home, **"Read my day"** on the senior's Today tab,
+([`docs/agentic-layer.md`](../agentic-layer.md)): the **catch-up** on family Home, **"Read my day"** on the senior's Today tab,
 and the **appointment draft** ("Describe it" on the new-appointment form). Each could make a
 model write words a person reads about someone they care for, so the limits are set here. What
 each sends to a provider is listed in `docs/agentic-features.md`.
@@ -28,7 +28,7 @@ each sends to a provider is listed in `docs/agentic-features.md`.
 3. **`LLM_PROVIDER` gains `openai`.** `agent/openai_client.py` puts OpenAI's Chat Completions behind
    the `messages.create` surface the loops already use, and reuses the assistant's `OPENAI_*`
    settings (`OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`); `LLM_MODEL` may override the
-   model. This amends ADR 0013 decision 1, which kept `LLM_*` for Claude only: OpenAI may now also
+   model. This amends ADR 0013 decision 1, which kept `LLM_*` for Anthropic models only: OpenAI may now also
    serve the agents, though no provider is switched on for them yet (decision 4).
 4. **No provider is switched on until the data is approved.** The agents' context includes family
    members' first names and display names, what they did in the family feed, appointment titles

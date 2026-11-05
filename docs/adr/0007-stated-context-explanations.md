@@ -1,6 +1,6 @@
 # 0007 — A senior's own explanation of a quiet day, and what it may change
 
-**Status:** accepted, implemented 2026-09-14 on `feat/context-explanation`
+**Status:** Accepted and implemented.
 **Supersedes:** nothing. **Related:** [0001](0001-consent-scope-model.md) (the one-lookup shape this
 copies), `context_question.py`, `context_explanation.py`, `policy.py`.
 
