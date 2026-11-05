@@ -5,6 +5,7 @@ import {
   createNavigationGenerations,
   mayContinueRetry,
   mayReport,
+  overtakesWithoutGuard,
   shouldClearAfterNavigation,
 } from './connection';
 
@@ -33,6 +34,24 @@ describe('mayReport', () => {
     const stale = generations.begin();
     generations.begin(); // to /login, committed meanwhile
     assert.equal(mayReport(stale, generations), false);
+  });
+});
+
+describe('overtakesWithoutGuard', () => {
+  it('counts a push to the screen already showing as a newer navigation', () => {
+    assert.equal(overtakesWithoutGuard({ duplicated: true }), true);
+  });
+
+  it('leaves other finished navigations to the guard, which already counted them', () => {
+    assert.equal(overtakesWithoutGuard({ duplicated: false }), false);
+  });
+
+  it('stops a guard cancelled by a duplicated push from showing the panel', () => {
+    // On /calendar: Family is pressed (its guard waits), then the Calendar tab (a duplicate).
+    const generations = createNavigationGenerations();
+    const toFamily = generations.begin();
+    if (overtakesWithoutGuard({ duplicated: true })) generations.begin();
+    assert.equal(mayReport(toFamily, generations), false);
   });
 });
 

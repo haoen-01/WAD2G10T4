@@ -29,6 +29,17 @@ export function createNavigationGenerations(): NavigationGenerations {
 }
 
 /**
+ * From the router's `afterEach`: whether a finished navigation overtakes any guard still waiting
+ * even though no guard ran for it. A push to the screen already showing (a duplicated navigation,
+ * such as pressing the current screen's tab) skips `beforeEach`, yet the router still cancels the
+ * navigation in progress for it; so it must start a generation too, or that cancelled guard could
+ * still show the panel and point Try again at the screen the person left.
+ */
+export function overtakesWithoutGuard(input: { duplicated: boolean }): boolean {
+  return input.duplicated;
+}
+
+/**
  * Whether a guard that found Care+ unreachable may still show the panel: only while its own
  * navigation is the newest one. A guard overtaken by a newer navigation (someone signed out or
  * went elsewhere while its request was still waiting, up to the 15 s timeout) must not cover the

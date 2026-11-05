@@ -8,6 +8,7 @@ import {
   createNavigationGenerations,
   mayContinueRetry,
   mayReport,
+  overtakesWithoutGuard,
   shouldClearAfterNavigation,
 } from '@/lib/connection';
 
@@ -53,7 +54,13 @@ export function clearConnectionProblem(): void {
  * the guard reported Care+ unreachable for that very navigation. A failed or cancelled navigation
  * (`failed`) leaves everything as it was.
  */
-export function settleConnectionProblem(to: RouteLocationNormalized, failed: boolean): void {
+export function settleConnectionProblem(
+  to: RouteLocationNormalized,
+  failed: boolean,
+  duplicated = false,
+): void {
+  // A duplicated push ran no guard but still cancelled any guard that was waiting.
+  if (overtakesWithoutGuard({ duplicated })) generations.begin();
   const clear = shouldClearAfterNavigation({
     failed,
     panelShowing: problem.value !== null,

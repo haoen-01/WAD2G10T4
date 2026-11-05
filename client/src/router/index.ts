@@ -1,4 +1,10 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import {
+  createRouter,
+  createWebHistory,
+  isNavigationFailure,
+  NavigationFailureType,
+  type RouteRecordRaw,
+} from 'vue-router';
 
 import {
   beginNavigation,
@@ -124,10 +130,12 @@ router.beforeEach(async (to) => {
  * The connection panel gives way only here, once a navigation the guard let through has been
  * committed: in the same update as the new route, so the screen that was hidden behind the panel
  * never mounts (not even on its way out), and a retry that fails again, or a cancelled navigation,
- * keeps the panel.
+ * keeps the panel. A push to the screen already showing runs no guard but still cancels one that is
+ * waiting, so it counts as a newer navigation here (`lib/connection.ts`, `overtakesWithoutGuard`).
  */
 router.afterEach((to, _from, failure) => {
-  settleConnectionProblem(to, Boolean(failure));
+  const duplicated = isNavigationFailure(failure, NavigationFailureType.duplicated);
+  settleConnectionProblem(to, Boolean(failure), duplicated);
 });
 
 export default router;

@@ -211,22 +211,33 @@ test('going back from the panel to another screen never mounts the hidden one', 
 });
 
 /**
- * `GET /v1/me` that fails (`abort`), waits until released (`hang`, then fails), or goes through
- * (`pass`). Returns the switch and a way to release the request being held.
+ * `GET /v1/me` that fails (`abort`), goes through (`pass`), or waits until released (`hang`). A
+ * held request, once released, follows the mode set by then: it fails, or goes through after
+ * `mode = 'pass'`. Returns the switch and a way to release the request being held.
  */
 async function controlMe(page: Page) {
   const state: { mode: 'abort' | 'hang' | 'pass'; release: (() => void) | null } = {
     mode: 'abort',
     release: null,
   };
+  const modeNow = () => state.mode;
   await page.route('**/v1/me', async (route) => {
     if (state.mode === 'pass') return route.fallback();
     if (state.mode === 'hang') {
       await new Promise<void>((resolve) => (state.release = resolve));
+      // Read again: the test may have switched it while the request was held.
+      if (modeNow() === 'pass') return route.fallback();
     }
     return route.abort();
   });
   return state;
+}
+
+/** Lets the app finish handling what just arrived: a frame, then the tasks queued during it. */
+async function settle(page: Page) {
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0))),
+  );
 }
 
 test('a Try again still waiting when someone signs out never pulls them back', async ({ page }) => {
@@ -245,8 +256,10 @@ test('a Try again still waiting when someone signs out never pulls them back', a
 
   // The retry's read now comes back (and Care+ answers again): it must not reopen /family.
   me.mode = 'pass';
+  const answered = page.waitForResponse('**/v1/me');
   me.release?.();
-  await page.waitForTimeout(1000);
+  await answered;
+  await settle(page);
   await expect(page).toHaveURL(/\/login$/);
   await expect(panel).toHaveCount(0);
 });
@@ -267,8 +280,10 @@ test('a guard overtaken by a newer navigation never shows the panel over it', as
   await expect(panel).toHaveCount(0);
 
   // The abandoned guard's read now fails: it must not cover the sign-in page with the panel.
+  const failed = page.waitForEvent('requestfailed', (request) => request.url().endsWith('/v1/me'));
   me.release?.();
-  await page.waitForTimeout(1000);
+  await failed;
+  await settle(page);
   await expect(page).toHaveURL(/\/login$/);
   await expect(panel).toHaveCount(0);
 });
