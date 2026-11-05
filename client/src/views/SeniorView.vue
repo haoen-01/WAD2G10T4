@@ -474,21 +474,22 @@ async function seeCalendar() {
     flex-direction: row;
     gap: 0.5rem;
   }
-  /* Beside the word, the count is a smaller badge on the icon's top-right corner. Its right edge
-     stops before the word (the icon is 1.25em of 1.1rem = 1.375rem wide, then a 0.5rem gap), and
-     a longer count grows leftwards over the icon, never over the word. */
+  /* Beside the word, the count is a slightly smaller badge (its figure still 0.85rem) on the icon's
+     top-right corner. Its right edge stops before the word (the icon is 1.25em of 1.1rem =
+     1.375rem wide, then a 0.5rem gap), and a longer count grows leftwards over the icon, never over
+     the word. */
   .senior-tabs.is-beside .tab-count {
     top: -0.55rem;
     right: calc(100% - 1.85rem);
     left: auto;
-    min-width: 1.1rem;
-    height: 1.1rem;
+    min-width: 1.25rem;
+    height: 1.25rem;
     padding: 0 0.3rem;
-    font-size: 0.7rem;
+    font-size: 0.85rem;
   }
   /* The word alone (a narrow phone at the largest text): no icon, and the count raised just after
-     the word, like a superscript (the bar leaves room for it; see `sectionTabLayout`). The icon is
-     hidden but keeps its size, so `fitTabs` still measures it. */
+     the word, a quarter rem away, like a superscript (the bar leaves room for it; see
+     `sectionTabLayout`). The icon is hidden but keeps its size, so `fitTabs` still measures it. */
   .senior-tabs.is-words .senior-tab-inner {
     gap: 0;
   }
@@ -498,6 +499,7 @@ async function seeCalendar() {
   }
   .senior-tabs.is-words .tab-count {
     position: static;
+    margin-left: 0.25rem;
     align-self: flex-start;
     transform: translateY(-40%);
   }

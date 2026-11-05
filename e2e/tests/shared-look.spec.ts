@@ -540,27 +540,73 @@ test.describe('the calendar at a large text size', () => {
         expect(lines, where).toBe(1);
         expect(right, where).toBeLessThanOrEqual(width);
         // Each appointment's times keep their am/pm ("10:00 am", never "10:00 / am"), and never run
-        // into the kind's name beside them.
+        // into the kind's name beside them. The kind's colour dot sits right beside its first word,
+        // and the name stays on one line wherever it fits beside the start time.
         const cards = await page.locator('.appointment').evaluateAll((all) =>
           all.map((card) => {
-            const lines = (el: Element) => {
+            const tops = (node: Node) => {
               const range = document.createRange();
-              range.selectNodeContents(el);
-              return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+              range.selectNodeContents(node);
+              return [...range.getClientRects()].filter((r) => r.width > 0);
             };
+            const lines = (node: Node) => new Set(tops(node).map((r) => Math.round(r.top))).size;
             const start = card.querySelector('.appt-start')!;
             const end = card.querySelector('.appt-end')!;
             const time = start.getBoundingClientRect();
-            const kind = card.querySelector('.appt-kind')!.getBoundingClientRect();
+            const kindEl = card.querySelector('.appt-kind')!;
+            const kind = kindEl.getBoundingClientRect();
             const apart =
               time.right <= kind.left + 0.5 ||
               time.bottom <= kind.top + 0.5 ||
               kind.bottom <= time.top + 0.5;
-            return { lines: lines(start) + lines(end), apart };
+            const words = [...kindEl.childNodes].find((n) => n.nodeType === Node.TEXT_NODE)!;
+            const first = tops(words)[0];
+            const dot = kindEl.querySelector('.appt-kind-dot')!.getBoundingClientRect();
+            const middle = (dot.top + dot.bottom) / 2;
+            const dotBeside =
+              first.left - dot.right >= 0 &&
+              first.left - dot.right <= 16 &&
+              middle >= first.top &&
+              middle <= first.bottom;
+            return {
+              lines: lines(start) + lines(end),
+              apart,
+              dotBeside,
+              kindLines: lines(words),
+            };
           }),
         );
         expect(cards.length, where).toBeGreaterThan(0);
-        for (const card of cards) expect(card, where).toEqual({ lines: 2, apart: true });
+        // At 320 px and 150% "Medical visit" no longer fits beside "10:00 am" and may wrap.
+        const roomForKind = !(width === 320 && zoom === '150%');
+        for (const card of cards) {
+          expect(card, where).toMatchObject({ lines: 2, apart: true, dotBeside: true });
+          if (roomForKind) expect(card.kindLines, where).toBe(1);
+        }
+        // Kaki, waiting at the right-hand edge, covers neither "+ Add" nor the week's arrows.
+        await page.evaluate(() => window.scrollTo(0, 0));
+        const orb = page.getByTestId('assistant-orb');
+        for (const [name, target] of [
+          ['+ Add', page.getByTestId('add-appointment')],
+          ['Previous week', page.getByRole('button', { name: 'Previous week' })],
+          ['Next week', page.getByRole('button', { name: 'Next week' })],
+        ] as const) {
+          await expect
+            .poll(
+              async () => {
+                const a = (await orb.boundingBox())!;
+                const b = (await target.boundingBox())!;
+                return (
+                  a.x < b.x + b.width &&
+                  b.x < a.x + a.width &&
+                  a.y < b.y + b.height &&
+                  b.y < a.y + a.height
+                );
+              },
+              { message: `Kaki clear of ${name} ${where}` },
+            )
+            .toBe(false);
+        }
         // The week's two arrows stay together on one line, wherever Today goes.
         const previous = (await page.getByRole('button', { name: 'Previous week' }).boundingBox())!;
         const next = (await page.getByRole('button', { name: 'Next week' }).boundingBox())!;

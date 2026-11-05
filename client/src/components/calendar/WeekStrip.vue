@@ -202,11 +202,12 @@ function onTouchEnd(event: TouchEvent) {
 }
 
 /* The arrows and Today stay full size; on a narrow phone at a large text size the arrows wrap under
-   Today, together, rather than push the page sideways. */
+   Today, together, rather than push the page sideways. Lined up on the left, clear of Kaki at the
+   right-hand edge. */
 .week-nav {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 0.35rem;
   max-width: 100%;
 }

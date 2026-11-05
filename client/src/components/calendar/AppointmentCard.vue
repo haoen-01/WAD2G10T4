@@ -176,11 +176,11 @@ function when(iso: string): string {
 }
 
 @media (max-width: 575.98px) {
-  /* Time on the left, kind on the right, sharing the row: at a large text size each gives way to
-     the other (the kind's name wraps) rather than running into it. */
+  /* Time on the left, kind on the right, sharing the row. The kind keeps its name whole while it
+     fits beside the start time (the end time moves under it first); only past that does the name
+     wrap, rather than run into the time. */
   .appointment {
-    grid-template-columns: auto auto;
-    justify-content: space-between;
+    grid-template-columns: minmax(min-content, 1fr) auto;
   }
 
   .appt-time {
@@ -191,12 +191,20 @@ function when(iso: string): string {
     grid-column: 1;
   }
 
+  /* Plain text with the dot in line, so a wrapped name keeps the dot beside its first word. */
   .appt-kind {
+    display: block;
     grid-row: 1;
     grid-column: 2;
     justify-self: end;
     white-space: normal;
     text-align: end;
+  }
+
+  .appt-kind-dot {
+    display: inline-block;
+    margin-right: 0.35rem;
+    vertical-align: 0.05em;
   }
 
   .appt-body {

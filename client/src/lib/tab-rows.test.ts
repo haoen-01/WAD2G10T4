@@ -76,6 +76,10 @@ test('senior section bar on a phone: words alone when even beside would need mor
   // the word alone (and "Badges" with its count after it) fits two to a row.
   const huge = [tab(33, 77), tab(33, 115), tab(33, 100, 32), tab(33, 83)];
   assert.deepEqual(sectionTabLayout(huge, 304, 12, true), { rows: 2, perRow: 2, look: 'words' });
+  // The count keeps half a gap (6 px) from its word: 104 + 6 + 32 + 12 = 154 px is too wide for a
+  // 152 px tab, though the word and count alone (148 px) would squeeze in.
+  const tight = [tab(33, 77), tab(33, 115), tab(33, 104, 32), tab(33, 83)];
+  assert.equal(sectionTabLayout(tight, 304, 12, true).look, 'stacked');
 });
 
 test('senior section bar on a phone: stacked when nothing else saves a row', () => {

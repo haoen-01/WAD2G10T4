@@ -85,8 +85,8 @@ export function sectionTabLayout(
   if (stacked.rows === 1) return pick(stacked, 'stacked');
   const beside = fit(tabs.map((tab) => tab.icon + gap + tab.label));
   if (beside.fits && beside.rows <= stacked.rows) return pick(beside, 'beside');
-  // Words alone: the count is raised just after the word, with no gap.
-  const words = fit(tabs.map((tab) => tab.label + tab.extra));
+  // Words alone: the count is raised just after the word, half a gap away.
+  const words = fit(tabs.map((tab) => tab.label + (tab.extra ? gap / 2 + tab.extra : 0)));
   if (words.fits && words.rows <= stacked.rows) return pick(words, 'words');
   return pick(stacked, 'stacked');
 }
