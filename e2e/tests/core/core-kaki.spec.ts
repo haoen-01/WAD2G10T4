@@ -10,5 +10,7 @@ test('Asking kaki how many steps today', async ({ page }) => {
   await page.getByTestId('continue-senior').click();
   await page.getByTestId('assistant-orb').click();
   await page.getByRole('button', { name: 'How many steps today?' }).click();
-  await expect(page.getByTestId('assistant-assistant').last()).toContainText('your watch counted [\d,]+ steps.')
+  await expect(page.getByTestId('assistant-assistant').last()).toContainText(
+    'your watch counted [\d,]+ steps.',
+  );
 });
