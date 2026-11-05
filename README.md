@@ -122,6 +122,26 @@ layer covers.
 
 GitHub Actions runs `pnpm verify` and a PostgreSQL integration job on every pull request.
 
+### End-to-end tests
+
+The Playwright end-to-end tests are in `e2e/tests`. The core user journeys (signing in as each
+role, shared tasks, the calendar, the daily suggestion loop and the Kaki assistant, each with a
+success path and a failure or safety path) are in `e2e/tests/core`.
+
+To run them on a fresh clone:
+
+```bash
+pnpm run setup                                   # installs everything, including the test browser
+pnpm test:e2e                                    # the whole browser suite
+cd e2e && pnpm exec playwright test tests/core   # only the core journeys
+```
+
+No accounts, keys or running servers are needed. Each run starts its own API and web app on a
+throwaway SQLite database with fixed demo dates, and every test resets the demo data first, so the
+results are the same on any day and in any order. Stop `pnpm dev` or `pnpm demo:offline` first,
+as the tests use the same ports (8000 and 3000). Add `--reporter=html`, then run
+`pnpm exec playwright show-report` from `e2e/`, for the HTML report.
+
 ## Deployment
 
 Both apps deploy to Vercel from `main`.
@@ -151,6 +171,12 @@ All settings are described in [`.env.example`](./.env.example). Never commit a r
 - [`docs/glossary.md`](./docs/glossary.md): the terms used across the app and docs
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md): branches, commits and pull requests
 - [`SECURITY.md`](./SECURITY.md): security practices and reporting
+
+## AI declaration
+
+AI/LLM tools were used to assist with project ideation, brainstorming, UI/UX design inspiration,
+and providing coding guidance, including explanations of technical concepts and debugging
+suggestions.
 
 ## Licence
 
