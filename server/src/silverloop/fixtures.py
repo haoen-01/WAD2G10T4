@@ -24,6 +24,9 @@ from silverloop.models import (
 from silverloop.ontology import FORMAT_LABEL, ActivityFamily, ActivityType, Format
 
 DEMO_PERSON_ID = "mdm-lim"
+# The day Mdm Lim's fixture reading falls on (`_mdm_lim_history`): the demo's anchor day. When
+# the demo is moved to end on today, everything date-bound in the fixtures moves by the same offset.
+DEMO_ANCHOR_DAY = date(2026, 8, 18)
 
 
 @dataclass(frozen=True)
@@ -326,8 +329,10 @@ def synthetic_history(
     return _generic_persona_history(seed, profile)
 
 
-def synthetic_programmes() -> list[Programme]:
-    base_day = date(2026, 8, 24)
+def synthetic_programmes(shift: timedelta = timedelta(0)) -> list[Programme]:
+    """The two fixture programmes, six and seven days after the demo's anchor day. `shift` moves
+    them with the demo's readings when those are moved to end on today."""
+    base_day = date(2026, 8, 24) + shift
     return [
         Programme(
             programme_id="aac-chair-mobility",

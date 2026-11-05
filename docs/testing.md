@@ -31,7 +31,10 @@ database.
 ## Browser and web unit tests
 
 The Playwright suite in `e2e/tests/` drives the real Vue app against the real API (SQLite,
-fixture adapters, `LLM_ENABLED=false`). Each file covers one area:
+fixture adapters, `LLM_ENABLED=false`). Like `server/tests/conftest.py`, its config sets
+`DEMO_DATES_FOLLOW_TODAY=false`, so the readings keep the fixture's anchor day (Tue, 18 Aug 2026)
+the assertions name; the YAML scenarios build their repository without settings and never follow
+today either. `server/tests/test_demo_dates.py` covers the move itself. Each file covers one area:
 
 - `loop.spec.ts` — the watch status on Home; a simulated decline (played straight through the API,
   since there is no Simulator screen) reaches the senior, who replies; a persistent decline becomes a

@@ -1,10 +1,21 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 
 from silverloop.adapters.base import AdapterBatch
 from silverloop.adapters.models import CanonicalDailyMetric, SourceClassification
 from silverloop.fixtures import DEMO_PERSON_ID, persona_profile, synthetic_history
+
+
+def _observed(day: date, now: datetime | None) -> datetime:
+    """Midday UTC on the reading's day (the fixture's convention), never later than `now`."""
+    at = datetime.combine(day, time(hour=12), tzinfo=UTC)
+    return min(at, now) if now is not None else at
+
+
+def _pinned(day: date) -> datetime:
+    """Midday UTC on the reading's day: the fixture's own stamp, whatever the real clock says."""
+    return datetime.combine(day, time(hour=12), tzinfo=UTC)
 
 
 class SyntheticFixtureAdapter:
@@ -19,13 +30,23 @@ class SyntheticFixtureAdapter:
         self.seed = seed
         self.person_id = person_id
 
-    def read(self) -> AdapterBatch:
+    def read(self, *, end_on: date | None = None, now: datetime | None = None) -> AdapterBatch:
+        """The fixture history. With `end_on`, every day moves by one offset so the latest reading
+        falls on `end_on`: the same values in the same order, only the dates change, and an observed
+        time that would land after `now` is held at `now`, so no moved reading claims to come from
+        the future. Without `end_on` the fixture's own days and midday-UTC stamps are returned
+        unchanged, so a pinned read never depends on the real clock."""
         history, current = synthetic_history(self.seed, persona_profile(self.person_id))
+        shift = end_on - current.day if end_on is not None else timedelta(0)
         metrics = [
             CanonicalDailyMetric(
-                evidence_id=f"wearable_{metric.day.isoformat()}_synthetic",
-                day=metric.day,
-                observed_at=datetime.combine(metric.day, time(hour=12), tzinfo=UTC),
+                evidence_id=f"wearable_{(metric.day + shift).isoformat()}_synthetic",
+                day=metric.day + shift,
+                observed_at=(
+                    _observed(metric.day + shift, now)
+                    if end_on is not None
+                    else _pinned(metric.day)
+                ),
                 steps=metric.steps,
                 active_minutes=metric.active_minutes,
                 sleep_hours=metric.sleep_hours,

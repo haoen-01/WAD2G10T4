@@ -108,6 +108,7 @@ from silverloop.db_models import (
     WeekPlanEntryRow,
 )
 from silverloop.fixtures import (
+    DEMO_ANCHOR_DAY,
     DEMO_PERSON_ID,
     DEMO_PERSONAS,
     persona_profile,
@@ -725,6 +726,23 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def _advanced_observed_at(day: date, real_now: datetime) -> datetime:
+    """When a reading `advance` writes for `day` was observed.
+
+    Midday UTC on the day (the fixture's convention, 8 pm in Singapore). For the day that is today
+    in Singapore that can still be ahead of the real clock, so it is held at `real_now` instead --
+    but never before the day's own midnight UTC, because the loop reads a decision's day back off
+    its evidence's UTC date (`_outreach_day`, the contact cap, "already decided today"). Between
+    midnight and 8 am in Singapore that floor is up to eight hours ahead of `real_now`; every other
+    hour of today, and every past day, is never later than now. A later simulated day keeps its
+    midday stamp: it is simulated, not observed.
+    """
+    noon = datetime.combine(day, time(hour=12), tzinfo=UTC)
+    if day != local_date(real_now) or real_now >= noon:
+        return noon
+    return max(real_now, datetime.combine(day, time.min, tzinfo=UTC))
+
+
 def _fixture_checksum(seed: int, scenario_version: str, metrics: list) -> str:
     raw = f"{seed}:{scenario_version}:" + "|".join(
         f"{m.day},{m.steps},{m.wear_hours}" for m in metrics
@@ -990,6 +1008,11 @@ class SqlAlchemyRepository:
         # (every existing test does) keeps working and simply reads the process defaults, where
         # `llm_enabled` is false and the planner never runs.
         self._settings = settings
+        # Whether resets follow today is decided by the settings passed here, never by the
+        # process defaults the property above may resolve later: a repository built without
+        # settings (the YAML scenarios) keeps the fixture's anchor day on
+        # every reset, however many it makes.
+        self._demo_dates_follow_today = settings is not None and settings.demo_dates_follow_today
         self.seed = seed
         self.scenario_version = scenario_version
         self.database_url = _sync_database_url(database_url)
@@ -1115,13 +1138,30 @@ class SqlAlchemyRepository:
             self._refresh_stale_activities(session, active.current_day)
 
     def reset(
-        self, *, person_id: str = DEMO_PERSON_ID, allow_new_person: bool = False
+        self,
+        *,
+        person_id: str = DEMO_PERSON_ID,
+        allow_new_person: bool = False,
+        end_on: date | None = None,
     ) -> DemoResetResponse:
+        """Start a demo person's story over from their synthetic fixture.
+
+        `end_on` moves every fixture day by one offset so the latest reading falls on it: the same
+        values, in the same order, only the dates change. Without it, an app whose settings say
+        `demo_dates_follow_today` ends the readings on today (Singapore); otherwise they keep the
+        fixture's own anchor day, which every scenario and pinned test relies on. A repository
+        built without settings (the YAML scenarios) always keeps the
+        anchor day. Only the synthetic fixture is written here, so a real reading is never moved.
+        """
         now = _utcnow()
+        if end_on is None and self._demo_dates_follow_today:
+            end_on = local_date(now)
         profile = persona_profile(person_id)
         fixture_batch = SyntheticFixtureAdapter(
             persona_seed(person_id, self.seed), person_id=person_id
-        ).read()
+        ).read(end_on=end_on, now=now)
+        # The programmes follow the readings by the same offset as Mdm Lim's anchor day.
+        programme_shift = end_on - DEMO_ANCHOR_DAY if end_on is not None else timedelta(0)
         current = fixture_batch.metrics[-1]
         run_id = _id("run")
         checksum = _fixture_checksum(self.seed, self.scenario_version, fixture_batch.metrics)
@@ -1185,7 +1225,7 @@ class SqlAlchemyRepository:
                 recorded_at=now,
             )
             session.add(consent)
-            self._seed_programmes(session)
+            self._seed_programmes(session, programme_shift)
             self._seed_activity_candidates(session, current.day)
             # The calendar has just been rewound to `current.day`; the catalogue follows it back.
             # Listings are fixture data, not person data -- no row is deleted and no `activity_id`
@@ -1217,9 +1257,16 @@ class SqlAlchemyRepository:
             fixture_checksum=checksum,
         )
 
-    def _seed_programmes(self, session: Session) -> None:
-        for programme in synthetic_programmes():
-            if session.get(ProgrammeRow, programme.programme_id) is not None:
+    def _seed_programmes(self, session: Session, shift: timedelta = timedelta(0)) -> None:
+        for programme in synthetic_programmes(shift):
+            existing = session.get(ProgrammeRow, programme.programme_id)
+            if existing is not None:
+                # Fixture data, not person data, and only ever seeded here: a reset puts its
+                # sessions where the fixture puts them for the new run's days (the same row, so
+                # anything that names it still resolves). Done with or without a shift, so a
+                # reset that keeps the anchor day after one that followed today moves them back.
+                existing.next_session = programme.next_session
+                existing.valid_until = programme.next_session + timedelta(days=7)
                 continue
             session.add(
                 ProgrammeRow(
@@ -1473,7 +1520,8 @@ class SqlAlchemyRepository:
         context: ContextSignal,
         recorded_at: datetime,
     ) -> DailyMetricRow:
-        observed_at = datetime.combine(metric.day, time(hour=12), tzinfo=UTC)
+        # The decision evidence copies this row's `observed_at`, so it is held the same way.
+        observed_at = _advanced_observed_at(metric.day, _utcnow())
         return DailyMetricRow(
             metric_id=_id("metric"),
             evidence_id=_id("wearable"),

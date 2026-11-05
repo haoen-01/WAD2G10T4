@@ -70,6 +70,9 @@ export default defineConfig({
         // The "Read my day" voice: off, so the run never depends on a downloaded model. The browser
         // reads aloud instead.
         TTS_ENABLED: 'false',
+        // The demo's readings stay on the fixture's anchor day (Tue, 18 Aug 2026), which the specs
+        // assert against, instead of moving to end on the day the run happens.
+        DEMO_DATES_FOLLOW_TODAY: 'false',
         AUTH_ENABLED: 'false',
         // The API's default CORS allow-list names port 3000 only; on an alternate web port the
         // browser would be refused every request and every API-backed spec would time out.

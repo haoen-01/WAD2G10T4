@@ -13,6 +13,14 @@ Open <http://127.0.0.1:3000>. The home page should say **Backend connected**. Ev
 synthetic data for one demo person, Mdm Lim. To start again at any point, run `pnpm demo:reset` in
 a terminal (or send `POST /v1/demo/reset` from the API docs used below).
 
+Each reset moves Mdm Lim's sample readings so her latest day is today in Singapore, and Home says
+**Today** rather than a date in August. The readings are the same every time; only their dates
+move, and the sample programmes and activity listings move with them. A run started on an earlier
+day keeps that day after a restart, so reset on the morning of the demo. Advancing a day moves past
+today into simulated days, which keep their simulated weather: live weather only ever speaks for
+today. To see the fixture's own dates (latest reading Tue, 18 Aug 2026), start the demo with
+`DEMO_DATES_FOLLOW_TODAY=false`; the browser tests always do.
+
 ### The signed-in demo on shared Supabase
 
 The offline demo above needs nothing else. For the signed-in app, run this on the morning of the
